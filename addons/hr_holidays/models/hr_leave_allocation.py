@@ -457,7 +457,7 @@ class HolidaysAllocation(models.Model):
         If force_period is set, the accrual will run until date_to in a prorated way (used for end of year accrual actions).
         """
         date_to = date_to or fields.Date.today()
-        already_accrued = {allocation.id: allocation.number_of_days != 0 and allocation.accrual_plan_id.accrued_gain_time == 'start' for allocation in self}
+        already_accrued = {allocation.id: allocation.already_accrued or (allocation.number_of_days != 0 and allocation.accrual_plan_id.accrued_gain_time == 'start') for allocation in self}
         first_allocation = _("""This allocation have already ran once, any modification won't be effective to the days allocated to the employee. If you need to change the configuration of the allocation, delete and create a new one.""")
         for allocation in self:
             level_ids = allocation.accrual_plan_id.level_ids.sorted('sequence')
@@ -537,7 +537,8 @@ class HolidaysAllocation(models.Model):
             # once, preventing double allocation.
             if allocation.accrual_plan_id.accrued_gain_time == 'start':
                 # check that we are at the start of a period, not on a carry-over or level transition date
-                current_level = current_level or allocation.accrual_plan_id.level_ids[0]
+                level_start = {level._get_level_transition_date(allocation.date_from): level for level in allocation.accrual_plan_id.level_ids}
+                current_level = level_start.get(allocation.lastcall) or current_level or allocation.accrual_plan_id.level_ids[0]
                 period_start = current_level._get_previous_date(allocation.lastcall)
                 if current_level.cap_accrued_time:
                     current_level_maximum_leave = current_level.maximum_leave if current_level.added_value_type == "day" else current_level.maximum_leave / (allocation.employee_id.sudo().resource_id.calendar_id.hours_per_day or HOURS_PER_DAY)
@@ -700,8 +701,8 @@ class HolidaysAllocation(models.Model):
                     .get(allocation.holiday_status_id, {}).get('excess_days', {})
                 previous_excess = dict(previous_consumed_leaves[1]).get(allocation.employee_id, {}) \
                     .get(allocation.holiday_status_id, {}).get('excess_days', {})
-                total_current_excess = sum(leave_date['amount'] for leave_date in current_excess.values())
-                total_previous_excess = sum(leave_date['amount'] for leave_date in previous_excess.values())
+                total_current_excess = sum(leave_date['amount'] and not leave_date['is_virtual'] for leave_date in current_excess.values())
+                total_previous_excess = sum(leave_date['amount'] and not leave_date['is_virtual'] for leave_date in previous_excess.values())
 
                 if total_current_excess <= total_previous_excess:
                     continue
