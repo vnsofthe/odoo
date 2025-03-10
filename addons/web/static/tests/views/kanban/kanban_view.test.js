@@ -6,6 +6,7 @@ import {
     edit,
     hover,
     leave,
+    on,
     pointerDown,
     press,
     queryAll,
@@ -14,6 +15,7 @@ import {
     queryOne,
     queryText,
     resize,
+    scroll,
     setInputFiles,
 } from "@odoo/hoot-dom";
 import { Deferred, advanceFrame, animationFrame, runAllTimers, tick } from "@odoo/hoot-mock";
@@ -12840,26 +12842,26 @@ test("scroll on group unfold and progressbar click", async () => {
     });
 
     expect.verifySteps(["get_views", "read_progress_bar", "web_read_group", "web_search_read"]);
-    queryOne(".o_content").scrollTo = (params) => {
-        expect.step("scrolled");
-        expect(params.top).toBe(0);
-    };
+    queryOne(".o_content").style.maxHeight = "80px";
+    on(".o_content", "scroll", () => expect.step("scrolled"));
 
+    await scroll(".o_content", { top: 50 }); // scroll down to allow auto-scroll to top
     await contains(getKanbanProgressBars(0)[0]).click();
 
     expect.verifySteps([
+        "scrolled",
         "web_read_group",
         "web_search_read",
         "read_progress_bar",
         "web_read_group",
         "web_read_group",
-        "scrolled",
     ]);
     expect(getKanbanColumn(1)).toHaveClass("o_column_folded");
 
+    await scroll(".o_content", { top: 50 }); // scroll down to allow auto-scroll to top
     await contains(getKanbanColumn(1)).click();
 
-    expect.verifySteps(["web_search_read", "scrolled"]);
+    expect.verifySteps(["scrolled", "web_search_read"]);
 });
 
 test.tags("desktop");
@@ -12958,6 +12960,8 @@ test("action button in controlPanel with display='always'", async () => {
 
 test.tags("desktop");
 test("Keep scrollTop when loading records with load more", async () => {
+    Partner._records[0].bar = false;
+    Partner._records[1].bar = false;
     await mountView({
         type: "kanban",
         resModel: "partner",
@@ -12972,14 +12976,12 @@ test("Keep scrollTop when loading records with load more", async () => {
         groupBy: ["bar"],
         limit: 1,
     });
-    queryOne(".o_kanban_renderer").style.overflow = "scroll";
-    queryOne(".o_kanban_renderer").style.height = "500px";
     const clickKanbanLoadMoreButton = queryFirst(".o_kanban_load_more button");
     clickKanbanLoadMoreButton.scrollIntoView();
-    const previousScrollTop = queryOne(".o_kanban_renderer").scrollTop;
+    const previousScrollTop = queryOne(".o_content").scrollTop;
     await contains(clickKanbanLoadMoreButton).click();
     expect(previousScrollTop).not.toBe(0, { message: "Should not have the scrollTop value at 0" });
-    expect(queryOne(".o_kanban_renderer").scrollTop).toBe(previousScrollTop);
+    expect(queryOne(".o_content").scrollTop).toBe(previousScrollTop);
 });
 
 test("Kanban: no reset of the groupby when a non-empty column is deleted", async () => {
