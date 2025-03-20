@@ -1424,7 +1424,7 @@ class AccountMove(models.Model):
             else:
                 move.invoice_filter_type_domain = False
 
-    @api.depends('commercial_partner_id', 'company_id')
+    @api.depends('commercial_partner_id', 'company_id', 'move_type')
     def _compute_bank_partner_id(self):
         for move in self:
             if move.is_inbound():
@@ -3233,10 +3233,16 @@ class AccountMove(models.Model):
 
                 except RedirectWarning:
                     raise
-                except Exception:
+                except Exception as e:
                     message = _("Error importing attachment '%s' as invoice (decoder=%s)", file_data['filename'], decoder.__name__)
-                    current_invoice.sudo().message_post(body=message)
                     _logger.exception(message)
+                    if isinstance(e, UserError):
+                        message = Markup("%s<br/><br/>%s<br/>%s") % (
+                            message,
+                            _("This specific error occurred during the import:"),
+                            str(e),
+                        )
+                    current_invoice.sudo().message_post(body=message)
 
             passed_file_data_list.append(file_data)
             close_file(file_data)
@@ -4075,7 +4081,6 @@ class AccountMove(models.Model):
             move.name = False
             move.write({
                 'move_type': new_move_type,
-                'partner_bank_id': False,
                 'currency_id': move.currency_id.id,
                 'fiscal_position_id': move.fiscal_position_id.id,
             })
