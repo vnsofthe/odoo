@@ -136,6 +136,7 @@ import functools
 import glob
 import hashlib
 import hmac
+import importlib.metadata
 import inspect
 import json
 import logging
@@ -145,7 +146,6 @@ import re
 import threading
 import time
 import traceback
-import warnings
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from hashlib import sha512
@@ -278,7 +278,7 @@ ROUTING_KEYS = {
     'alias', 'host', 'methods',
 }
 
-if parse_version(werkzeug.__version__) >= parse_version('2.0.2'):
+if parse_version(importlib.metadata.version('werkzeug')) >= parse_version('2.0.2'):
     # Werkzeug 2.0.2 adds the websocket option. If a websocket request
     # (ws/wss) is trying to access an HTTP route, a WebsocketMismatch
     # exception is raised. On the other hand, Werkzeug 0.16 does not
@@ -1276,7 +1276,7 @@ class HTTPRequest:
     def __init__(self, environ):
         httprequest = werkzeug.wrappers.Request(environ)
         httprequest.user_agent_class = UserAgent  # use vendored userAgent since it will be removed in 2.1
-        httprequest.parameter_storage_class = werkzeug.datastructures.ImmutableOrderedMultiDict
+        httprequest.parameter_storage_class = werkzeug.datastructures.ImmutableMultiDict
         httprequest.max_content_length = DEFAULT_MAX_CONTENT_LENGTH
         httprequest.max_form_memory_size = 10 * 1024 * 1024  # 10 MB
 
@@ -2210,7 +2210,7 @@ class JsonRPCDispatcher(Dispatcher):
         response = {'jsonrpc': '2.0', 'id': self.request_id}
         if error is not None:
             response['error'] = error
-        if result is not None:
+        else:
             response['result'] = result
 
         return self.request.make_json_response(response)
