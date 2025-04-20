@@ -2483,6 +2483,33 @@ export class Wysiwyg extends Component {
         await snippetsMenuMountedProm;
     }
     /**
+     * Retrieves an array of banner command objects, each representing a specific
+     * type of banner (info, success, warning, danger) that can be inserted.
+     * Each banner command contains detail such as the label, type, icon,
+     * description, and priority.
+     *
+     * @returns {Array}
+     */
+    _getBannerCommands() {
+        return [
+            this._getBannerCommand(_t('Banner Info'), '💡', 'info', 'fa-info-circle', _t('Insert an info banner'), 24),
+            this._getBannerCommand(_t('Banner Success'), '✅', 'success', 'fa-check-circle', _t('Insert a success banner'), 23),
+            this._getBannerCommand(_t('Banner Warning'), '⚠️', 'warning', 'fa-exclamation-triangle', _t('Insert a warning banner'), 22),
+            this._getBannerCommand(_t('Banner Danger'), '❌', 'danger', 'fa-exclamation-circle', _t('Insert a danger banner'), 21),
+        ];
+    }
+    /**
+     * Returns an array containing a banner category object with a
+     * name and priority value.
+     *
+     * @returns {Array}
+     */
+    _getBannerCategory() {
+        return [
+            { name: _t("Banners"), priority: 65 }
+        ];
+    }
+    /**
      * If the element holds a translation, saves it. Otherwise, fallback to the
      * standard saving but with the lang kept.
      *
@@ -2522,12 +2549,9 @@ export class Wysiwyg extends Component {
     }
     _getPowerboxOptions() {
         const editorOptions = this.options;
-        const categories = [{ name: _t('Banners'), priority: 65 },];
+        const categories = [...this._getBannerCategory()];
         const commands = [
-            this._getBannerCommand(_t('Banner Info'), '💡', 'info', 'fa-info-circle', _t('Insert an info banner'), 24),
-            this._getBannerCommand(_t('Banner Success'), '✅', 'success', 'fa-check-circle', _t('Insert a success banner'), 23),
-            this._getBannerCommand(_t('Banner Warning'), '⚠️', 'warning', 'fa-exclamation-triangle', _t('Insert a warning banner'), 22),
-            this._getBannerCommand(_t('Banner Danger'), '❌', 'danger', 'fa-exclamation-circle', _t('Insert a danger banner'), 21),
+            ...this._getBannerCommands(),
             {
                 category: _t('Structure'),
                 name: _t('Quote'),
@@ -3649,25 +3673,30 @@ export class Wysiwyg extends Component {
                 }
             }
         }
+        let newAttachmentSrc = isBackground ? el.dataset.bgSrc : el.getAttribute('src');
+        const isImageAlreadySaved = !newAttachmentSrc || !newAttachmentSrc.startsWith("data:");
         // Frequent media changes or page reloads may trigger a save request  
         // without removing the `o_modified_image_to_save` class, causing a traceback  
         // on the next save since the element loses its base64 `src`.  
         // If the image isn't already saved, a new copy is created.
-        let newAttachmentSrc = el.getAttribute('src');
-        const isImageAlreadySaved = !newAttachmentSrc || !newAttachmentSrc.startsWith("data:");
-        if (!isImageAlreadySaved) {
-            newAttachmentSrc = await this._serviceRpc(
-                `/web_editor/modify_image/${encodeURIComponent(el.dataset.originalId)}`,
-                {
-                    res_model: resModel,
-                    res_id: parseInt(resId),
-                    data: (isBackground ? el.dataset.bgSrc : el.getAttribute('src')).split(',')[1],
-                    alt_data: altData,
-                    mimetype: (isBackground ? el.dataset.mimetype : el.getAttribute('src').split(":")[1].split(";")[0]),
-                    name: (el.dataset.fileName ? el.dataset.fileName : null),
-                },
-            );
+        if (isImageAlreadySaved) {
+            el.classList.remove('o_modified_image_to_save');
+            return;
         }
+        // Modifying an image always creates a copy of the original, even if
+        // it was modified previously, as the other modified image may be used
+        // elsewhere if the snippet was duplicated or was saved as a custom one.
+        newAttachmentSrc = await this._serviceRpc(
+            `/web_editor/modify_image/${encodeURIComponent(el.dataset.originalId)}`,
+            {
+                res_model: resModel,
+                res_id: parseInt(resId),
+                data: (isBackground ? el.dataset.bgSrc : el.getAttribute('src')).split(',')[1],
+                alt_data: altData,
+                mimetype: (isBackground ? el.dataset.mimetype : el.getAttribute('src').split(":")[1].split(";")[0]),
+                name: (el.dataset.fileName ? el.dataset.fileName : null),
+            },
+        );
         el.classList.remove('o_modified_image_to_save');
         if (isBackground) {
             const parts = weUtils.backgroundImageCssToParts($(el).css('background-image'));
