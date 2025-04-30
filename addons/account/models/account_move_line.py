@@ -632,6 +632,7 @@ class AccountMoveLine(models.Model):
                     company_id=line.company_id.id,
                     partner_id=line.partner_id.id,
                     move_type=line.move_id.move_type,
+                    journal_id=line.journal_id.id,
                 )
                 if account_id:
                     line.account_id = account_id
@@ -971,7 +972,7 @@ class AccountMoveLine(models.Model):
                 include_caba_tags=line.move_id.always_tax_exigible,
                 fixed_multiplicator=sign,
             )
-            rate = line.amount_currency / line.balance if line.balance else line.currency_rate
+            rate = line.amount_currency / line.balance if (line.amount_currency and line.balance) else line.currency_rate
             line.compute_all_tax_dirty = True
             line.compute_all_tax = {
                 frozendict({
@@ -2693,6 +2694,14 @@ class AccountMoveLine(models.Model):
 
         return partials
 
+    def _get_exchange_journal(self, company):
+        return company.currency_exchange_journal_id
+
+    def _get_exchange_account(self, company, amount):
+        if amount > 0.0:
+            return company.expense_currency_exchange_account_id
+        return company.income_currency_exchange_account_id
+
     def _prepare_exchange_difference_move_vals(self, amounts_list, company=None, exchange_date=None, **kwargs):
         """ Prepare values to create later the exchange difference journal entry.
         The exchange difference journal entry is there to fix the debit/credit of lines when the journal items are
@@ -2712,9 +2721,7 @@ class AccountMoveLine(models.Model):
         if not company:
             return
 
-        journal = company.currency_exchange_journal_id
-        expense_exchange_account = company.expense_currency_exchange_account_id
-        income_exchange_account = company.income_currency_exchange_account_id
+        journal = self._get_exchange_journal(company)
         accounting_exchange_date = journal.with_context(move_date=exchange_date).accounting_date if journal else date.min
 
         move_vals = {
@@ -2747,10 +2754,7 @@ class AccountMoveLine(models.Model):
             else:
                 continue
 
-            if amount_residual_to_fix > 0.0:
-                exchange_line_account = expense_exchange_account
-            else:
-                exchange_line_account = income_exchange_account
+            exchange_line_account = self._get_exchange_account(company, amount_residual_to_fix)
 
             sequence = len(move_vals['line_ids'])
             line_vals = [
