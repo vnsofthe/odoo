@@ -799,7 +799,7 @@ class AccountMove(models.Model):
     @api.depends('invoice_date', 'company_id')
     def _compute_date(self):
         for move in self:
-            if not move.invoice_date:
+            if not move.invoice_date or not move.is_invoice():
                 if not move.date:
                     move.date = fields.Date.context_today(self)
                 continue
@@ -3288,7 +3288,8 @@ class AccountMove(models.Model):
             for move in self:
                 if 'tax_totals' in vals:
                     super(AccountMove, move).write({'tax_totals': vals['tax_totals']})
-        if 'journal_id' in vals:
+
+        if any(field in vals for field in ['journal_id', 'currency_id']):
             self.line_ids._check_constrains_account_id_journal_id()
 
         return res
