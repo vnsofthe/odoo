@@ -1023,6 +1023,7 @@ class AccountMoveLine(models.Model):
             for line in self.move_id.line_ids
             if line.display_type == 'product'
             and (discount_allocation_account := line.move_id._get_discount_allocation_account())
+            and line.account_id != discount_allocation_account
             and (amount := line.currency_id.round(
                 line.move_id.direction_sign * line.quantity * line.price_unit * line.discount / 100
             ))
@@ -1305,7 +1306,7 @@ class AccountMoveLine(models.Model):
 
     @api.constrains('account_id', 'tax_ids', 'tax_line_id', 'reconciled')
     def _check_off_balance(self):
-        for line in self:
+        for line in self.move_id.line_ids:
             if line.account_id.internal_group == 'off_balance':
                 if any(a.internal_group != line.account_id.internal_group for a in line.move_id.line_ids.account_id):
                     raise UserError(_('If you want to use "Off-Balance Sheet" accounts, all the accounts of the journal entry must be of this type'))
@@ -3447,6 +3448,13 @@ class AccountMoveLine(models.Model):
 
     def _check_edi_line_tax_required(self):
         return True
+
+    def _filter_aml_lot_valuation(self):
+        """ Method used to filter the aml taken into account when computing the invoiced lot value in get_invoiced_lot_values
+        Intended to be overriden in localization.
+        """
+        self.ensure_one()
+        return self.move_id.state == 'posted'
 
     # -------------------------------------------------------------------------
     # PUBLIC ACTIONS
