@@ -1429,6 +1429,8 @@ class AccountMoveLine(models.Model):
             defaults['account_id'] = quick_encode_suggestion['account_id']
             defaults['price_unit'] = quick_encode_suggestion['price_unit']
             defaults['tax_ids'] = [Command.set(quick_encode_suggestion['tax_ids'])]
+        elif (journal := self.env['account.journal'].browse(self.env.context.get('journal_id'))) and journal.default_account_id:
+            defaults['account_id'] = journal.default_account_id
         return defaults
 
     def _sanitize_vals(self, vals):
@@ -3424,6 +3426,13 @@ class AccountMoveLine(models.Model):
 
     def _check_edi_line_tax_required(self):
         return self.product_id.type != 'combo'
+
+    def _filter_aml_lot_valuation(self):
+        """ Method used to filter the aml taken into account when computing the invoiced lot value in get_invoiced_lot_values
+        Intended to be overriden in localization.
+        """
+        self.ensure_one()
+        return self.move_id.state == 'posted'
 
     # -------------------------------------------------------------------------
     # PUBLIC ACTIONS
