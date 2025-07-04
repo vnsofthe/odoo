@@ -131,14 +131,14 @@ export class ImageField extends Component {
                 this.props.record.fields[this.props.name].relation,
                 this.props.record.data[this.props.name][0],
                 imageFieldName,
-                { unique: this.rawCacheKey }
+                { unique: this.rawCacheKey, width: this.props.width, height: this.props.height }
             );
         } else if (isBinarySize(this.props.record.data[this.props.name])) {
             this.lastURL = imageUrl(
                 this.props.record.resModel,
                 this.props.record.resId,
                 imageFieldName,
-                { unique: this.rawCacheKey }
+                { unique: this.rawCacheKey, width: this.props.width, height: this.props.height }
             );
         } else {
             // Use magic-word technique for detecting image type
