@@ -838,6 +838,7 @@ class AccountMove(models.Model):
         for move in self:
             move.made_sequence_hole = move.id in made_sequence_hole
 
+    @api.depends_context('lang')
     @api.depends('move_type')
     def _compute_type_name(self):
         type_name_mapping = dict(
@@ -3249,7 +3250,8 @@ class AccountMove(models.Model):
     # -------------------------------------------------------------------------
 
     def _get_tax_lines_to_aggregate(self):
-        return self.line_ids.filtered(lambda x: x.display_type == 'tax')
+        # Note: We need to include cash rounding lines created by the 'biggest_tax' strategy too.
+        return self.line_ids.filtered('tax_repartition_line_id')
 
     def _prepare_invoice_aggregated_taxes(self, filter_invl_to_apply=None, filter_tax_values_to_apply=None, grouping_key_generator=None):
         self.ensure_one()
