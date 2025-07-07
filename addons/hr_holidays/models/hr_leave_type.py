@@ -206,7 +206,7 @@ class HolidaysType(models.Model):
                 allowed_excess = leave_type.max_allowed_negative if leave_type.allows_negative else 0
                 allocations = allocations.filtered(lambda alloc:
                     alloc.allocation_type == 'accrual'
-                    or (alloc.max_leaves > 0 and alloc.virtual_remaining_leaves > -allowed_excess)
+                    or (alloc.max_leaves > 0 and (alloc.max_leaves - alloc.leaves_taken) > -allowed_excess)
                 )
                 leave_type.has_valid_allocation = bool(allocations)
             else:
@@ -396,6 +396,7 @@ class HolidaysType(models.Model):
             ('holiday_status_id', 'in', self.ids),
         ]
         action['context'] = {
+            'employee_id': False,
             'default_holiday_status_id': self.ids[0],
             'search_default_approved_state': 1,
             'search_default_year': 1,

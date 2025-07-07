@@ -939,6 +939,7 @@ class AccountMove(models.Model):
             for move in moves:
                 move.made_sequence_gap = move.sequence_number > 1 and (move.sequence_number - 1) not in previous_numbers
 
+    @api.depends_context('lang')
     @api.depends('move_type')
     def _compute_type_name(self):
         type_name_mapping = dict(
@@ -4801,8 +4802,7 @@ class AccountMove(models.Model):
     def _can_be_unlinked(self):
         self.ensure_one()
         lock_date = self.company_id._get_user_fiscal_lock_date(self.journal_id)
-        is_part_of_audit_trail = self.posted_before and self.company_id.check_account_audit_trail
-        return not self.inalterable_hash and self.date > lock_date and not is_part_of_audit_trail
+        return not self.inalterable_hash and self.date > lock_date
 
     def _is_protected_by_audit_trail(self):
         return any(move.posted_before and move.company_id.check_account_audit_trail for move in self)
