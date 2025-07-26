@@ -9,6 +9,7 @@ import {
     edit,
     queryAllValues,
     queryAll,
+    manuallyDispatchProgrammaticEvent,
 } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { setupEditor } from "./_helpers/editor";
@@ -430,6 +431,19 @@ test("gradient picker correctly shows the current selected gradient", async () =
     expect("input[name='secondColorPercentage']").toHaveValue(90);
 });
 
+test("custom colorpicker should show default color when selected text has gradient", async () => {
+    await setupEditor(
+        `<p><font style="background-image: linear-gradient(2deg, rgb(255, 204, 51) 10%, rgb(226, 51, 255) 90%);" class="text-gradient">[test]</font></p>`
+    );
+    await waitFor(".o-we-toolbar");
+    expect(".o_font_color_selector").toHaveCount(0);
+    await click(".o-we-toolbar .o-select-color-foreground");
+    await expectElementCount(".o_font_color_selector", 1);
+    await click(".btn:contains('Custom')");
+    await expectElementCount(".o_hex_input", 1);
+    expect(".o_hex_input").toHaveValue("#FF0000");
+});
+
 test("gradient picker does change the selector gradient color", async () => {
     await setupEditor(
         `<p><font style="background-image: linear-gradient(2deg, rgb(255, 204, 51) 10%, rgb(226, 51, 255) 90%);" class="text-gradient">[test]</font></p>`
@@ -696,5 +710,29 @@ describe("color preview", () => {
             </table>
         `);
         await expectElementCount(".o-we-toolbar", 1);
+    });
+
+    test("should preview background color on moving opacity slider in custom tab", async () => {
+        await setupEditor(`<p>[test]</p>`);
+        await expectElementCount(".o-we-toolbar", 1);
+        await click(".o-select-color-background");
+        await animationFrame();
+        await click(".btn:contains('Custom')");
+        const newColor = "#FF0000";
+        await contains(".o_hex_input").edit(newColor);
+        const slider = document.querySelector(".o_opacity_slider");
+        const rect = slider.getBoundingClientRect();
+        const middleY = rect.top + rect.height / 2;
+        manuallyDispatchProgrammaticEvent(slider, "mousedown", {
+            clientX: rect.left,
+            clientY: middleY,
+        });
+        const fontEl = queryOne("font");
+        const bgColor = fontEl.style.backgroundColor;
+        expect(bgColor).toMatch(/^rgba\(255,\s*0,\s*0,\s*0\.\d+\)$/);
+        manuallyDispatchProgrammaticEvent(slider, "mouseup", {
+            clientX: rect.left,
+            clientY: middleY,
+        });
     });
 });
