@@ -5852,7 +5852,7 @@ class AccountMove(models.Model):
 
     def _get_invoice_legal_documents(self, filetype, allow_fallback=False):
         """ Retrieve the invoice legal document of type filetype.
-        :param filetype: the type of legal document to retrieve. Example: 'pdf', 'all'.
+        :param filetype: the type of legal document to retrieve. Example: 'pdf'.
         :param bool allow_fallback: if True, returns a Proforma if the PDF invoice doesn't exist.
         :return dict: the invoice PDF data such as
         {'filename': 'INV_2024_0001.pdf', 'filetype': 'pdf', 'content':...}
@@ -5868,8 +5868,6 @@ class AccountMove(models.Model):
                 }
             elif allow_fallback:
                 return self._get_invoice_pdf_proforma()
-        elif filetype == 'all':
-            return self._get_invoice_legal_documents_all(allow_fallback=allow_fallback)
 
     def _get_invoice_legal_documents_all(self, allow_fallback=False):
         """ Retrieve the invoice legal attachments: PDF, XML, ...
@@ -6192,7 +6190,7 @@ class AccountMove(models.Model):
             force_email_company=force_email_company, force_email_lang=force_email_lang
         )
         record = render_context['record']
-        subtitles = [f"{record.name} - {record.partner_id.name}" if record.partner_id else record.name]
+        subtitles = [f"{record.name} - {record.partner_id.name}" if record.partner_id.name else record.name]
         if self.is_invoice(include_receipts=True):
             # Only show the amount in emails for non-miscellaneous moves. It might confuse recipients otherwise.
             if self.invoice_date_due and self.payment_state not in ('in_payment', 'paid'):
