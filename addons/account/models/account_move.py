@@ -3191,10 +3191,18 @@ class AccountMove(models.Model):
         for old_move, new_move in zip(self, new_moves):
             message_origin = '' if not new_move.auto_post_origin_id else \
                 (Markup('<br/>') + _('This recurring entry originated from %s', new_move.auto_post_origin_id._get_html_link()))
-            message_content = _('This entry has been reversed from %s', old_move._get_html_link()) if default.get('reversed_entry_id') else _('This entry has been duplicated from %s', old_move._get_html_link())
+            message_content = old_move._get_copy_message_content(default)
             bodies[new_move.id] = message_content + message_origin
         new_moves._message_log_batch(bodies=bodies)
         return new_moves
+
+    def _get_copy_message_content(self, default):
+        """Hook method to customize the message content when copying a move.
+        This method can be overridden by other modules to add custom logic.
+        :param default: The default values dict passed to copy method
+        :return: The message content string
+        """
+        return _('This entry has been reversed from %s', self._get_html_link()) if default.get('reversed_entry_id') else _('This entry has been duplicated from %s', self._get_html_link())
 
     def _sanitize_vals(self, vals):
         if vals.get('invoice_line_ids') and vals.get('line_ids'):
@@ -5105,7 +5113,7 @@ class AccountMove(models.Model):
 
     def _link_bill_origin_to_purchase_orders(self, timeout=10):
         for move in self.filtered(lambda m: m.move_type in self.get_purchase_types()):
-            references = [move.invoice_origin] if move.invoice_origin else []
+            references = [ref.strip() for ref in move.invoice_origin.split(',')] if move.invoice_origin else []
             move._find_and_set_purchase_orders(references, move.partner_id.id, move.amount_total, timeout=timeout)
         return self
 
@@ -5305,7 +5313,8 @@ class AccountMove(models.Model):
 
     def action_print_pdf(self):
         self.ensure_one()
-        report_action = self.env.ref('account.account_invoices').report_action(self.id, config=False)
+        invoice_template = self.env['account.move.send']._get_default_pdf_report_id(self)
+        report_action = invoice_template.report_action(self.id, config=False)
         return self._get_action_with_base_document_layout_configurator(report_action)
 
     def preview_invoice(self):

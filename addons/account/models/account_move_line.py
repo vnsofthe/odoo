@@ -3247,6 +3247,7 @@ class AccountMoveLine(models.Model):
         for line in self:
             line.with_context(skip_analytic_sync=True).analytic_distribution = {
                 analytic_line._get_distribution_key(): -analytic_line.amount / line.balance * 100
+                if line.balance else 100
                 for analytic_line in line.analytic_line_ids
             }
 
@@ -3257,7 +3258,7 @@ class AccountMoveLine(models.Model):
 
         rounding_error = 0
         for line in analytic_lines_vals:
-            rounded_amount = self.currency_id.round(line['amount'])
+            rounded_amount = self.company_id.currency_id.round(line['amount'])
             rounding_error += rounded_amount - line['amount']
             line['amount'] = rounded_amount
 
