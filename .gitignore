@@ -10,8 +10,6 @@ _build/
 !.weblate.json
 # compiled python files
 *.py[co]
-*.xml
-*.js
 __pycache__/
 # setup.py egg_info
 *.egg-info
