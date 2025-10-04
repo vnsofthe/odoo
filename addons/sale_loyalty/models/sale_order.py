@@ -213,7 +213,7 @@ class SaleOrder(models.Model):
         claimable_count = float_round(points / reward.required_points, precision_rounding=1, rounding_method='DOWN') if not reward.clear_wallet else 1
         cost = points if reward.clear_wallet else claimable_count * reward.required_points
         return [{
-            'name': _("Free Product - %(product)s", product=product.with_context(display_default_code=False).display_name),
+            'name': reward.description,
             'product_id': product.id,
             'discount': 100,
             'product_uom_qty': reward.reward_product_qty * claimable_count,
@@ -673,8 +673,9 @@ class SaleOrder(models.Model):
     def _recompute_prices(self):
         """Recompute coupons/promotions after pricelist prices reset."""
         super()._recompute_prices()
-        if any(line.is_reward_line for line in self.order_line):
-            self._update_programs_and_rewards()
+        for order in self:
+            if any(line.is_reward_line for line in order.order_line):
+                order._update_programs_and_rewards()
 
     def _get_point_changes(self):
         """
