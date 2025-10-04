@@ -9,11 +9,11 @@
                 <button type="button"  t-on-click="() => this.redo()" class="o-hb-btn btn fa fa-repeat" t-att-disabled="!state.canRedo"/>
             </div>
             <div class="d-flex gap-1">
-                <button t-on-click="onMobilePreviewClick" type="button" class="o-hb-btn btn d-flex align-items-center" t-att-class="{ active: props.isMobile }" data-action="mobile" title="Mobile Preview" accesskey="m" style="--btn-font-size: 20px"><span class="fa fa-mobile" role="img"/></button>
+                <button t-on-click="onMobilePreviewClick" type="button" class="o-hb-btn btn btn-success-color-active d-flex align-items-center" t-att-class="{ active: props.isMobile }" data-action="mobile" title="Mobile Preview" accesskey="m" style="--btn-font-size: 20px"><span class="fa fa-mobile" role="img"/></button>
                 <t t-if="props.slots?.extraActions" t-slot="extraActions"/>
             </div>
         </div>
-        <div class="o-snippets-tabs position-relative">
+        <div t-if="!props.config.isTranslationMode" class="o-snippets-tabs position-relative">
             <div
                 class="o-snippets-tabs-highlighter position-absolute start-50 h-100 pe-none"
                 t-att-class="{
@@ -44,7 +44,7 @@
                 <BlockTab snippetsName="props.snippetsName" />
             </t>
             <t t-if="state.activeTab === 'customize'">
-                <t t-if="!!props.config.customizeTab" t-call="{{props.config.customizeTab}}"/>
+                <t t-if="props.config.isTranslationMode" t-component="CustomizeTranslationTab"/>
                 <CustomizeTab t-else="" currentOptionsContainers="state.currentOptionsContainers" snippetModel="snippetModel"/>
             </t>
             <t t-if="state.activeTab === 'theme'">

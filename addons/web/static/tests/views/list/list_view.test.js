@@ -4718,6 +4718,32 @@ test(`monetary aggregates in grouped list (!= currencies in same group, delete)`
     expect(`.o_group_header:last`).toHaveText("Yes (0)\n 0.00");
 });
 
+test(`list with monetary field with attribute column_invisible="1"`, async () => {
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `
+            <list>
+                <field name="foo"/>
+                <field name="qux" widget="monetary" sum="Sum" column_invisible="1"/>
+                <field name="currency_id"/>
+            </list>
+        `,
+    });
+
+    expect(`.o_data_row`).toHaveCount(4);
+    expect(queryAllTexts(`.o_data_cell`)).toEqual([
+        "yop",
+        "EUR",
+        "blip",
+        "USD",
+        "gnap",
+        "USD",
+        "blip",
+        "USD",
+    ]);
+});
+
 test(`handle false values in aggregates`, async () => {
     Foo._fields.false_amount = fields.Monetary({ currency_field: "currency_test" });
     Foo._fields.currency_test = fields.Many2one({ relation: "res.currency", default: 1 });
@@ -10298,8 +10324,13 @@ test(`editable list with handle widget`, async () => {
         message: "default fourth record should have amount 0",
     });
 
+    await contains(`tbody tr:eq(1) div[name='amount']`).click();
+    await contains(`tbody tr:eq(1) div[name='amount'] input`).edit(600, { confirm: false });
     // Drag and drop the fourth line in second position
-    await contains(`tbody tr:eq(3) .o_handle_cell`).dragAndDrop(queryFirst(`tbody tr:eq(1)`));
+    // TODO JUM: PRHOOT the events
+    const { drop, moveTo } = await contains(`tbody tr:eq(3) .o_handle_cell`).drag();
+    await moveTo(`tbody tr:eq(1)`);
+    await drop(document.body);
     expect.verifySteps([["web_resequence", [4, 2, 3], "int_field", 1]]);
     expect(`tbody tr:eq(0) td:last`).toHaveText("1,200", {
         message: "new first record should have amount 1,200",
@@ -10307,7 +10338,7 @@ test(`editable list with handle widget`, async () => {
     expect(`tbody tr:eq(1) td:last`).toHaveText("0", {
         message: "new second record should have amount 0",
     });
-    expect(`tbody tr:eq(2) td:last`).toHaveText("500", {
+    expect(`tbody tr:eq(2) td:last`).toHaveText("600", {
         message: "new third record should have amount 500",
     });
     expect(`tbody tr:eq(3) td:last`).toHaveText("300", {
@@ -16809,6 +16840,10 @@ test(`Properties: char`, async () => {
     await contains(`.o_list_button_save`).click();
     expect(`.o_field_cell.o_char_cell:eq(0)`).toHaveText("TEST");
     expect.verifySteps(["web_save"]);
+
+    expect(
+        `.o_list_renderer th[data-name='properties.property_char'] .o_list_sortable_icon`
+    ).not.toHaveClass("d-none"); // sortable
 });
 
 test(`Properties: boolean`, async () => {

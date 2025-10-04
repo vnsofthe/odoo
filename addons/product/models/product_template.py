@@ -514,7 +514,7 @@ class ProductTemplate(models.Model):
         for template, vals in zip(templates, vals_list):
             related_vals = {}
             for field_name in self._get_related_fields_variant_template():
-                if vals.get(field_name):
+                if vals.get(field_name) and not template[field_name]:
                     related_vals[field_name] = vals[field_name]
             if related_vals:
                 template.write(related_vals)
@@ -631,7 +631,7 @@ class ProductTemplate(models.Model):
                     %s
                 </p>
                 <p>
-                    <a class="oe_link" href="https://www.odoo.com/documentation/18.0/_downloads/c2c6ce32294dfddffcfefcf2775f7a09/pdfquotebuilderexamples.zip">
+                    <a class="oe_link" href="https://www.odoo.com/documentation/latest/_downloads/c2c6ce32294dfddffcfefcf2775f7a09/pdfquotebuilderexamples.zip">
                     %s
                     </a>
                 </p>

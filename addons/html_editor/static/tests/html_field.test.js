@@ -14,6 +14,7 @@ import {
     press,
     queryAll,
     queryAllTexts,
+    queryFirst,
     queryOne,
     waitFor,
     hover,
@@ -1270,6 +1271,42 @@ test("MediaDialog contains 'Videos' tab when sanitize_tags = true and 'allowVide
     ]);
 });
 
+test("Image should not be inserted in a formatted empty node", async () => {
+    Partner._records = [
+        {
+            id: 1,
+            txt: `<div class="o-paragraph"><strong>test</strong></div>
+                    <div class="o-paragraph">
+                        <strong data-oe-zws-empty-inline="">\u200b</strong><br />
+                    </div>`,
+        },
+    ];
+
+    await mountView({
+        type: "form",
+        resId: 1,
+        resModel: "partner",
+        arch: `
+            <form>
+                <field name="txt" widget="html"/>
+            </form>`,
+    });
+    setSelection({
+        anchorNode: queryOne("div.o-paragraph strong[data-oe-zws-empty-inline]"),
+        anchorOffset: 0,
+    });
+    await insertText(htmlEditor, "/media");
+    await waitFor(".o-we-powerbox");
+    expect(queryAllTexts(".o-we-command-name")[0]).toBe("Media");
+
+    await press("Enter");
+    await animationFrame();
+    await click(queryFirst(".o_existing_attachment_cell button"));
+    await animationFrame();
+    const img = htmlEditor.editable.querySelector("div.o-paragraph img");
+    expect(img.parentElement.nodeName).toBe("DIV");
+});
+
 test("'Media' command is available by default", async () => {
     await mountView({
         type: "form",
@@ -1500,6 +1537,41 @@ test("edit and save a html field in collaborative should keep the same wysiwyg",
 
     await clickSave();
     expect.verifySteps(["web_save"]);
+});
+
+test("'checklist' command is not available when 'allowChecklist' = false", async () => {
+    await mountView({
+        type: "form",
+        resId: 1,
+        resModel: "partner",
+        arch: `
+            <form>
+                <field name="txt" widget="html" options="{'allowChecklist': false}"/>
+            </form>`,
+    });
+    setSelectionInHtmlField();
+    await insertText(htmlEditor, "/chec");
+    await waitFor(".o-we-powerbox");
+    expect(queryAllTexts(".o-we-command-name")).not.toInclude("Checklist");
+});
+
+test("'checklist' toolbar option is not available when 'allowChecklist' = false", async () => {
+    await mountView({
+        type: "form",
+        resId: 1,
+        resModel: "partner",
+        arch: `
+            <form>
+                <field name="txt" widget="html" options="{'allowChecklist': false}"/>
+            </form>`,
+    });
+    const node = queryOne(".odoo-editor-editable p");
+    setSelection({ anchorNode: node, anchorOffset: 0, focusNode: node, focusOffset: 1 });
+    await waitFor(".o-we-toolbar");
+    await expandToolbar();
+    await contains(".o-we-toolbar button[name='list_selector']").click();
+    await waitFor(".o-we-toolbar-dropdown");
+    expect("button[name='checklist']").toHaveCount(0);
 });
 
 describe("sandbox", () => {
@@ -2429,4 +2501,31 @@ describe("codeview enabled", () => {
         await waitFor(".o_select_media_dialog");
         expect(".o_select_media_dialog .nav-link:contains('Videos')").toHaveCount(1);
     });
+});
+
+test("should never insert Table of Contents as the first child of the editable", async () => {
+    Partner._records = [
+        {
+            id: 1,
+            txt: `<h1>first</h1>`,
+        },
+    ];
+    await mountView({
+        type: "form",
+        resId: 1,
+        resModel: "partner",
+        arch: `
+            <form>
+                <field name="txt" widget="html"/>
+            </form>`,
+    });
+    setSelectionInHtmlField("h1");
+    await insertText(htmlEditor, "/tableofcontents");
+    await waitFor(".o-we-powerbox");
+    expect(queryAllTexts(".o-we-command-name")[0]).toBe("Table of Contents");
+    await press("Enter");
+    await animationFrame();
+    const firstChild = htmlEditor.editable.firstChild;
+    expect(firstChild.getAttribute("data-embedded")).not.toBe("tableOfContent");
+    expect(firstChild).toHaveOuterHTML('<div class="o-paragraph"><br></div>');
 });

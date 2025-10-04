@@ -411,9 +411,10 @@ test("many2ones in form views with show_address", async () => {
     });
 
     expect("input.o_input").toHaveValue("aaa");
-    expect(".o_field_many2one_extra").toHaveInnerHTML("<div>Street</div><div>City ZIP</div>", {
-        type: "html",
-    });
+    expect(".o_field_many2one_extra").toHaveInnerHTML(
+        `<div class="text-truncate" title="Street">Street</div> <div class="text-truncate" title="City ZIP">City ZIP</div>`,
+        { type: "html" }
+    );
     expect("button.o_external_button").toHaveCount(1);
 });
 
@@ -457,27 +458,30 @@ test("many2one show_address in edit", async () => {
     });
 
     expect(".o_field_widget input").toHaveValue("aaa");
-    expect(".o_field_many2one_extra").toHaveInnerHTML("<div>AAA</div><div>Record</div>", {
-        type: "html",
-    });
+    expect(".o_field_many2one_extra").toHaveInnerHTML(
+        `<div class="text-truncate" title="AAA">AAA</div><div class="text-truncate" title="Record">Record</div>`,
+        { type: "html" }
+    );
 
     await contains(".o_field_widget input").edit("first record", { confirm: false });
     await runAllTimers();
     await contains(".dropdown-menu li").click();
 
     expect(".o_field_widget input").toHaveValue("first record");
-    expect(".o_field_many2one_extra").toHaveInnerHTML("<div>First</div><div>Record</div>", {
-        type: "html",
-    });
+    expect(".o_field_many2one_extra").toHaveInnerHTML(
+        `<div class="text-truncate" title="First">First</div><div class="text-truncate" title="Record">Record</div>`,
+        { type: "html" }
+    );
 
     await contains(".o_field_widget input").edit("second record", { confirm: false });
     await runAllTimers();
     await contains(".dropdown-menu li").click();
 
     expect(".o_field_widget input").toHaveValue("second record");
-    expect(".o_field_many2one_extra").toHaveInnerHTML("<div>Second</div><div>Record</div>", {
-        type: "html",
-    });
+    expect(".o_field_many2one_extra").toHaveInnerHTML(
+        `<div class="text-truncate" title="Second">Second</div><div class="text-truncate" title="Record">Record</div>`,
+        { type: "html" }
+    );
 });
 
 test("show_address works in a view embedded in a view of another type", async () => {
@@ -1306,6 +1310,90 @@ test("no additional searches after no result is found", async () => {
     await runAllTimers();
     // request is no longer an extension of "p" (no result), need a web_name_search
     expect.verifySteps(["search: m"]);
+});
+
+test("do not prevent previously empty searches once domain is changed", async () => {
+    let count = 0;
+    onRpc("web_name_search", ({ kwargs }) => {
+        count++;
+        if (count < 3) {
+            expect(kwargs.domain).toEqual([["foo", "=", "yop"]]);
+        } else {
+            expect(kwargs.domain).toEqual([["foo", "=", "not yop"]]);
+        }
+        expect.step(`search: ${kwargs.name}`);
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="foo" />
+                <field name="trululu" domain="[('foo', '=', foo)]" />
+            </form>`,
+    });
+
+    expect(".o_field_many2one input").toHaveValue("aaa");
+    await contains(".o_field_many2one input").clear({ confirm: false });
+    await runAllTimers();
+    expect.verifySteps(["search: "]);
+    await contains(".o_field_many2one input").edit("p", { confirm: false });
+    await runAllTimers();
+    expect.verifySteps(["search: p"]);
+    expect(".o_many2one .dropdown-menu li:not(.o_m2o_dropdown_option)").toHaveCount(0, {
+        message: "no result is found",
+    });
+    await contains(".o_field_many2one input").edit("pe");
+    await runAllTimers();
+    // no web_name_search because there was no result for "p"
+    await contains(".o_field_widget[name='foo'] input").edit("not yop", { confirm: false });
+    await contains(".o_field_many2one input").edit("pe");
+    await runAllTimers();
+    // domain changed so the previously empty search is launched again
+    expect.verifySteps(["search: pe"]);
+});
+
+test("do not prevent previously empty searches once context is changed", async () => {
+    let count = 0;
+    onRpc("web_name_search", ({ kwargs }) => {
+        count++;
+        if (count < 3) {
+            expect(kwargs.context.foo).toBe("yop");
+        } else {
+            expect(kwargs.context.foo).toBe("not yop");
+        }
+        expect.step(`search: ${kwargs.name}`);
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="foo" />
+                <field name="trululu" context="{'foo': foo}" />
+            </form>`,
+    });
+
+    expect(".o_field_many2one input").toHaveValue("aaa");
+    await contains(".o_field_many2one input").clear({ confirm: false });
+    await runAllTimers();
+    expect.verifySteps(["search: "]);
+    await contains(".o_field_many2one input").edit("p", { confirm: false });
+    await runAllTimers();
+    expect.verifySteps(["search: p"]);
+    expect(".o_many2one .dropdown-menu li:not(.o_m2o_dropdown_option)").toHaveCount(0, {
+        message: "no result is found",
+    });
+    await contains(".o_field_many2one input").edit("pe");
+    await runAllTimers();
+    // no web_name_search because there was no result for "p"
+    await contains(".o_field_widget[name='foo'] input").edit("not yop", { confirm: false });
+    await contains(".o_field_many2one input").edit("pe");
+    await runAllTimers();
+    // context changed so the previously empty search is launched again
+    expect.verifySteps(["search: pe"]);
 });
 
 test("many2one search with trailing and leading spaces", async () => {

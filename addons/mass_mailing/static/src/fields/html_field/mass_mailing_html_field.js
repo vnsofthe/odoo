@@ -122,7 +122,7 @@ export class MassMailingHtmlField extends HtmlField {
     }
 
     get withBuilder() {
-        return this.state.activeTheme !== "basic";
+        return !this.props.readonly && this.state.activeTheme !== "basic";
     }
 
     resetIframe() {
@@ -202,7 +202,12 @@ export class MassMailingHtmlField extends HtmlField {
      * @override
      */
     getReadonlyConfig() {
-        return super.getReadonlyConfig();
+        const config = super.getReadonlyConfig();
+        config.value =
+            config.value && config.value.toString()
+                ? config.value
+                : this.props.record.data[this.props.inlineField];
+        return config;
     }
 
     getBuilderConfig() {
@@ -321,6 +326,7 @@ export const massMailingHtmlField = {
     component: MassMailingHtmlField,
     extractProps({ attrs, options }) {
         const props = htmlField.extractProps(...arguments);
+        props.editorConfig.allowChecklist = false;
         props.editorConfig.allowVideo = false;
         props.editorConfig.baseContainers = ["P"];
         Object.assign(props, {

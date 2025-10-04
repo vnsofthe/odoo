@@ -30,6 +30,7 @@ export class ColorSelector extends Component {
     };
     static defaultProps = {
         themeColorPrefix: "",
+        enabledTabs: ["solid", "gradient", "custom"],
     };
 
     setup() {
@@ -70,6 +71,7 @@ export class ColorSelector extends Component {
                 themeColorPrefix: this.props.themeColorPrefix,
             },
             {
+                env: this.__owl__.childEnv,
                 onClose: () => {
                     this.props.applyColorResetPreview();
                     this.props.onClose();

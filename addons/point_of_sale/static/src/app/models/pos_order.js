@@ -15,7 +15,7 @@ export class PosOrder extends Base {
     setup(vals) {
         super.setup(vals);
 
-        if (!this.session_id?.id && (!this.finalized || typeof this.id !== "number")) {
+        if (!this.session_id?.id && (!this.finalized || !this.isSynced)) {
             this.session_id = this.session;
 
             if (this.state === "draft" && this.lines.length == 0 && this.payment_ids.length == 0) {
@@ -27,6 +27,7 @@ export class PosOrder extends Base {
         this.name = vals.name || "/";
         this.nb_print = vals.nb_print || 0;
         this.to_invoice = vals.to_invoice || false;
+        this.setShippingDate(vals.shipping_date);
         this.state = vals.state || "draft";
 
         if (!vals.last_order_preparation_change) {
@@ -108,7 +109,7 @@ export class PosOrder extends Base {
     }
 
     get isUnsyncedPaid() {
-        return this.finalized && typeof this.id === "string";
+        return this.finalized && !this.isSynced;
     }
 
     get originalSplittedOrder() {
@@ -302,7 +303,7 @@ export class PosOrder extends Base {
     }
 
     get isBooked() {
-        return Boolean(this.uiState.booked || !this.isEmpty() || typeof this.id === "number");
+        return Boolean(this.uiState.booked || !this.isEmpty() || this.isSynced);
     }
 
     get hasChange() {
@@ -359,6 +360,7 @@ export class PosOrder extends Base {
         this.last_order_preparation_change.metadata = {
             serverDate: serializeDateTime(DateTime.now()),
         };
+        this._markDirty();
     }
 
     isEmpty() {
@@ -878,6 +880,10 @@ export class PosOrder extends Base {
         }
     }
 
+    canBeValidated() {
+        return this.isPaid() && this._isValidEmptyOrder();
+    }
+
     // NOTE: Overrided in pos_loyalty to put loyalty rewards at this end of array.
     getOrderlines() {
         return this.lines;
@@ -896,6 +902,18 @@ export class PosOrder extends Base {
 
     get floatingOrderName() {
         return this.floating_order_name || this.tracking_number.toString() || "";
+    }
+
+    sortBySequenceAndCategory(a, b) {
+        const seqA = a.product_id?.pos_categ_ids[0]?.sequence ?? 0;
+        const seqB = b.product_id?.pos_categ_ids[0]?.sequence ?? 0;
+        const pos_categ_id_A = a.product_id?.pos_categ_ids[0]?.id ?? 0;
+        const pos_categ_id_B = b.product_id?.pos_categ_ids[0]?.id ?? 0;
+
+        if (seqA !== seqB) {
+            return seqA - seqB;
+        }
+        return pos_categ_id_A - pos_categ_id_B;
     }
 
     getName() {

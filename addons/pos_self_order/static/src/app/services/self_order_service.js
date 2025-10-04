@@ -2,13 +2,11 @@ import { Reactive } from "@web/core/utils/reactive";
 import { ConnectionLostError, RPCError, rpc } from "@web/core/network/rpc";
 import { _t } from "@web/core/l10n/translation";
 import { formatCurrency as webFormatCurrency } from "@web/core/currency";
-import { attributeFormatter } from "@pos_self_order/app/utils";
 import { markup } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { registry } from "@web/core/registry";
 import { cookie } from "@web/core/browser/cookie";
 import { formatDateTime, serializeDateTime } from "@web/core/l10n/dates";
-import { printerService } from "@point_of_sale/app/services/printer_service";
 import { OrderReceipt } from "@point_of_sale/app/screens/receipt_screen/receipt/order_receipt";
 import { HWPrinter } from "@point_of_sale/app/utils/printer/hw_printer";
 import { renderToElement } from "@web/core/utils/render";
@@ -71,7 +69,7 @@ export class SelfOrder extends Reactive {
 
         this.initData();
         if (this.config.self_ordering_mode === "kiosk") {
-            this.initKioskData();
+            await this.initKioskData();
         } else {
             await this.initMobileData();
         }
@@ -165,8 +163,13 @@ export class SelfOrder extends Reactive {
     getAvailableCategories() {
         let now = luxon.DateTime.now();
         now = now.hour + now.minute / 60;
+        const isKiosk = this.config.self_ordering_mode === "kiosk";
         const availableCategories = this.productCategories
-            .filter((c) => this.productByCategIds[c.id]?.length > 0)
+            .filter(
+                (c) =>
+                    this.productByCategIds[c.id]?.length > 0 ||
+                    (isKiosk && c.child_ids.some((child) => child.id in this.productByCategIds))
+            )
             .sort((a, b) => a.sequence - b.sequence);
         return availableCategories.filter((c) => {
             const hourStart = c.hour_after;
@@ -514,10 +517,12 @@ export class SelfOrder extends Reactive {
             }
         }
     }
-    initKioskData() {
+    async initKioskData() {
         if (this.session && this.access_token) {
             this.ordering = true;
         }
+
+        await this.config.cacheReceiptLogo();
 
         window.addEventListener("click", (event) => {
             clearTimeout(this.idleTimout);
@@ -647,7 +652,7 @@ export class SelfOrder extends Reactive {
     async getUserDataFromServer(tokens = []) {
         const tableIdentifier = this.router.getTableIdentifier([]);
         const dbAccessToken = this.models["pos.order"]
-            .filter((o) => o.state === "draft" && typeof o.id === "number")
+            .filter((o) => o.state === "draft" && o.isSynced)
             .map((order) => ({
                 access_token: order.access_token,
                 state: order.state,
@@ -839,20 +844,6 @@ export class SelfOrder extends Reactive {
     isTaxesIncludedInPrice() {
         return this.config.iface_tax_included === "total";
     }
-    getSelectedAttributes(line) {
-        const attributeValues = line.attribute_value_ids;
-        const customAttr = line.custom_attribute_value_ids;
-        return attributeFormatter(
-            this.models["product.attribute"].getAllBy("id"),
-            attributeValues,
-            customAttr
-        );
-    }
-    getFullProductName(line) {
-        const attrs = this.getSelectedAttributes(line);
-        const attrsStr = " (" + attrs.map((a) => a.value).join(", ") + ")";
-        return line.full_product_name + (attrs.length ? attrsStr : "");
-    }
     showDownloadButton(order) {
         return this.config.self_ordering_mode === "mobile" && order.state === "paid";
     }
@@ -903,7 +894,6 @@ export const selfOrderService = {
     },
 };
 
-registry.category("services").add("printer", printerService);
 registry.category("services").add("self_order", selfOrderService);
 
 /**

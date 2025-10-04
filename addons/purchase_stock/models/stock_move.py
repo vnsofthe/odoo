@@ -150,24 +150,30 @@ class StockMove(models.Model):
         if not (self.purchase_line_id and self.purchase_line_id):
             return valuation_data
 
-        quantity = 0
+        aml_quantity = 0
         value = 0
         aml_ids = set()
         for aml in self.purchase_line_id.invoice_lines:
-            if at_date and aml.date > at_date:
+            if at_date and fields.Datetime.to_datetime(aml.date) > at_date:
                 continue
             if aml.move_id.state != 'posted':
                 continue
             aml_ids.add(aml.id)
             if aml.move_type == 'in_invoice':
-                quantity += aml.quantity
+                aml_quantity += aml.quantity
                 value += aml.price_subtotal
             elif aml.move_type == 'in_refund':
-                quantity -= aml.quantity
+                aml_quantity -= aml.quantity
                 value -= aml.price_subtotal
 
-        valuation_data['quantity'] = quantity
-        valuation_data['value'] = value
+        if aml_quantity <= 0:
+            return valuation_data
+        if quantity >= aml_quantity:
+            valuation_data['quantity'] = aml_quantity
+            valuation_data['value'] = value
+        else:
+            valuation_data['quantity'] = quantity
+            valuation_data['value'] = quantity * value / aml_quantity
         account_moves = self.env['account.move.line'].browse(aml_ids).move_id
         valuation_data['description'] = _('%(value)s for %(quantity)s %(unit)s from %(bills)s',
             value=value, quantity=quantity, unit=self.product_id.uom_id.name,

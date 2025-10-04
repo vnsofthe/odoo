@@ -1,4 +1,8 @@
-import { tripleClick } from "@html_editor/../tests/_helpers/user_actions";
+import { setSelection } from "@html_editor/../tests/_helpers/selection";
+import {
+    insertText as htmlInsertText,
+    tripleClick,
+} from "@html_editor/../tests/_helpers/user_actions";
 
 import {
     click,
@@ -18,7 +22,7 @@ import {
 } from "@mail/../tests/mail_test_helpers";
 import { LONG_PRESS_DELAY } from "@mail/utils/common/hooks";
 import { describe, expect, test } from "@odoo/hoot";
-import { animationFrame, leave, pointerDown, press, queryFirst } from "@odoo/hoot-dom";
+import { animationFrame, leave, pointerDown, press, queryFirst, waitFor } from "@odoo/hoot-dom";
 import { advanceTime, mockDate, mockTouch, mockUserAgent, tick } from "@odoo/hoot-mock";
 import {
     asyncStep,
@@ -280,26 +284,6 @@ test("Can edit message comment in chatter", async () => {
     await contains(".o-mail-Message-content", { text: "edited again (edited)" });
 });
 
-test.skip("Can edit message comment in chatter (mobile)", async () => {
-    const pyEnv = await startServer();
-    const partnerId = pyEnv["res.partner"].create({ name: "TestPartner" });
-    pyEnv["mail.message"].create({
-        author_id: serverState.partnerId,
-        body: "original message",
-        message_type: "comment",
-        model: "res.partner",
-        res_id: partnerId,
-    });
-    await start();
-    await openFormView("res.partner", partnerId);
-    await click(".o-mail-Message [title='Expand']");
-    await click("button:contains('Edit')");
-    await contains("button", { text: "Discard editing" });
-    await insertText(".o-mail-Message .o-mail-Composer-input", "edited message", { replace: true });
-    await click("button[title='Save editing']");
-    await contains(".o-mail-Message-content", { text: "edited message (edited)" });
-});
-
 test("Cursor is at end of composer input on edit", async () => {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({
@@ -511,7 +495,7 @@ test("Scroll bar to the top when edit starts", async () => {
     await contains(".o-mail-Message .o-mail-Composer-input", { scroll: 0 });
 });
 
-test("mentions are kept when editing message", async () => {
+test("[text composer] mentions and special mentions are kept when editing message", async () => {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({
         name: "general",
@@ -519,7 +503,7 @@ test("mentions are kept when editing message", async () => {
     });
     pyEnv["mail.message"].create({
         author_id: serverState.partnerId,
-        body: "Hello @Mitchell Admin",
+        body: '<div>Hello <a class="o_mail_redirect" target="_blank">@Mitchell Admin</a> and <a href="#" class="o-discuss-mention">@everyone</a></div>',
         model: "discuss.channel",
         partner_ids: [serverState.partnerId],
         res_id: channelId,
@@ -527,14 +511,77 @@ test("mentions are kept when editing message", async () => {
     });
     await start();
     await openDiscuss(channelId);
-    await click(".o-mail-Message [title='Edit']");
-    await insertText(".o-mail-Message .o-mail-Composer-input", "Hi @Mitchell Admin", {
-        replace: true,
+    await contains(".o-mail-Message", {
+        text: "Hello @Mitchell Admin and @everyone",
+        contains: [
+            ["a.o_mail_redirect", { text: "@Mitchell Admin" }],
+            ["a.o-discuss-mention", { text: "@everyone" }],
+        ],
     });
+    await click(".o-mail-Message [title='Edit']");
+    await insertText(".o-mail-Message .o-mail-Composer-input", " abc");
     await click(".o-mail-Message button", { text: "save" });
     await contains(".o-mail-Message", {
-        text: "Hi @Mitchell Admin (edited)",
-        contains: ["a.o_mail_redirect", { text: "@Mitchell Admin" }],
+        text: "Hello @Mitchell Admin and @everyone abc (edited)",
+        contains: [
+            ["a.o_mail_redirect", { text: "@Mitchell Admin" }],
+            ["a.o-discuss-mention", { text: "@everyone" }],
+        ],
+    });
+});
+
+test.tags("html composer");
+test("mentions and special mentions are kept when editing message", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "general",
+        channel_type: "channel",
+    });
+    await start();
+    pyEnv["mail.message"].create({
+        author_id: serverState.partnerId,
+        body: '<div>Hello <a class="o_mail_redirect" target="_blank">@Mitchell Admin</a> and <a href="#" class="o-discuss-mention">@everyone</a></div>',
+        model: "discuss.channel",
+        partner_ids: [serverState.partnerId],
+        res_id: channelId,
+        message_type: "comment",
+    });
+    const composerService = getService("mail.composer");
+    composerService.setHtmlComposer();
+    await openDiscuss(channelId);
+    await contains(".o-mail-Message", {
+        text: "Hello @Mitchell Admin and @everyone",
+        contains: [
+            ["a.o_mail_redirect", { text: "@Mitchell Admin" }],
+            ["a.o-discuss-mention", { text: "@everyone" }],
+        ],
+    });
+    await click(".o-mail-Message [title='Edit']");
+    await contains(".o-mail-Message .o-mail-Composer-html", {
+        text: "Hello @Mitchell Admin and @everyone",
+        contains: [
+            ["a.o_mail_redirect[contenteditable=false]", { text: "@Mitchell Admin" }],
+            ["a.o-discuss-mention[contenteditable=false]", { text: "@everyone" }],
+        ],
+    });
+    const editor = {
+        document,
+        editable: document.querySelector(
+            ".o-mail-Message .o-mail-Composer-html.odoo-editor-editable"
+        ),
+    };
+    setSelection({
+        anchorNode: editor.editable.querySelector("div.o-paragraph"),
+        anchorOffset: 4 /* at the end = after 4 nodes: "Hello" <first mention> "and" <second mention> */,
+    });
+    await htmlInsertText(editor, " abc");
+    await click(".o-mail-Message button", { text: "save" });
+    await contains(".o-mail-Message", {
+        text: "Hello @Mitchell Admin and @everyone abc (edited)",
+        contains: [
+            ["a.o_mail_redirect", { text: "@Mitchell Admin" }],
+            ["a.o-discuss-mention", { text: "@everyone" }],
+        ],
     });
 });
 
@@ -776,10 +823,9 @@ test("Can quickly add a reaction", async () => {
     await click("[title='Add a Reaction']");
     await click(".o-mail-QuickReactionMenu button", { text: "😅" });
     await contains(".o-mail-MessageReaction", { text: "😅1" });
-    await hover(".o-mail-MessageReactions");
-    await click("button[title='Add Reaction']");
-    await click(".o-Emoji", { text: "😏" });
-    await contains(".o-mail-MessageReaction", { text: "😏1" });
+    await click(".o-mail-MessageReactions button[title='Add a Reaction']");
+    await click(".o-mail-QuickReactionMenu button", { text: "🤣" });
+    await contains(".o-mail-MessageReaction", { text: "🤣1" });
 });
 
 test("Reaction summary", async () => {
@@ -810,9 +856,12 @@ test("Reaction summary", async () => {
         const userId = pyEnv["res.users"].create({ partner_id });
         pyEnv["res.partner"].create({ name, user_ids: [Command.link(userId)] });
         await withUser(userId, async () => {
-            await click("[title='Add a Reaction']");
+            await click(".o-mail-Message-actions [title='Add a Reaction']");
             await click(".o-mail-QuickReactionMenu button", { text: "😅" });
-            await contains(".o-mail-MessageReaction", { text: `😅${idx + 1}` });
+            await waitFor(`.o-mail-MessageReaction:contains(/^😅 ${idx + 1}$/)`, {
+                exact: true,
+                timeout: 3000,
+            });
             await hover(".o-mail-MessageReaction");
             await contains(".o-mail-MessageReactionList-preview", {
                 text: `${expectedSummaries[idx]}`,
@@ -836,10 +885,10 @@ test("Select already reacted emoji from quick reaction removes the reaction on m
     });
     await start();
     await openDiscuss(channelId);
-    await click("[title='Add a Reaction']");
+    await click(".o-mail-Message-actions [title='Add a Reaction']");
     await click(".o-mail-QuickReactionMenu button", { text: "😅" });
     await contains(".o-mail-MessageReaction", { text: "😅1" });
-    await click("[title='Add a Reaction']");
+    await click(".o-mail-Message-actions [title='Add a Reaction']");
     await click(".o-mail-QuickReactionMenu button", { text: "😅" });
     await contains(".o-mail-MessageReaction", { count: 0 });
 });
@@ -2148,4 +2197,29 @@ test("Prettify message links", async () => {
     await contains(".o-mail-Message", { text: "TestPartner" });
     await contains(".o-mail-Message .fa.fa-comment");
     await contains(".o-mail-Message", { text: url(`/mail/message/100`) });
+});
+
+test("should delete link preview along with message", async () => {
+    const pyEnv = await startServer();
+    const linkPreviewId = pyEnv["mail.link.preview"].create({
+        og_title: "Test Link",
+        og_description: "Should be removed with the message.",
+        og_type: "article",
+        source_url: "https://www.odoo.com",
+    });
+    const channelId = pyEnv["discuss.channel"].create({ name: "PreviewTest" });
+    pyEnv["mail.message"].create({
+        body: "<a href='https://www.odoo.com'>https://www.odoo.com</a>",
+        message_link_preview_ids: [Command.create({ link_preview_id: linkPreviewId })],
+        message_type: "comment",
+        model: "discuss.channel",
+        res_id: channelId,
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-mail-LinkPreviewCard");
+    await click(".o-mail-Message [title='Expand']");
+    await click(".o-dropdown-item:contains('Delete')");
+    await click(".modal button", { text: "Delete" });
+    await contains(".o-mail-LinkPreviewCard", { count: 0 });
 });

@@ -196,6 +196,33 @@ registry.category("web_tour.tours").add("FloatingOrderTour", {
             ProductScreen.isShown(),
             ProductScreen.selectFloatingOrder(1),
             ProductScreen.productCardQtyIs("Letter Tray", "2.0"),
+            inLeftSide([
+                ...ProductScreen.clickControlButtonMore(),
+                {
+                    trigger: "body",
+                    run: () => {
+                        window.dispatchEvent(new KeyboardEvent("keyup", { key: "9" }));
+                    },
+                },
+                Dialog.cancel(),
+            ]),
+            ProductScreen.isShown(),
+            ProductScreen.productCardQtyIs("Letter Tray", "2.0"),
+            inLeftSide([
+                ...Order.hasLine({
+                    productName: "Letter Tray",
+                    quantity: "2.0",
+                }),
+            ]),
+            {
+                trigger: "body",
+                run: () => {
+                    const bufferValue = posmodel.numberBuffer.get();
+                    if (bufferValue != "") {
+                        throw new Error(`Number buffer should be empty, but got ${bufferValue}`);
+                    }
+                },
+            },
         ].flat(),
 });
 
@@ -723,28 +750,20 @@ registry.category("web_tour.tours").add("test_product_create_update_from_fronten
 
             // Click on the category button for "Chair test" to verify the product's addition.
             ProductScreen.clickSubcategory("Chair test"),
-            ProductScreen.clickDisplayedProduct("Test Frontend Product"),
-            inLeftSide([
-                ...ProductScreen.selectedOrderlineHasDirect("Test Frontend Product", "1", "20.0"),
-            ]),
 
-            // Open the product's information popup.
-            ProductScreen.clickInfoProduct(
-                "Test Frontend Product",
-                [
-                    Dialog.confirm("Edit", ".btn-secondary"),
-                    // Verify that the "Edit Product" dialog is displayed.
-                    Dialog.is({ title: "Edit Product" }),
+            ProductScreen.longPressProduct("Test Frontend Product"),
+            Dialog.confirm("Edit", ".btn-secondary"),
+            // Verify that the "Edit Product" dialog is displayed.
+            Dialog.is({ title: "Edit Product" }),
 
-                    // Edit the product with new details.
-                    ProductScreen.editProductFromFrontend(
-                        "Test Frontend Product Edited",
-                        "710535977348",
-                        "50.0"
-                    ),
-                    Dialog.confirm(),
-                ].flat()
+            // Edit the product with new details.
+            ProductScreen.editProductFromFrontend(
+                "Test Frontend Product Edited",
+                "710535977348",
+                "50.0"
             ),
+            Dialog.confirm(),
+
             ProductScreen.clickSubcategory("Chair test"),
             ProductScreen.clickDisplayedProduct("Test Frontend Product Edited"),
             inLeftSide([
@@ -754,6 +773,9 @@ registry.category("web_tour.tours").add("test_product_create_update_from_fronten
                     "50.0"
                 ),
             ]),
+            ProductScreen.longPressProduct("Test Frontend Product Edited"),
+            // Edit button should be disabled (cause we cannot edit a product which is in the cart)
+            Dialog.footerBtnIsDisabled("Edit"),
             Chrome.endTour(),
         ].flat(),
 });

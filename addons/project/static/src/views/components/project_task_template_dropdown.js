@@ -3,11 +3,14 @@ import { useService } from "@web/core/utils/hooks";
 import { Dropdown } from "@web/core/dropdown/dropdown";
 import { DropdownItem } from "@web/core/dropdown/dropdown_item";
 
+import { ProjectTemplateButtons } from "./project_template_buttons";
+
 export class ProjectTaskTemplateDropdown extends Component {
     static template = "project.TemplateDropdown";
     static components = {
         Dropdown,
         DropdownItem,
+        ProjectTemplateButtons,
     };
 
     static props = {
@@ -41,7 +44,7 @@ export class ProjectTaskTemplateDropdown extends Component {
     }
 
     async onWillStart() {
-        if (this.props.projectId && !this.props.context.default_is_template) {
+        if (this.props.projectId) {
             this.state.taskTemplates = await this.orm
                 .cache({
                     type: "disk",

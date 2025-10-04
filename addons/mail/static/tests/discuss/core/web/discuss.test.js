@@ -105,8 +105,10 @@ test("can make a DM chat", async () => {
     await contains(".o-mail-Discuss");
     await contains(".o-mail-DiscussSidebar-item", { text: "Mario", count: 0 });
     await click("input[placeholder='Search conversations']");
+    await contains(".o_command_name", { count: 5 });
     await insertText("input[placeholder='Search a conversation']", "mario");
-    await click("a", { text: "Mario" });
+    await contains(".o_command_name", { count: 3 });
+    await click(".o_command_name", { text: "Mario" });
     await contains(".o-mail-DiscussSidebar-item", { text: "Mario" });
     await contains(".o-mail-Message", { count: 0 });
     const [channelId] = pyEnv["discuss.channel"].search([["name", "=", "Mario, Mitchell Admin"]]);
@@ -157,10 +159,28 @@ test("Chat is pinned on other tabs when joined", async () => {
     await openDiscuss(undefined, { target: env1 });
     await openDiscuss(undefined, { target: env2 });
     await click(`${env1.selector} input[placeholder='Search conversations']`);
+    await contains(`${env1.selector} .o_command_name`, { count: 5 });
     await insertText(`${env1.selector} input[placeholder='Search a conversation']`, "Jer");
-    await click(`${env1.selector} a`, { text: "Jerry Golay" });
+    await contains(`${env1.selector} .o_command_name`, { count: 3 });
+    await click(`${env1.selector} .o_command_name`, { text: "Jerry Golay" });
     await contains(`${env1.selector} .o-mail-DiscussSidebar-item`, { text: "Jerry Golay" });
     await contains(`${env2.selector} .o-mail-DiscussSidebar-item`, { text: "Jerry Golay" });
+});
+
+test("Auto-open OdooBot chat when opening discuss for the first time", async () => {
+    // Odoobot chat has onboarding for using Discuss app.
+    // We assume pinned odoobot chat without any message seen means user just started using Discuss app.
+    const pyEnv = await startServer();
+    pyEnv["discuss.channel"].create({
+        channel_member_ids: [
+            Command.create({ partner_id: serverState.partnerId }),
+            Command.create({ partner_id: serverState.odoobotId }),
+        ],
+        channel_type: "chat",
+    });
+    await start();
+    await openDiscuss();
+    await contains(".o-mail-DiscussContent-threadName", { value: "OdooBot" });
 });
 
 test("no conversation selected when opening non-existing channel in discuss", async () => {

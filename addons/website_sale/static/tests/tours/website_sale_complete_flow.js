@@ -74,6 +74,7 @@ import { pay } from "@website_sale/js/tours/tour_utils";
         run: "click",
         expectUnloadPage: true,
     },
+    tourUtils.waitForInteractionToLoad(),
     {
         content: "Billing address is not same as delivery address",
         trigger: '#use_delivery_as_billing',
@@ -81,7 +82,7 @@ import { pay } from "@website_sale/js/tours/tour_utils";
     },
     {
         content: "Add a billing address",
-        trigger: '.o_portal_address_list a[href^="/shop/address?address_type=billing"]:contains("Add address")',
+        trigger: '#billing_address_list a[href^="/shop/address?address_type=billing"]:contains("Add address")',
         run: "click",
         expectUnloadPage: true,
     },
@@ -133,7 +134,7 @@ import { pay } from "@website_sale/js/tours/tour_utils";
     },
     {
         content: "Click for edit billing address",
-        trigger: '#billing_container .o_portal_address_list a[href^="/shop/address?address_type=billing"].js_edit_address:first',
+        trigger: '#billing_address_list a[href^="/shop/address?address_type=billing"].js_edit_address:first',
         run: "click",
         expectUnloadPage: true,
     },

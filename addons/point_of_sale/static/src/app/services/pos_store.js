@@ -181,6 +181,12 @@ export class PosStore extends WithLazyGetterTrap {
         }
 
         this.router.navigate(routeName, routeParams);
+        return true;
+    }
+
+    navigateToFirstPage() {
+        const page = this.firstPage;
+        this.navigate(page.page, page.params);
     }
 
     navigateToOrderScreen(order) {
@@ -331,7 +337,7 @@ export class PosStore extends WithLazyGetterTrap {
 
     async closingSessionNotification(data) {
         if (
-            parseInt(data.device_identifier) === this.device.identifier ||
+            data.device_identifier === this.device.identifier ||
             this.session.id !== parseInt(data.session_id)
         ) {
             return;
@@ -339,7 +345,7 @@ export class PosStore extends WithLazyGetterTrap {
 
         try {
             const paidOrderNotSynced = this.models["pos.order"].filter(
-                (order) => order.state === "paid" && typeof order.id !== "number"
+                (order) => order.state === "paid" && !order.isSynced
             );
             this.addPendingOrder(paidOrderNotSynced.map((o) => o.id));
             await this.syncAllOrders({ throw: true });
@@ -358,7 +364,7 @@ export class PosStore extends WithLazyGetterTrap {
         } finally {
             // All orders saved on the server should be cancelled by the device that closes
             // the session. If some orders are not cancelled, we need to cancel them here.
-            const orders = this.models["pos.order"].filter((o) => typeof o.id === "number");
+            const orders = this.models["pos.order"].filter((o) => o.isSynced);
             for (const order of orders) {
                 if (!order.finalized) {
                     order.state = "cancel";
@@ -438,6 +444,7 @@ export class PosStore extends WithLazyGetterTrap {
         });
 
         await this.processProductAttributes();
+        await this.config.cacheReceiptLogo();
     }
     cashMove() {
         this.hardwareProxy.openCashbox(_t("Cash in / out"));
@@ -532,7 +539,7 @@ export class PosStore extends WithLazyGetterTrap {
             if (order && (await this._onBeforeDeleteOrder(order))) {
                 if (
                     !ignoreChange &&
-                    typeof order.id === "number" &&
+                    order.isSynced &&
                     Object.keys(order.last_order_preparation_change).length > 0
                 ) {
                     const orderPresetDate = DateTime.fromISO(order.preset_time);
@@ -549,7 +556,7 @@ export class PosStore extends WithLazyGetterTrap {
                 this.removePendingOrder(order);
                 if (!cancelled) {
                     return false;
-                } else if (typeof order.id === "number") {
+                } else if (order.isSynced) {
                     ids.add(order.id);
                 }
             } else {
@@ -606,14 +613,7 @@ export class PosStore extends WithLazyGetterTrap {
         const orderPathUuid = this.router.state.params.orderUuid;
         const order = this.models["pos.order"].find((order) => order.uuid === orderPathUuid);
         if (orderPathUuid && !order) {
-            await this.data.callRelated(
-                "pos.order",
-                "read_pos_orders",
-                [[["uuid", "=", orderPathUuid]]],
-                {},
-                false,
-                true
-            );
+            await this.data.loadServerOrders([["uuid", "=", orderPathUuid]]);
             const order = this.models["pos.order"].find((order) => order.uuid === orderPathUuid);
             if (order) {
                 this.setOrder(order);
@@ -686,12 +686,15 @@ export class PosStore extends WithLazyGetterTrap {
             } else {
                 product = opts.presetVariant;
             }
+
+            const attrValueIds = new Set(
+                product?.product_template_attribute_value_ids?.map((v) => v.id) || []
+            );
+
             attributeLinesValues = attributeLinesValues.map((values) =>
                 values[0].attribute_id.create_variant === "no_variant"
                     ? values
-                    : values.filter((value) =>
-                          product.product_template_attribute_value_ids.includes(value)
-                      )
+                    : values.filter((value) => attrValueIds.has(value.id))
             );
         }
         if (attributeLinesValues.some((values) => values.length > 1 || values[0].is_custom)) {
@@ -699,6 +702,7 @@ export class PosStore extends WithLazyGetterTrap {
                 productTemplate: pTemplate,
                 hideAlwaysVariants: opts.hideAlwaysVariants,
                 forceVariantValue: opts.forceVariantValue,
+                line: opts.line,
             });
         }
         return {
@@ -805,141 +809,19 @@ export class PosStore extends WithLazyGetterTrap {
             return;
         }
 
-        // In case of configurable product a popup will be shown to the user
-        // We assign the payload to the current values object.
-        // ---
-        // This actions cannot be handled inside pos_order.js or pos_order_line.js
-        if (productTemplate.isConfigurable() && configure) {
-            const payload =
-                vals?.payload && Object.keys(vals?.payload).length
-                    ? vals.payload
-                    : await this.openConfigurator(productTemplate, opts);
-
-            if (payload) {
-                // Find candidate based on instantly created variants.
-                const attributeValues = this.models["product.template.attribute.value"]
-                    .readMany(payload.attribute_value_ids)
-                    .filter((value) => value.attribute_id.create_variant !== "no_variant")
-                    .map((value) => value.id);
-
-                let candidate = productTemplate.product_variant_ids.find((variant) => {
-                    const attributeIds = variant.product_template_attribute_value_ids.map(
-                        (value) => value.id
-                    );
-                    return (
-                        attributeValues.every((id) => attributeIds.includes(id)) &&
-                        attributeValues.length
-                    );
-                });
-
-                const isDynamic = productTemplate.attribute_line_ids.some(
-                    (line) => line.attribute_id.create_variant === "dynamic"
-                );
-
-                if (!candidate && isDynamic) {
-                    // Need to create the new product.
-                    const result = await this.data.callRelated(
-                        "product.template",
-                        "create_product_variant_from_pos",
-                        [productTemplate.id, payload.attribute_value_ids, this.config.id]
-                    );
-                    candidate = result["product.product"][0];
-                }
-
-                Object.assign(values, {
-                    attribute_value_ids: payload.attribute_value_ids.map((id) => [
-                        "link",
-                        this.models["product.template.attribute.value"].get(id),
-                    ]),
-                    custom_attribute_value_ids: Object.entries(payload.attribute_custom_values).map(
-                        ([id, cus]) => [
-                            "create",
-                            {
-                                custom_product_template_attribute_value_id:
-                                    this.models["product.template.attribute.value"].get(id),
-                                custom_value: cus,
-                            },
-                        ]
-                    ),
-                    price_extra: values.price_extra + payload.price_extra,
-                    qty: payload.qty || values.qty,
-                    product_id: candidate || productTemplate.product_variant_ids[0],
-                });
-            } else {
-                return;
-            }
-        } else if (values.product_id.product_template_variant_value_ids.length > 0) {
-            // Verify price extra of variant products
-            const priceExtra = values.product_id.product_template_variant_value_ids
-                .filter((attr) => attr.attribute_id.create_variant !== "always")
-                .reduce((acc, attr) => acc + attr.price_extra, 0);
-
-            values.price_extra += priceExtra;
-            if (!values.attribute_value_ids) {
-                values.attribute_value_ids = [];
-            }
-            values.attribute_value_ids = values.attribute_value_ids.concat(
-                values.product_id.product_template_variant_value_ids.map((attr) => ["link", attr])
-            );
+        let keepGoing = await this.handleConfigurableProduct(
+            values,
+            productTemplate,
+            opts,
+            configure
+        );
+        if (keepGoing === false) {
+            return;
         }
 
-        // In case of clicking a combo product a popup will be shown to the user
-        // It will return the combo prices and the selected products
-        // ---
-        // This actions cannot be handled inside pos_order.js or pos_order_line.js
-        if (values.product_tmpl_id.isCombo() && configure) {
-            const payload =
-                vals?.payload && Object.keys(vals?.payload).length
-                    ? vals.payload
-                    : await makeAwaitable(this.dialog, ComboConfiguratorPopup, {
-                          productTemplate: values.product_tmpl_id,
-                      });
-
-            if (!payload) {
-                return;
-            }
-
-            // Product template of combo should not have more than 1 variant.
-            const [childLineConf, comboExtraLines] = payload;
-            const comboPrices = computeComboItems(
-                values.product_tmpl_id.product_variant_ids[0],
-                childLineConf,
-                order.pricelist_id,
-                this.data.models["decimal.precision"].getAll(),
-                this.data.models["product.template.attribute.value"].getAllBy("id"),
-                comboExtraLines,
-                this.currency
-            );
-
-            values.combo_line_ids = comboPrices.map((comboItem) => [
-                "create",
-                {
-                    product_id: comboItem.combo_item_id.product_id,
-                    tax_ids: comboItem.combo_item_id.product_id.taxes_id.map((tax) => [
-                        "link",
-                        tax,
-                    ]),
-                    combo_item_id: comboItem.combo_item_id,
-                    price_unit: comboItem.price_unit,
-                    price_type: "automatic",
-                    order_id: order,
-                    qty: comboItem.qty,
-                    attribute_value_ids: comboItem.attribute_value_ids?.map((attr) => [
-                        "link",
-                        attr,
-                    ]),
-                    custom_attribute_value_ids: Object.entries(
-                        comboItem.attribute_custom_values
-                    ).map(([id, cus]) => [
-                        "create",
-                        {
-                            custom_product_template_attribute_value_id:
-                                this.data.models["product.template.attribute.value"].get(id),
-                            custom_value: cus,
-                        },
-                    ]),
-                },
-            ]);
+        keepGoing = await this.handleComboProduct(values, order, configure);
+        if (keepGoing === false) {
+            return;
         }
 
         // In the case of a product with tracking enabled, we need to ask the user for the lot/serial number.
@@ -1004,15 +886,7 @@ export class PosStore extends WithLazyGetterTrap {
         }
 
         // Handle price unit
-        if (!values.product_tmpl_id.isCombo() && vals.price_unit === undefined) {
-            values.price_unit = values.product_id.getPrice(
-                order.pricelist_id,
-                values.qty,
-                values.price_extra,
-                false,
-                values.product_id
-            );
-        }
+        this.handlePriceUnit(values, order, vals.price_unit);
 
         const line = this.data.models["pos.order.line"].create({ ...values, order_id: order });
         line.setOptions(options);
@@ -1028,22 +902,8 @@ export class PosStore extends WithLazyGetterTrap {
             });
         }
 
-        let to_merge_orderline;
-        for (const curLine of order.lines) {
-            if (curLine.id !== line.id) {
-                if (curLine.canBeMergedWith(line) && merge !== false) {
-                    to_merge_orderline = curLine;
-                }
-            }
-        }
-
-        if (to_merge_orderline) {
-            to_merge_orderline.merge(line);
-            line.delete();
-            this.selectOrderLine(order, to_merge_orderline);
-        } else if (!selectedOrderline) {
-            this.selectOrderLine(order, order.getLastOrderline());
-        }
+        // Merge orderline if needed
+        this.tryMergeOrderline(order, line, merge, selectedOrderline);
 
         if (configure) {
             this.numberBuffer.reset();
@@ -1072,6 +932,190 @@ export class PosStore extends WithLazyGetterTrap {
 
         return order.getSelectedOrderline();
     }
+
+    /**
+     * Try to merge the orderline with another one in the order.
+     * If no orderline can be merged, select the last orderline.
+     * If merge is false, do not merge the orderline.
+     */
+    tryMergeOrderline(order, line, merge, selectedOrderline) {
+        selectedOrderline = selectedOrderline || order.getSelectedOrderline();
+        let to_merge_orderline;
+        for (const curLine of order.lines) {
+            if (curLine.id !== line.id) {
+                if (curLine.canBeMergedWith(line) && merge !== false) {
+                    to_merge_orderline = curLine;
+                }
+            }
+        }
+
+        if (to_merge_orderline) {
+            to_merge_orderline.merge(line);
+            line.delete();
+            this.selectOrderLine(order, to_merge_orderline);
+        } else if (!selectedOrderline) {
+            this.selectOrderLine(order, order.getLastOrderline());
+        }
+    }
+
+    /**
+     * Handle price unit for the order line.
+     */
+    handlePriceUnit(values, order, price_unit) {
+        if (!values.product_tmpl_id.isCombo() && price_unit === undefined) {
+            values.price_unit = values.product_id.getPrice(
+                order.pricelist_id,
+                values.qty,
+                values.price_extra,
+                false,
+                values.product_id
+            );
+        }
+    }
+
+    // In case of clicking a combo product a popup will be shown to the user
+    // It will return the combo prices and the selected products
+    // ---
+    // This actions cannot be handled inside pos_order.js or pos_order_line.js
+    async handleComboProduct(values, order, configure = true, { line } = {}) {
+        if (values.product_tmpl_id.isCombo() && configure) {
+            const payload =
+                values?.payload && Object.keys(values?.payload).length
+                    ? values.payload
+                    : await makeAwaitable(this.dialog, ComboConfiguratorPopup, {
+                          productTemplate: values.product_tmpl_id,
+                          line: line,
+                      });
+
+            if (!payload) {
+                return false;
+            }
+
+            // Product template of combo should not have more than 1 variant.
+            const [childLineConf, comboExtraLines] = payload;
+            const comboPrices = computeComboItems(
+                values.product_tmpl_id.product_variant_ids[0],
+                childLineConf,
+                order.pricelist_id,
+                this.data.models["decimal.precision"].getAll(),
+                this.data.models["product.template.attribute.value"].getAllBy("id"),
+                comboExtraLines,
+                this.currency
+            );
+
+            values.combo_line_ids = comboPrices.map((comboItem) => [
+                "create",
+                {
+                    product_id: comboItem.combo_item_id.product_id,
+                    tax_ids: comboItem.combo_item_id.product_id.taxes_id.map((tax) => [
+                        "link",
+                        tax,
+                    ]),
+                    combo_item_id: comboItem.combo_item_id,
+                    price_unit: comboItem.price_unit,
+                    price_type: "automatic",
+                    order_id: order,
+                    qty: comboItem.qty,
+                    attribute_value_ids: comboItem.attribute_value_ids?.map((attr) => [
+                        "link",
+                        attr,
+                    ]),
+                    custom_attribute_value_ids: Object.entries(
+                        comboItem.attribute_custom_values
+                    ).map(([id, cus]) => [
+                        "create",
+                        {
+                            custom_product_template_attribute_value_id:
+                                this.data.models["product.template.attribute.value"].get(id),
+                            custom_value: cus,
+                        },
+                    ]),
+                },
+            ]);
+        }
+
+        return true;
+    }
+
+    // In case of configurable product a popup will be shown to the user
+    // We assign the payload to the current values object.
+    // ---
+    // This actions cannot be handled inside pos_order.js or pos_order_line.js
+    handleConfigurableProduct = async (values, productTemplate, opts = {}, configure = true) => {
+        if (productTemplate.isConfigurable() && configure) {
+            const payload =
+                values?.payload && Object.keys(values?.payload).length
+                    ? values.payload
+                    : await this.openConfigurator(productTemplate, opts);
+
+            if (payload) {
+                // Find candidate based on instantly created variants.
+                const attributeValues = this.models["product.template.attribute.value"]
+                    .readMany(payload.attribute_value_ids)
+                    .filter((value) => value.attribute_id.create_variant !== "no_variant")
+                    .map((value) => value.id);
+
+                let candidate = productTemplate.product_variant_ids.find((variant) => {
+                    const attributeIds = variant.product_template_attribute_value_ids.map(
+                        (value) => value.id
+                    );
+                    return (
+                        attributeValues.every((id) => attributeIds.includes(id)) &&
+                        attributeValues.length
+                    );
+                });
+
+                const isDynamic = productTemplate.attribute_line_ids.some(
+                    (line) => line.attribute_id.create_variant === "dynamic"
+                );
+
+                if (!candidate && isDynamic) {
+                    // Need to create the new product.
+                    const result = await this.data.callRelated(
+                        "product.template",
+                        "create_product_variant_from_pos",
+                        [productTemplate.id, payload.attribute_value_ids, this.config.id]
+                    );
+                    candidate = result["product.product"][0];
+                }
+
+                Object.assign(values, {
+                    attribute_value_ids: payload.attribute_value_ids.map((id) => [
+                        "link",
+                        this.models["product.template.attribute.value"].get(id),
+                    ]),
+                    custom_attribute_value_ids: Object.entries(payload.attribute_custom_values).map(
+                        ([id, cus]) => [
+                            "create",
+                            {
+                                custom_product_template_attribute_value_id:
+                                    this.models["product.template.attribute.value"].get(id),
+                                custom_value: cus,
+                            },
+                        ]
+                    ),
+                    price_extra: values.price_extra + payload.price_extra,
+                    qty: payload.qty || values.qty,
+                    product_id: candidate || productTemplate.product_variant_ids[0],
+                });
+            } else {
+                return false;
+            }
+        } else if (values.product_id.product_template_variant_value_ids.length > 0) {
+            // Verify price extra of variant products
+            const priceExtra = values.product_id.product_template_variant_value_ids
+                .filter((attr) => attr.attribute_id.create_variant !== "always")
+                .reduce((acc, attr) => acc + attr.price_extra, 0);
+
+            values.price_extra += priceExtra;
+            if (!values.attribute_value_ids) {
+                values.attribute_value_ids = [];
+            }
+            values.attribute_value_ids = values.attribute_value_ids.concat(
+                values.product_id.product_template_variant_value_ids.map((attr) => ["link", attr])
+            );
+        }
+    };
 
     createPrinter(config) {
         if (config.printer_type === "epson_epos") {
@@ -1112,13 +1156,13 @@ export class PosStore extends WithLazyGetterTrap {
      */
     removeOrder(order, removeFromServer = true) {
         if (this.config.isShareable || removeFromServer) {
-            if (typeof order.id === "number" && !order.finalized) {
+            if (order.isSynced && !order.finalized) {
                 this.addPendingOrder([order.id], true);
                 this.syncAllOrdersDebounced();
             }
         }
 
-        if (typeof order.id === "string" && order.finalized) {
+        if (!order.isSynced && order.finalized) {
             this.addPendingOrder([order.id]);
             return;
         }
@@ -1199,8 +1243,6 @@ export class PosStore extends WithLazyGetterTrap {
 
         order.pos_reference = posReference;
         order.tracking_number = deviceIdentifier + `${parseInt(number) % 1000}`.padStart(3, "0");
-
-        this.data.debouncedSynchronizeLocalDataInIndexedDB();
     }
 
     selectNextOrder() {
@@ -1447,26 +1489,10 @@ export class PosStore extends WithLazyGetterTrap {
     }
     async getServerOrders() {
         await this.syncAllOrders();
-        return await this.loadServerOrders([
+        return await this.data.loadServerOrders([
             ["config_id", "in", [...this.config.raw.trusted_config_ids, this.config.id]],
             ["state", "=", "draft"],
         ]);
-    }
-    async loadServerOrders(domain) {
-        const result = await this.data.callRelated(
-            "pos.order",
-            "read_pos_orders",
-            [domain],
-            {},
-            false,
-            true
-        );
-        const orders = result["pos.order"] || [];
-        for (const order of orders) {
-            order.config_id = this.config;
-            order.session_id = this.session;
-        }
-        return orders;
     }
     async getProductInfo(productTemplate, quantity, priceExtra = 0, productProduct = false) {
         const order = this.getOrder();
@@ -1647,7 +1673,6 @@ export class PosStore extends WithLazyGetterTrap {
             true
         );
     }
-
     async printReceipt({
         basic = false,
         order = this.getOrder(),
@@ -1663,7 +1688,7 @@ export class PosStore extends WithLazyGetterTrap {
         );
         if (!printBillActionTriggered) {
             order.nb_print = order.nb_print ? order.nb_print + 1 : 1;
-            if (typeof order.id === "number" && result) {
+            if (order.isSynced && result) {
                 await this.data.write("pos.order", [order.id], { nb_print: order.nb_print });
             }
         } else if (!order.nb_print) {
@@ -1684,7 +1709,7 @@ export class PosStore extends WithLazyGetterTrap {
         return changesToOrder(order, skipped, orderPreparationCategories, cancelled);
     }
     async checkPreparationStateAndSentOrderInPreparation(order, opts = {}) {
-        if (typeof order.id !== "number") {
+        if (!order.isSynced) {
             return this.sendOrderInPreparation(order, opts);
         }
 
@@ -1723,7 +1748,7 @@ export class PosStore extends WithLazyGetterTrap {
                 let reprint = false;
                 let orderChange = changesToOrder(
                     order,
-                    this.config.preparationCategories,
+                    this.config.printerCategories,
                     opts.cancelled
                 );
 
@@ -1773,11 +1798,31 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     getStrNotes(note) {
-        return note && typeof note === "string"
-            ? JSON.parse(note)
-                  .map((n) => n.text)
-                  .join(", ")
-            : "";
+        if (!note) {
+            return "";
+        }
+        if (Array.isArray(note)) {
+            return note.map((n) => (typeof n === "string" ? n : n.text)).join(", ");
+        }
+        if (typeof note === "string") {
+            try {
+                const parsed = JSON.parse(note);
+                if (Array.isArray(parsed)) {
+                    return parsed.map((n) => (typeof n === "string" ? n : n.text)).join(", ");
+                }
+                return note;
+            } catch (error) {
+                logPosMessage(
+                    "Store",
+                    "getStrNotes",
+                    "Error while parsing note, not valid JSON",
+                    CONSOLE_COLOR,
+                    [error]
+                );
+                return note;
+            }
+        }
+        return "";
     }
 
     getOrderData(order, reprint) {
@@ -2032,6 +2077,10 @@ export class PosStore extends WithLazyGetterTrap {
             }
         );
     }
+    orderContainsProduct(product) {
+        const lines = this.getOpenOrders().flatMap((o) => o.lines);
+        return lines.some((l) => l.product_id.product_tmpl_id.id === product.id);
+    }
     async loadSampleData() {
         const [isPosManager, isAdmin] = await Promise.all([
             user.hasGroup("point_of_sale.group_pos_manager"),
@@ -2056,14 +2105,7 @@ export class PosStore extends WithLazyGetterTrap {
             resModel: "pos.order",
             resId: order.id,
             onRecordSaved: async (record) => {
-                await this.data.callRelated(
-                    "pos.order",
-                    "read_pos_orders",
-                    [[["id", "=", record.evalContext.id]]],
-                    {},
-                    false,
-                    true
-                );
+                await this.data.loadServerOrders([["id", "=", record.evalContext.id]]);
                 this.action.doAction({
                     type: "ir.actions.act_window_close",
                 });

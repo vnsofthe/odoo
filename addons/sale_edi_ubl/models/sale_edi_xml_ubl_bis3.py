@@ -69,7 +69,7 @@ class SaleEdiXmlUbl_Bis3(models.AbstractModel):
         sale_order = vals['sale_order']
         AccountTax = self.env['account.tax']
 
-        base_lines = [line._prepare_base_line_for_taxes_computation() for line in sale_order.order_line]
+        base_lines = [line._prepare_base_line_for_taxes_computation() for line in sale_order.order_line.filtered(lambda line: not line.display_type)]
         AccountTax._add_tax_details_in_base_lines(base_lines, sale_order.company_id)
         AccountTax._round_base_lines_tax_details(base_lines, sale_order.company_id)
 
@@ -288,8 +288,11 @@ class SaleEdiXmlUbl_Bis3(models.AbstractModel):
     def _import_order_ubl(self, order, file_data, new):
         # Overriding the main method to recalculate the price unit and discount
         res = super()._import_order_ubl(order, file_data, new)
+        lines_with_products = order.order_line.filtered('product_id')
         # Recompute product price and discount according to sale price
-        order._recompute_prices()
+        lines_with_products._compute_price_unit()
+        lines_with_products._compute_discount()
+
         return res
 
     def _get_product_xpaths(self):

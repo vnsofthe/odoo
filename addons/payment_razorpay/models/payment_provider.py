@@ -6,7 +6,7 @@ import uuid
 from datetime import timedelta
 from urllib.parse import urlencode
 
-from odoo import _, api, fields, models
+from odoo import _, api, fields, models, tools
 from odoo.exceptions import RedirectWarning, ValidationError
 from odoo.http import request
 
@@ -25,22 +25,46 @@ class PaymentProvider(models.Model):
         selection_add=[('razorpay', "Razorpay")], ondelete={'razorpay': 'set default'}
     )
     razorpay_key_id = fields.Char(
-        string="Razorpay Key Id", help="The key solely used to identify the account with Razorpay."
+        string="Razorpay Key Id",
+        help="The key solely used to identify the account with Razorpay.",
+        copy=False,
     )
-    razorpay_key_secret = fields.Char(string="Razorpay Key Secret", groups='base.group_system')
+    razorpay_key_secret = fields.Char(
+        string="Razorpay Key Secret",
+        copy=False,
+        groups='base.group_system',
+    )
     razorpay_webhook_secret = fields.Char(
-        string="Razorpay Webhook Secret", groups='base.group_system'
+        string="Razorpay Webhook Secret",
+        copy=False,
+        groups='base.group_system',
     )
 
     # OAuth fields
-    razorpay_account_id = fields.Char(string="Razorpay Account ID", groups='base.group_system')
-    razorpay_refresh_token = fields.Char(
-        string="Razorpay Refresh Token", groups='base.group_system'
+    razorpay_account_id = fields.Char(
+        string="Razorpay Account ID",
+        copy=False,
+        groups='base.group_system',
     )
-    razorpay_public_token = fields.Char(string="Razorpay Public Token", groups='base.group_system')
-    razorpay_access_token = fields.Char(string="Razorpay Access Token", groups='base.group_system')
+    razorpay_refresh_token = fields.Char(
+        string="Razorpay Refresh Token",
+        copy=False,
+        groups='base.group_system',
+    )
+    razorpay_public_token = fields.Char(
+        string="Razorpay Public Token",
+        copy=False,
+        groups='base.group_system',
+    )
+    razorpay_access_token = fields.Char(
+        string="Razorpay Access Token",
+        copy=False,
+        groups='base.group_system',
+    )
     razorpay_access_token_expiry = fields.Datetime(
-        string="Razorpay Access Token Expiry", groups='base.group_system'
+        string="Razorpay Access Token Expiry",
+        copy=False,
+        groups='base.group_system',
     )
 
     # === COMPUTE METHODS === #
@@ -116,7 +140,7 @@ class PaymentProvider(models.Model):
             )
 
         params = {
-            'return_url': f'{self.get_base_url()}{RazorpayController.OAUTH_RETURN_URL}',
+            'return_url': tools.urls.urljoin(self.get_base_url(), RazorpayController.OAUTH_RETURN_URL),
             'provider_id': self.id,
             'csrf_token': request.csrf_token(),
         }
@@ -152,7 +176,7 @@ class PaymentProvider(models.Model):
 
         webhook_secret = uuid.uuid4().hex  # Generate a random webhook secret.
         payload = {
-            'url': f'{self.get_base_url()}/payment/razorpay/webhook',
+            'url': tools.urls.urljoin(self.get_base_url(), '/payment/razorpay/webhook'),
             'alert_email': self.env.user.partner_id.email,
             'secret': webhook_secret,
             'events': const.HANDLED_WEBHOOK_EVENTS,

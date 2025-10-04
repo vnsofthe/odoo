@@ -25,6 +25,8 @@ Odoo Web tours.
             'web_tour/static/src/js/tour_recorder/tour_recorder_state.js',
             'web_tour/static/src/tour_utils.js',
             'web_tour/static/src/js/onboarding_item.xml',
+            'web_tour/static/src/views/**/*',
+            'web_tour/static/src/widgets/**/*',
         ],
         'web.assets_frontend': [
             'web_tour/static/src/scss/**/*',
@@ -40,6 +42,10 @@ Odoo Web tours.
             ('include', 'web_tour.recorder'),
             'web_tour/static/tests/*.test.js',
         ],
+        "web.assets_tests": [
+            'web_tour/static/src/js/tour_automatic/tour_helpers.js',
+            ('include', 'web_tour.automatic')
+        ],
         'web_tour.common': [
             'web/static/lib/hoot-dom/**/*',
             'web_tour/static/src/js/tour_step.js',
@@ -47,8 +53,6 @@ Odoo Web tours.
         'web_tour.interactive': [
             ('include', 'web_tour.common'),
             'web_tour/static/src/js/tour_interactive/**/*',
-            'web_tour/static/src/views/**/*',
-            'web_tour/static/src/widgets/**/*',
         ],
         'web_tour.automatic': [
             ('include', 'web_tour.common'),

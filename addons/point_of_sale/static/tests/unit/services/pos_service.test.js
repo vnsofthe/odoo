@@ -2,6 +2,8 @@ import { test, expect, describe } from "@odoo/hoot";
 import { getFilledOrder, setupPosEnv } from "../utils";
 import { definePosModels } from "../data/generate_model_definitions";
 import { ConnectionLostError } from "@web/core/network/rpc";
+import { onRpc } from "@web/../tests/web_test_helpers";
+import { imageUrl } from "@web/core/utils/urls";
 
 definePosModels();
 
@@ -30,6 +32,16 @@ describe("pos_store.js", () => {
         expect(order.is_tipped).toBe(true);
         expect(order.tip_amount).toBe(50);
         expect(order.lines.length).toBe(3); // 2 original lines + 1 tip line
+    });
+
+    test("orderNoteFormat", async () => {
+        const store = await setupPosEnv();
+        const str = store.getStrNotes("string");
+        expect(str).toBeOfType("string");
+        expect(str).toBe("string");
+        const json2str = store.getStrNotes([{ text: "json", colorIndex: 0 }]);
+        expect(json2str).toBeOfType("string");
+        expect(json2str).toBe("json");
     });
 
     describe("syncAllOrders", () => {
@@ -138,13 +150,45 @@ describe("pos_store.js", () => {
         expect(store.getOrder().lines[0].qty).toBe(4);
     });
 
+    test("changesToOrderNoPrepCateg", async () => {
+        const store = await setupPosEnv();
+        const order = await getFilledOrder(store);
+        const orderChange = store.changesToOrder(order, new Set([]), false);
+        expect(orderChange.new.length).toBe(0);
+        expect(orderChange.cancelled.length).toBe(0);
+    });
+
+    test("orderContainsProduct", async () => {
+        const store = await setupPosEnv();
+        await getFilledOrder(store);
+        const product1 = store.models["product.template"].get(5);
+        const product2 = store.models["product.template"].get(6);
+        const product3 = store.models["product.template"].get(8);
+        expect(store.orderContainsProduct(product1)).toBe(true);
+        expect(store.orderContainsProduct(product2)).toBe(true);
+        expect(store.orderContainsProduct(product3)).toBe(false);
+        const order = await store.addNewOrder();
+        await store.addLineToOrder(
+            {
+                product_tmpl_id: product3,
+                qty: 1,
+            },
+            order
+        );
+
+        expect(store.orderContainsProduct(product1)).toBe(true);
+        expect(store.orderContainsProduct(product2)).toBe(true);
+        expect(store.orderContainsProduct(product3)).toBe(true);
+    });
+
     test("generateReceiptsDataToPrint", async () => {
         const store = await setupPosEnv();
         const pos_categories = store.models["pos.category"].getAll().map((c) => c.id);
         const order = await getFilledOrder(store);
         order.lines[1].setNote('[{"text":"Wait","colorIndex":0}]');
+
         order.lines[0].setCustomerNote("Test Orderline Customer Note");
-        const orderChange = store.changesToOrder(order, store.config.preparationCategories, false);
+        const orderChange = store.changesToOrder(order, new Set([...pos_categories]), false);
 
         const { orderData, changes } = store.generateOrderChange(
             order,
@@ -171,7 +215,7 @@ describe("pos_store.js", () => {
             quantity: 3,
             note: "",
             pos_categ_id: 1,
-            pos_categ_sequence: 0,
+            pos_categ_sequence: 1,
             display_name: "TEST",
             group: undefined,
             isCombo: undefined,
@@ -186,7 +230,7 @@ describe("pos_store.js", () => {
             quantity: 2,
             note: "Wait",
             pos_categ_id: 2,
-            pos_categ_sequence: 0,
+            pos_categ_sequence: 2,
             display_name: "TEST 2",
             group: undefined,
             isCombo: undefined,
@@ -330,5 +374,52 @@ describe("pos_store.js", () => {
         store.clearPendingOrder();
         ({ orderToCreate, orderToUpdate, orderToDelete } = store.getPendingOrder());
         expect(orderToDelete).toHaveLength(0);
+    });
+
+    describe("cacheReceiptLogo", () => {
+        function getCompanyLogo256Url(companyId) {
+            const fullUrl = imageUrl("res.company", companyId, "logo", {
+                width: 256,
+                height: 256,
+            });
+            const index = fullUrl.indexOf("/web");
+            return fullUrl.substring(index);
+        }
+
+        test("correctly cached", async () => {
+            onRpc(
+                getCompanyLogo256Url("<int:id>"),
+                async (request, { id }) => {
+                    expect.step(`Company logo ${id} fetched`);
+                    return `Company logo ${id}`;
+                },
+                {
+                    pure: true,
+                }
+            );
+            const store = await setupPosEnv();
+            const companyId = store.company.id;
+            expect.verifySteps([`Company logo ${companyId} fetched`]);
+            const { receiptLogoUrl } = store.config;
+            expect(receiptLogoUrl).toInclude("data:");
+            expect(atob(receiptLogoUrl.split(",")[1])).toInclude(`Company logo ${companyId}`);
+        });
+
+        test("fetch failed", async () => {
+            onRpc(
+                getCompanyLogo256Url("<int:id>"),
+                async (request, { id }) => {
+                    expect.step(`Company logo ${id} fetched`);
+                    throw new Error("Fetch failed");
+                },
+                {
+                    pure: true,
+                }
+            );
+            const store = await setupPosEnv();
+            const companyId = store.company.id;
+            expect.verifySteps([`Company logo ${companyId} fetched`]);
+            expect(store.config.receiptLogoUrl).toInclude(getCompanyLogo256Url(companyId));
+        });
     });
 });

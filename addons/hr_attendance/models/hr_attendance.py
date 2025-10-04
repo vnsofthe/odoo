@@ -143,7 +143,8 @@ class HrAttendance(models.Model):
                     break
                 ot_hours = min(overtime_reserve, att.worked_hours)
                 overtime_reserve -= ot_hours
-                att.overtime_hours = ot_hours
+                if att.overtime_hours != ot_hours:
+                    att.overtime_hours = ot_hours
 
     @api.depends('employee_id', 'overtime_hours', 'overtime_status')
     def _compute_validated_overtime_hours(self):
@@ -330,7 +331,7 @@ class HrAttendance(models.Model):
             employee_dates[attendance.employee_id].extend(
                 {attendance.date, *Rule._get_period_keys(attendance.date).values()}
             )
-        version_map = self.env['hr.version']._get_versions_by_employee_and_date(employee_dates)
+        version_map = self.env['hr.version'].sudo()._get_versions_by_employee_and_date(employee_dates)
 
         # attendances on dates for which the employee did not exist do no not generate overtimes
         all_attendances = all_attendances.filtered(
@@ -412,9 +413,10 @@ class HrAttendance(models.Model):
     def _load_demo_data(self):
         if self.has_demo_data():
             return
-        self.env['hr.employee']._load_scenario()
+        env_sudo = self.sudo().with_context({}).env
+        env_sudo['hr.employee']._load_scenario()
         # Load employees, schedules, departments and partners
-        convert.convert_file(self.env, 'hr_attendance', 'data/scenarios/hr_attendance_scenario.xml', None, mode='init')
+        convert.convert_file(env_sudo, 'hr_attendance', 'data/scenarios/hr_attendance_scenario.xml', None, mode='init')
 
         employee_sj = self.env.ref('hr.employee_sj')
         employee_mw = self.env.ref('hr.employee_mw')

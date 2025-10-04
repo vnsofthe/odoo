@@ -768,7 +768,9 @@ test("rendering of inbox message", async () => {
     await contains("[title='Add a Reaction']");
     await contains("[title='Add Star']");
     await contains("[title='Mark as Read']");
-    await contains("[title='Reply']");
+    await click("[title='Expand']");
+    await contains(".o-dropdown-item:contains('Reply')");
+    await contains(".o-dropdown-item:contains('Translate')");
 });
 
 test("Unfollow message", async function () {
@@ -782,20 +784,23 @@ test("Unfollow message", async function () {
         res_id: threadFollowedId,
         res_model: "res.partner",
     });
-    for (const threadId of [threadFollowedId, threadFollowedId, threadNotFollowedId]) {
-        const messageId = pyEnv["mail.message"].create({
+    const threadIds = [threadFollowedId, threadFollowedId, threadNotFollowedId];
+    const messageIds = pyEnv["mail.message"].create(
+        threadIds.map((threadId) => ({
             body: "not empty",
             model: "res.partner",
             needaction: true,
             res_id: threadId,
-        });
-        pyEnv["mail.notification"].create({
+        }))
+    );
+    pyEnv["mail.notification"].create(
+        messageIds.map((messageId) => ({
             mail_message_id: messageId,
             notification_status: "sent",
             notification_type: "inbox",
             res_partner_id: serverState.partnerId,
-        });
-    }
+        }))
+    );
     await start();
     await openDiscuss("mail.box_inbox");
     await contains(".o-mail-Message", { count: 3 });
@@ -810,24 +815,27 @@ test("Unfollow message", async function () {
         contains: [[".o-mail-Message-header small", { text: "on Thread followed" }]],
     });
     await contains(".o-dropdown-item:contains('Unfollow')");
-    await contains(".o-mail-Message:eq(2) [title='Expand']", { count: 0 });
+    await click(".o-mail-Message:eq(2) [title='Expand']");
     await contains(".o-mail-Message:eq(2)", {
         contains: [[".o-mail-Message-header small", { text: "on Thread not followed" }]],
     });
-    await contains(".o-mail-Message:eq(2) [title='Unfollow']", { count: 0 });
+    await contains(".o-dropdown-item:contains('Reply')");
+    await contains(".o-dropdown-item:contains('Unfollow')", { count: 0 });
     await click(".o-mail-Message:eq(0) [title='Expand']");
     await click(".o-dropdown-item:contains('Unfollow')");
     await contains(".o-mail-Message", { count: 2 }); // Unfollowing message 0 marks it as read -> Message removed
     await contains(".o-mail-Message:eq(0)", {
         contains: [[".o-mail-Message-header small", { text: "on Thread followed" }]],
     });
-    await contains(".o-mail-Message:eq(0) [title='Expand']", { count: 0 });
-    await contains(".o-mail-Message:eq(0) [title='Unfollow']", { count: 0 });
+    await click(".o-mail-Message:eq(0) [title='Expand']");
+    await contains(".o-dropdown-item:contains('Reply')");
+    await contains(".o-dropdown-item:contains('Unfollow')", { count: 0 });
     await contains(".o-mail-Message:eq(1)", {
         contains: [[".o-mail-Message-header small", { text: "on Thread not followed" }]],
     });
-    await contains(".o-mail-Message:eq(1) [title='Expand']", { count: 0 });
-    await contains(".o-mail-Message:eq(1) [title='Unfollow']", { count: 0 });
+    await click(".o-mail-Message:eq(1) [title='Expand']");
+    await contains(".o-dropdown-item:contains('Reply')");
+    await contains(".o-dropdown-item:contains('Unfollow')", { count: 0 });
 });
 
 test('messages marked as read move to "History" mailbox', async () => {
@@ -1892,7 +1900,7 @@ test("warning on send with shortcut when attempting to post message with still-u
     await contains(".o_notification", { text: "Please wait while the file is uploading." });
 });
 
-test("post attachment-only message shows optimistically the new message with attachment", async () => {
+test("[text composer] Can post message with only attachment", async () => {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "test" });
     onRpcBefore("/mail/message/post", async () => await new Deferred());
@@ -1907,6 +1915,28 @@ test("post attachment-only message shows optimistically the new message with att
     await press("Enter");
     await contains(".o-mail-Message");
     await contains(".o-mail-Message .o-mail-AttachmentContainer:contains('text.txt')");
+    await contains(".o-mail-Message .o-mail-Message-bubble", { count: 0 });
+});
+
+test.tags("html composer");
+test("Can post message with only attachment", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "test" });
+    onRpcBefore("/mail/message/post", async () => await new Deferred());
+    await start();
+    const composerService = getService("mail.composer");
+    composerService.setHtmlComposer();
+    await openDiscuss(channelId);
+    await contains(".o-mail-Composer input[type=file]");
+    const file = new File(["hello, world"], "text.txt", { type: "text/plain" });
+    await editInput(document.body, ".o-mail-Composer input[type=file]", [file]);
+    await contains(
+        ".o-mail-AttachmentContainer:not(.o-isUploading):contains('text.txt'):not(:has(.fa.fa-circle-o-notch))"
+    );
+    await press("Enter");
+    await contains(".o-mail-Message");
+    await contains(".o-mail-Message .o-mail-AttachmentContainer:contains('text.txt')");
+    await contains(".o-mail-Message .o-mail-Message-bubble", { count: 0 });
 });
 
 test("failure on loading messages should display error", async () => {
@@ -2348,7 +2378,9 @@ test("Newly created chat is at the top of the DM list", async () => {
     await start();
     await openDiscuss();
     await click("input[placeholder='Search conversations']");
+    await contains(".o_command_name", { count: 6 });
     await insertText("input[placeholder='Search a conversation']", "Jer");
+    await contains(".o_command_name", { count: 3 });
     await click(".o_command_name", { text: "Jerry Golay" });
     await contains(".o-mail-DiscussSidebar-item", {
         text: "Jerry Golay",

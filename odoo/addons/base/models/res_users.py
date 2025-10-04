@@ -269,7 +269,7 @@ class ResUsers(models.Model):
         return self.env['res.groups']._get_view_group_hierarchy()
 
     view_group_hierarchy = fields.Json(string='Technical field for user group setting', store=False, default=_default_view_group_hierarchy)
-    role = fields.Selection([('group_user', 'Member'), ('group_system', 'Administrator')], compute='_compute_role', readonly=False, string="Role")
+    role = fields.Selection([('group_user', 'User'), ('group_system', 'Administrator')], compute='_compute_role', readonly=False, string="Role")
 
     _login_key = models.Constraint("UNIQUE (login)",
         'You can not have two users with the same login!')
@@ -1263,7 +1263,7 @@ class ResUsers(models.Model):
                     "and *might* be a proxy. If your Odoo is behind a proxy, "
                     "it may be mis-configured. Check that you are running "
                     "Odoo in Proxy Mode and that the proxy is properly configured, see "
-                    "https://www.odoo.com/documentation/master/administration/install/deploy.html#https for details.",
+                    "https://www.odoo.com/documentation/latest/administration/install/deploy.html#https for details.",
                     source
                 )
             raise AccessDenied(_("Too many login failures, please wait a bit before trying again."))
@@ -1318,17 +1318,6 @@ class ResUsers(models.Model):
     @api.model
     def fields_get(self, allfields=None, attributes=None):
         res = super().fields_get(allfields, attributes=attributes)
-
-        # Try to find the missing field metadata in the corresponding
-        # res.users.settings field. This is usually handled automatically
-        # by related fields, but settings fields are implemented with a compute
-        # + inverse instead of a related.
-        settings_fields = self.env["res.users.settings"]._fields
-        for fname, attributes in res.items():
-            if fname not in settings_fields:
-                continue
-            if "help" not in attributes and settings_fields[fname].help:
-                attributes["help"] = settings_fields[fname].help
 
         # add self readable/writable fields
         readable_fields, writeable_fields = self._self_accessible_fields()

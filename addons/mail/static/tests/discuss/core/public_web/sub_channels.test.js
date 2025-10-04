@@ -31,7 +31,7 @@ test("navigate to sub channel", async () => {
     await click(".o-mail-DiscussSidebarChannel", { name: "General" });
     await contains(".o-mail-DiscussContent-threadName", { value: "General" });
     await click("button[title='Threads']");
-    await click(".o-mail-SubChannelList-thread", { text: "New Thread" });
+    await click(".o-mail-SubChannelPreview", { text: "New Thread" });
     await contains(".o-mail-DiscussContent-threadName", { value: "New Thread" });
     // Should access sub-thread when clicking on the notification.
     await click(".o-mail-DiscussSidebarChannel", { name: "General" });
@@ -53,7 +53,7 @@ test("can manually unpin a sub-thread", async () => {
     await click("button[title='Threads']");
     await click("button[aria-label='Create Thread']");
     await contains(".o-mail-DiscussContent-threadName", { value: "New Thread" });
-    await click("[title='Threads Actions']");
+    await click("[title='Thread Actions']");
     await click(".o-dropdown-item:contains('Unpin Conversation')");
     await contains(".o-mail-DiscussSidebar-item", { text: "New Thread", count: 0 });
 });
@@ -79,9 +79,13 @@ test("create sub thread from existing message", async () => {
     await click(".o-mail-DiscussSidebarChannel", { name: "General" });
     await click(".o-mail-Message-actions [title='Expand']");
     await contains(".o-dropdown-item:contains('Create Thread')", { count: 0 });
-    await click(".o-dropdown-item:contains('View Thread')");
+    await contains(".o-mail-SubChannelPreview:contains('Selling a training session and')");
+    await click(".o-mail-SubChannelPreview:contains('Selling a training session and')");
     await contains(".o-mail-DiscussContent-threadName", {
         value: "Selling a training session and",
+    });
+    await contains(".o-mail-SubChannelPreview:contains('Selling a training session and')", {
+        count: 0,
     });
 });
 
@@ -326,4 +330,23 @@ test("show notification when clicking on deleted thread", async () => {
     await contains(".o_notification:has(.o_notification_bar.bg-danger)", {
         text: "This thread is no longer available.",
     });
+});
+
+test("Can delete channel thread as author of thread", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    const subChannelID = pyEnv["discuss.channel"].create({
+        name: "test thread",
+        parent_channel_id: channelId,
+    });
+    await start();
+    await openDiscuss(subChannelID);
+    await contains(".o-mail-DiscussContent-threadName[title='test thread']");
+    await click(".o-mail-DiscussSidebar-item:contains('test thread') [title='Thread Actions']");
+    await click(".o-dropdown-item:contains('Delete Thread')");
+    await click(".modal button:contains('Delete Thread')");
+    await contains(".o-mail-DiscussContent-threadName[title='General']");
+    await contains(
+        `.o-mail-NotificationMessage :contains(/^Mitchell Admin deleted the thread "test thread"$/)`
+    );
 });

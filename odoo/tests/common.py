@@ -116,6 +116,12 @@ BROWSER_WAIT = CHECK_BROWSER_SLEEP * CHECK_BROWSER_ITERATIONS # seconds
 DEFAULT_SUCCESS_SIGNAL = 'test successful'
 TEST_CURSOR_COOKIE_NAME = 'test_request_key'
 
+IGNORED_MSGS = re.compile(r"""
+    (?: failed\ to\ fetch  # base error
+      | connectionlosterror:  # conversion by offlineFailToFetchErrorHandler
+    )
+""", flags=re.VERBOSE | re.IGNORECASE).search
+
 def get_db_name():
     dbnames = odoo.tools.config['db_name']
     # If the database name is not provided on the command-line,
@@ -1578,6 +1584,9 @@ class ChromeBrowser:
     def _websocket_request(self, method, *, params=None, timeout=10.0):
         assert threading.get_ident() != self._receiver.ident,\
             "_websocket_request must not be called from the consumer thread"
+        if not hasattr(self, 'ws'):
+            return None
+
         f = self._websocket_send(method, params=params, with_future=True)
         try:
             return f.result(timeout=timeout)
@@ -1589,6 +1598,9 @@ class ChromeBrowser:
 
         If ``with_future`` is set, returns a ``Future`` for the operation.
         """
+        if not hasattr(self, 'ws'):
+            return None
+
         result = None
         request_id = next(self._request_id)
         if with_future:
@@ -1638,7 +1650,7 @@ class ChromeBrowser:
 
         log_type = type
         _logger = self._logger.getChild('browser')
-        if self._result.done() and 'failed to fetch' in message.casefold():
+        if self._result.done() and IGNORED_MSGS(message):
             log_type = 'dir'
         _logger.log(
             self._TO_LEVEL.get(log_type, logging.INFO),
@@ -1712,7 +1724,7 @@ which leads to stray network requests and inconsistencies."""
             message += '\n' + stack
 
         if self._result.done():
-            if 'failed to fetch' not in message.casefold():
+            if not IGNORED_MSGS(message):
                 self._logger.getChild('browser').error(
                     "Exception received after termination: %s", message)
             return
@@ -1761,7 +1773,8 @@ which leads to stray network requests and inconsistencies."""
 
         self._logger.info('Asking for screenshot')
         f = self._websocket_send('Page.captureScreenshot', with_future=True)
-        f.add_done_callback(handler)
+        if f:
+            f.add_done_callback(handler)
         return f
 
     def set_cookie(self, name, value, path, domain):

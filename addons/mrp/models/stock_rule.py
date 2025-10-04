@@ -72,7 +72,7 @@ class StockRule(models.Model):
 
     def _filter_warehouse_routes(self, product, warehouses, route):
         if any(rule.action == 'manufacture' for rule in route.rule_ids):
-            if product.bom_ids:
+            if any(bom.type == 'normal' for bom in product.bom_ids):
                 return super()._filter_warehouse_routes(product, warehouses, route)
             return False
         return super()._filter_warehouse_routes(product, warehouses, route)
@@ -238,3 +238,12 @@ class StockRule(models.Model):
         new_move_vals['production_group_id'] = move_to_copy.production_group_id.id
         new_move_vals['production_id'] = False
         return new_move_vals
+
+
+class StockRoute(models.Model):
+    _inherit = "stock.route"
+
+    def _is_valid_resupply_route_for_product(self, product):
+        if any(rule.action == 'manufacture' for rule in self.rule_ids):
+            return any(bom.type == 'normal' for bom in product.bom_ids)
+        return super()._is_valid_resupply_route_for_product(product)
