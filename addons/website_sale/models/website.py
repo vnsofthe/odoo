@@ -48,8 +48,8 @@ class Website(models.Model):
         template_id = self.env['ir.config_parameter'].sudo().get_param(
             'sale.default_confirmation_template'
         )
-        default_template = template_id and self.env['mail.template'].browse(int(template_id))
-        if default_template.exists():
+        default_template = template_id and self.env['mail.template'].browse(int(template_id)).exists()
+        if default_template:
             return default_template
         return self.env.ref('sale.mail_template_sale_confirmation', raise_if_not_found=False)
 
@@ -1068,10 +1068,25 @@ class Website(models.Model):
                 return '96px'
         return '64px'
 
+    def _get_basic_feed_product_domain(self):
+        return Domain.AND([
+            Domain('is_published', '=', True),
+            Domain('type', 'in', ('consu', 'combo')),
+            self.website_domain(),
+        ])
+
+    def _default_feed_is_valid(self):
+        self.ensure_one()
+        product_count = self.env['product.product'].search_count(
+            self._get_basic_feed_product_domain(), limit=const.PRODUCT_FEED_SOFT_LIMIT + 1
+        )
+        return product_count <= const.PRODUCT_FEED_SOFT_LIMIT
+
     def _populate_product_feeds(self):
         """Populate product feeds for the website with default values."""
-        for website in self:
-            website.env['product.feed'].create({
+        self.env['product.feed'].create([
+            {
                 'name': website.env._("GMC 1"),
                 'website_id': website.id,
-            })
+            } for website in self.filtered(lambda w: w._default_feed_is_valid())
+        ])

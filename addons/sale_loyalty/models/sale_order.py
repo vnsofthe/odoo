@@ -5,6 +5,8 @@ import random
 from collections import defaultdict
 from functools import partial
 
+from pytz import timezone
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
@@ -418,7 +420,7 @@ class SaleOrder(models.Model):
         discountable = 0
         discountable_per_tax = defaultdict(int)
         for line in cheapest_line:
-            discountable += line.price_total
+            discountable += line.price_total / line.product_uom_qty
             taxes = line.tax_ids.filtered(lambda t: t.amount_type != 'fixed')
             discountable_per_tax[taxes] += line.price_unit * (1 - (line.discount or 0) / 100)
 
@@ -656,7 +658,7 @@ class SaleOrder(models.Model):
         Returns the base domain that all programs have to comply to.
         """
         self.ensure_one()
-        today = fields.Date.context_today(self)
+        today = self._get_confirmed_tx_create_date()
         return [('active', '=', True), ('sale_ok', '=', True),
                 *self.env['loyalty.program']._check_company_domain([self.company_id.id, self.company_id.parent_id.id]),
                 '|', ('pricelist_ids', '=', False), ('pricelist_ids', 'in', [self.pricelist_id.id]),
@@ -668,13 +670,37 @@ class SaleOrder(models.Model):
         Returns the base domain that all triggers have to comply to.
         """
         self.ensure_one()
-        today = fields.Date.context_today(self)
+        today = self._get_confirmed_tx_create_date()
         return [('active', '=', True), ('program_id.sale_ok', '=', True),
                 *self.env['loyalty.program']._check_company_domain([self.company_id.id, self.company_id.parent_id.id]),
                 '|', ('program_id.pricelist_ids', '=', False),
                      ('program_id.pricelist_ids', 'in', [self.pricelist_id.id]),
                 '|', ('program_id.date_from', '=', False), ('program_id.date_from', '<=', today),
                 '|', ('program_id.date_to', '=', False), ('program_id.date_to', '>=', today)]
+
+    def _get_program_timezone(self):
+        """Get the timezone to be used for loyalty date checking on the current order."""
+        self.ensure_one()
+        return (
+            self.company_id.partner_id.tz
+            or self.env['ir.config_parameter'].sudo().get_param('loyalty.timezone', 'UTC')
+        )
+
+    def _get_confirmed_tx_create_date(self):
+        """Return the creation date of the earliest confirmed transaction to check which loyalty
+        programs are applicable. If no transactions are confirmed, return the current day, using
+        the company's time zone.
+        """
+        self.ensure_one()
+        order_tz = self._get_program_timezone()
+        confirmed_txs_dates = self.sudo().transaction_ids.filtered(
+            lambda tx: tx.state in ('done', 'authorized'),
+        ).mapped('create_date')
+        if confirmed_txs_dates:
+            # If order is getting confirmed, use the earliest finalized transaction's create date
+            tx_date = min(confirmed_txs_dates)
+            return tx_date.astimezone(timezone(order_tz)).date()
+        return fields.Date.context_today(self.with_context(tz=order_tz))
 
     def _get_applicable_program_points(self, domain=None):
         """
@@ -1040,10 +1066,13 @@ class SaleOrder(models.Model):
         coupons_to_unlink = self.env['loyalty.card']
         point_entries_to_unlink = self.env['sale.order.coupon.points']
         # Remove any coupons that are expired
-        if self.applied_coupon_ids:
-            self.applied_coupon_ids = self.applied_coupon_ids.filtered(lambda c:
-                (not c.expiration_date or c.expiration_date >= fields.Date.today())
+        if initial_coupons := self.applied_coupon_ids:
+            check_date = self._get_confirmed_tx_create_date()
+            self.applied_coupon_ids = initial_coupons.filtered(
+                lambda c: not c.expiration_date or c.expiration_date >= check_date,
             )
+            removed = initial_coupons - self.applied_coupon_ids
+            lines_to_unlink |= self.order_line.filtered(lambda sol: sol.coupon_id in removed)
         point_ids_per_program = defaultdict(lambda: self.env['sale.order.coupon.points'])
         for pe in self.coupon_point_ids:
             # Update coupons that were created for Public User
@@ -1414,6 +1443,7 @@ class SaleOrder(models.Model):
         rule = self.env['loyalty.rule'].search(domain)
         program = rule.program_id
         coupon = False
+        check_date = self._get_confirmed_tx_create_date()
 
         if rule in self.code_enabled_rule_ids:
             return {'error': _("This promo code is already applied.")}
@@ -1426,7 +1456,7 @@ class SaleOrder(models.Model):
                 not coupon.program_id.reward_ids or\
                 not coupon.program_id.filtered_domain(self._get_program_domain()):
                 return {'error': _("This code is invalid (%s).", code), 'not_found': True}
-            elif coupon.expiration_date and coupon.expiration_date < fields.Date.today():
+            if coupon.expiration_date and coupon.expiration_date < check_date:
                 return {'error': _("This coupon is expired.")}
             elif coupon.points < min(coupon.program_id.reward_ids.mapped('required_points')):
                 return {'error': _("This coupon has already been used.")}
@@ -1434,10 +1464,19 @@ class SaleOrder(models.Model):
 
         if not program or not program.active:
             return {'error': _("This code is invalid (%s).", code), 'not_found': True}
-        elif (program.limit_usage and program.total_order_count >= program.max_usage):
-            return {'error': _("This code is expired (%s).", code)}
         elif program.program_type in ('loyalty', 'ewallet'):
             return {'error': _("This program cannot be applied with code.")}
+
+        # Lock the loyalty program row to block several processes that try to
+        # read it at the same time. We also use NOWAIT to make sure we trigger a
+        # serialization error when the processes don't have the lock and thus,
+        # trigger a retry of the transaction.
+        self.env.cr.execute("""
+            SELECT id FROM loyalty_program WHERE id=%s FOR UPDATE NOWAIT
+        """, (program.id,))
+
+        if (program.limit_usage and program.total_order_count >= program.max_usage):
+            return {'error': _("This code is expired (%s).", code)}
 
         # Rule will count the next time the points are updated
         if rule:

@@ -28,6 +28,7 @@ import {
     isUnprotecting,
     listElementSelector,
     isEditorTab,
+    isPhrasingContent,
 } from "../utils/dom_info";
 import {
     childNodes,
@@ -69,6 +70,18 @@ function getConnectedParents(nodes) {
  * @property { DomPlugin['removeSystemProperties'] } removeSystemProperties
  */
 
+/**
+ * @typedef {((insertedNodes: Node[]) => void)[]} after_insert_handlers
+ * @typedef {((el: HTMLElement) => void)[]} before_set_tag_handlers
+ *
+ * @typedef {((container: Element, block: Element) => container)[]} before_insert_processors
+ * @typedef {((arg: { nodeToInsert: Node, container: HTMLElement }) => nodeToInsert)[]} node_to_insert_processors
+ *
+ * @typedef {string[]} system_attributes
+ * @typedef {string[]} system_classes
+ * @typedef {string[]} system_style_properties
+ */
+
 export class DomPlugin extends Plugin {
     static id = "dom";
     static dependencies = ["baseContainer", "selection", "history", "split", "delete", "lineBreak"];
@@ -80,6 +93,7 @@ export class DomPlugin extends Plugin {
         "setTagName",
         "removeSystemProperties",
     ];
+    /** @type {import("plugins").EditorResources} */
     resources = {
         user_commands: [
             {
@@ -147,6 +161,9 @@ export class DomPlugin extends Plugin {
         for (const cb of this.getResource("before_insert_processors")) {
             container = cb(container, block);
         }
+        if (!container.hasChildNodes()) {
+            return [];
+        }
         selection = this.dependencies.selection.getEditableSelection();
 
         let startNode;
@@ -182,6 +199,7 @@ export class DomPlugin extends Plugin {
             (isParagraphRelatedElement(node) || isListItemElement(node)) &&
             !isEmptyBlock(block) &&
             !isEmptyBlock(node) &&
+            isContentEditable(block) &&
             (isContentEditable(node) ||
                 (!node.isConnected && !closestElement(node, "[contenteditable]"))) &&
             !this.dependencies.split.isUnsplittable(node) &&
@@ -195,12 +213,19 @@ export class DomPlugin extends Plugin {
             !this.isEditionBoundary(selection.anchorNode);
 
         // Empty block must contain a br element to allow cursor placement.
+        const firstLeafNode = firstLeaf(container);
         if (
-            container.lastElementChild &&
-            isBlock(container.lastElementChild) &&
-            !container.lastElementChild.hasChildNodes()
+            isBlock(firstLeafNode) &&
+            !(closestElement(firstLeafNode, "[contenteditable]")?.contentEditable === "false")
         ) {
-            fillEmpty(container.lastElementChild);
+            fillEmpty(firstLeafNode);
+        }
+        const lastLeafNode = lastLeaf(container);
+        if (
+            isBlock(lastLeafNode) &&
+            !(closestElement(lastLeafNode, "[contenteditable]")?.contentEditable === "false")
+        ) {
+            fillEmpty(lastLeafNode);
         }
 
         // In case the html inserted is all contained in a single root <p> or <li>
@@ -245,9 +270,9 @@ export class DomPlugin extends Plugin {
             }
         }
 
+        const textNode = this.document.createTextNode("");
         if (startNode.nodeType === Node.ELEMENT_NODE) {
             if (selection.anchorOffset === 0) {
-                const textNode = this.document.createTextNode("");
                 if (isSelfClosingElement(startNode)) {
                     startNode.parentNode.insertBefore(textNode, startNode);
                 } else {
@@ -313,7 +338,7 @@ export class DomPlugin extends Plugin {
                 // Split blocks at the edges if inserting new blocks (preventing
                 // <p><p>text</p></p> or <li><li>text</li></li> scenarios).
                 while (
-                    !this.isEditionBoundary(currentNode.parentElement) &&
+                    !this.isEditionBoundary(currentNode) &&
                     (!allowsParagraphRelatedElements(currentNode.parentElement) ||
                         (isListItemElement(currentNode.parentElement) &&
                             !this.dependencies.split.isUnsplittable(nodeToInsert)))
@@ -322,6 +347,9 @@ export class DomPlugin extends Plugin {
                         // If we have to insert an unsplittable element, we cannot afford to
                         // unwrap it we need to search for a more suitable spot to put it
                         if (this.dependencies.split.isUnsplittable(nodeToInsert)) {
+                            if (this.isEditionBoundary(currentNode.parentElement)) {
+                                break;
+                            }
                             currentNode = currentNode.parentElement;
                             doesCurrentNodeAllowsP = allowsParagraphRelatedElements(currentNode);
                             continue;
@@ -346,9 +374,7 @@ export class DomPlugin extends Plugin {
                             fillShrunkPhrasingParent(otherNode);
                         }
                         // After the content insertion, the right-part of a
-                        // split is evaluated for removal, if it is unnecessary
-                        // (to guarantee a paragraph-related element
-                        // after the last unsplittable inserted element).
+                        // split is evaluated for removal.
                         candidatesForRemoval.push(right);
                     } else {
                         if (isBlock(currentNode)) {
@@ -371,9 +397,9 @@ export class DomPlugin extends Plugin {
             }
             // Ensure that all adjacent paragraph elements are converted to
             // <li> when inserting in a list.
-            const container = closestBlock(currentNode);
+            const block = closestBlock(currentNode);
             for (const processor of this.getResource("node_to_insert_processors")) {
-                nodeToInsert = processor({ nodeToInsert, container });
+                nodeToInsert = processor({ nodeToInsert, container: block });
             }
             if (insertBefore) {
                 currentNode.before(nodeToInsert);
@@ -387,6 +413,8 @@ export class DomPlugin extends Plugin {
             }
             currentNode = nodeToInsert;
         }
+        // Remove the empty text node created earlier
+        textNode.remove();
         allInsertedNodes.push(...lastInsertedNodes);
         this.getResource("after_insert_handlers").forEach((handler) => handler(allInsertedNodes));
         let insertedNodesParents = getConnectedParents(allInsertedNodes);
@@ -409,41 +437,16 @@ export class DomPlugin extends Plugin {
                 !(isProtected(parent) && !isUnprotecting(parent)) &&
                 parent.isContentEditable
             ) {
-                cleanTrailingBR(parent, [
-                    (node) => {
-                        // Don't remove the last BR in cases where the
-                        // previous sibling is an unsplittable block
-                        // (i.e. a table, a non-editable div, ...)
-                        // to allow placing the cursor after that unsplittable
-                        // element. This can be removed when the cursor
-                        // is properly handled around these elements.
-                        const previousSibling = node.previousSibling;
-                        return (
-                            previousSibling &&
-                            isBlock(previousSibling) &&
-                            this.dependencies.split.isUnsplittable(previousSibling)
-                        );
-                    },
-                ]);
+                cleanTrailingBR(parent);
             }
         }
         for (const candidateForRemoval of candidatesForRemoval) {
-            // Ensure that a paragraph related element is present after the last
-            // unsplittable inserted element
             if (
                 candidateForRemoval.isConnected &&
                 (isParagraphRelatedElement(candidateForRemoval) ||
                     isListItemElement(candidateForRemoval)) &&
                 candidateForRemoval.parentElement.isContentEditable &&
-                isEmptyBlock(candidateForRemoval) &&
-                ((candidateForRemoval.previousElementSibling &&
-                    !this.dependencies.split.isUnsplittable(
-                        candidateForRemoval.previousElementSibling
-                    )) ||
-                    (candidateForRemoval.nextElementSibling &&
-                        !this.dependencies.split.isUnsplittable(
-                            candidateForRemoval.nextElementSibling
-                        )))
+                isEmptyBlock(candidateForRemoval)
             ) {
                 candidateForRemoval.remove();
             }
@@ -573,10 +576,30 @@ export class DomPlugin extends Plugin {
         this.dependencies.selection.setSelection({ anchorNode, anchorOffset });
     }
 
+    /**
+     * Determines if a block element can be safely retagged.
+     *
+     * Certain blocks (like 'o_editable') should not be retagged because doing so
+     * will recreate the block, potentially causing issues. This function checks
+     * if retagging a block is safe.
+     *
+     * @param {HTMLElement} block
+     * @returns {boolean}
+     */
+    isRetaggingSafe(block) {
+        return !(
+            (isParagraphRelatedElement(block) ||
+                isListItemElement(block) ||
+                isPhrasingContent(block)) &&
+            this.getResource("unremovable_node_predicates").some((predicate) => predicate(block))
+        );
+    }
+
     getBlocksToSet() {
         const targetedBlocks = [...this.dependencies.selection.getTargetedBlocks()];
         return targetedBlocks.filter(
             (block) =>
+                this.isRetaggingSafe(block) &&
                 !descendants(block).some((descendant) => targetedBlocks.includes(descendant)) &&
                 block.isContentEditable
         );
@@ -609,11 +632,13 @@ export class DomPlugin extends Plugin {
             if (
                 isParagraphRelatedElement(block) ||
                 isListItemElement(block) ||
+                isPhrasingContent(block) ||
                 block.nodeName === "BLOCKQUOTE"
             ) {
                 if (newCandidate.matches(baseContainerGlobalSelector) && isListItemElement(block)) {
                     continue;
                 }
+                this.dispatchTo("before_set_tag_handlers", block, tagName, cursors);
                 const newEl = this.setTagName(block, tagName);
                 cursors.remapNode(block, newEl);
                 // We want to be able to edit the case `<h2 class="h3">`
@@ -637,7 +662,6 @@ export class DomPlugin extends Plugin {
             }
         }
         cursors.restore();
-        this.dispatchTo("set_tag_handlers", newEls);
         this.dependencies.history.addStep();
     }
 

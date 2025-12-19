@@ -64,12 +64,14 @@ class PosConfig(models.Model):
         'ir.attachment',
         string="Add images",
         help="Image to display on the self order screen",
+        bypass_search_access=True,
     )
     self_ordering_image_background_ids = fields.Many2many(
         'ir.attachment',
         string="Set background image",
         help="Image to be displayed in the background",
         relation="pos_self_order_background_rels",
+        bypass_search_access=True,
     )
     self_ordering_default_user_id = fields.Many2one(
         "res.users",
@@ -352,6 +354,11 @@ class PosConfig(models.Model):
         for record in self:
             record.self_ordering_url = record.get_base_url() + record._get_self_order_route()
 
+    def close_ui(self):
+        if self.self_ordering_mode == "kiosk":
+            return self.action_close_kiosk_session()
+        return super().close_ui()
+
     def action_close_kiosk_session(self):
         if self.current_session_id and self.current_session_id.order_ids:
             self.current_session_id.order_ids.filtered(lambda o: o.state == 'draft').unlink()
@@ -418,6 +425,7 @@ class PosConfig(models.Model):
             'iface_splitbill': True,
             'module_pos_restaurant': True,
             'self_ordering_mode': 'kiosk',
+            'self_ordering_pay_after': 'each',
         })
 
     def _generate_single_qr_code__(self, url):  # noqa: PLW3201

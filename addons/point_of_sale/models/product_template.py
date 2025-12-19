@@ -209,7 +209,7 @@ class ProductTemplate(models.Model):
 
         special_products = config._get_special_products().filtered(
                     lambda product: not product.sudo().company_id
-                                    or product.sudo().company_id == self.company_id
+                                    or product.sudo().company_id == self.env.company
                 )
         products += special_products.product_tmpl_id
         if config.tip_product_id:
@@ -220,6 +220,10 @@ class ProductTemplate(models.Model):
         # Ensure optional products are loaded when configured.
         if products.filtered(lambda p: p.pos_optional_product_ids):
             products |= products.mapped("pos_optional_product_ids")
+
+        # Ensure products from loaded orders are loaded
+        if data.get('pos.order.line'):
+            products += self.env['product.product'].browse([l['product_id'] for l in data['pos.order.line']]).product_tmpl_id
 
         return self._load_pos_data_read(products, config)
 
@@ -299,7 +303,7 @@ class ProductTemplate(models.Model):
                 ))
 
     def _ensure_unused_in_pos(self):
-        open_pos_sessions = self.env['pos.session'].search([('state', '!=', 'closed')])
+        open_pos_sessions = self.env['pos.session'].sudo().search([('state', '!=', 'closed')])
         used_products = open_pos_sessions.order_ids.filtered(lambda o: o.state == "draft").lines.product_id.product_tmpl_id
         if used_products & self:
             raise UserError(_(
@@ -341,7 +345,7 @@ class ProductTemplate(models.Model):
         while not tax_to_use and company:
             tax_to_use = self.taxes_id.filtered(lambda tax: tax.company_id.id == company.id)
             if not tax_to_use:
-                company = company.parent_id
+                company = company.sudo().parent_id
         taxes = tax_to_use.compute_all(price, config.currency_id, quantity, self)
         grouped_taxes = {}
         for tax in taxes['taxes']:

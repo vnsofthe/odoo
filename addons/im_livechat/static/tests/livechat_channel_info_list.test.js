@@ -1,3 +1,4 @@
+import { defineLivechatModels } from "@im_livechat/../tests/livechat_test_helpers";
 import {
     click,
     contains,
@@ -6,9 +7,10 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
-import { describe, test } from "@odoo/hoot";
+import { describe, press, test, waitFor } from "@odoo/hoot";
 import { Command, serverState } from "@web/../tests/web_test_helpers";
-import { defineLivechatModels } from "@im_livechat/../tests/livechat_test_helpers";
+import { serializeDate, today } from "@web/core/l10n/dates";
+import { getOrigin } from "@web/core/utils/urls";
 
 describe.current.tags("desktop");
 defineLivechatModels();
@@ -41,6 +43,9 @@ test("livechat note is loaded when opening the channel info list", async () => {
 
 test("editing livechat note is synced between tabs", async () => {
     const pyEnv = await startServer();
+    pyEnv["res.users"].write([serverState.userId], {
+        group_ids: [serverState.groupLivechatId],
+    });
     const userId = pyEnv["res.users"].create({ name: "James" });
     pyEnv["res.partner"].create({
         name: "James",
@@ -92,8 +97,8 @@ test("shows live chat status in discuss sidebar", async () => {
     });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId }),
-            Command.create({ guest_id: guestId }),
+            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         country_id: countryId,
         channel_type: "livechat",
@@ -127,8 +132,8 @@ test("editing livechat status is synced between tabs", async () => {
     });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId }),
-            Command.create({ guest_id: guestId }),
+            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         country_id: countryId,
         channel_type: "livechat",
@@ -156,21 +161,16 @@ test("editing livechat status is synced between tabs", async () => {
     }); // Status should be synced with bus
 });
 
-test("Shows expertise", async () => {
+test("Manage expertises from channel info list", async () => {
     const pyEnv = await startServer();
+    pyEnv["res.users"].write([serverState.userId], {
+        group_ids: [serverState.groupLivechatManagerId, serverState.groupLivechatId],
+    });
     const userId = pyEnv["res.users"].create({ name: "James" });
-    pyEnv["res.partner"].create({
-        name: "James",
-        user_ids: [userId],
-    });
+    pyEnv["res.partner"].create({ name: "James", user_ids: [userId] });
     const countryId = pyEnv["res.country"].create({ code: "be", name: "Belgium" });
-    const guestId = pyEnv["mail.guest"].create({
-        name: "Visitor #20",
-    });
-    const expertiseIds = pyEnv["im_livechat.expertise"].create([
-        { name: "pricing" },
-        { name: "events" },
-    ]);
+    const guestId = pyEnv["mail.guest"].create({ name: "Visitor #20" });
+    const expertiseIds = pyEnv["im_livechat.expertise"].create([{ name: "pricing" }]);
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
             Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
@@ -184,5 +184,52 @@ test("Shows expertise", async () => {
     await start();
     await openDiscuss(channelId);
     await contains(".o-livechat-ChannelInfoList .o_tag", { text: "pricing" });
+    await insertText(".o-livechat-ExpertiseTagsAutocomplete input", "events");
+    await click("a", { text: 'Create "events"' });
     await contains(".o-livechat-ChannelInfoList .o_tag", { text: "events" });
+    await click(".o-livechat-ExpertiseTagsAutocomplete input");
+    await press("Backspace");
+    await contains(".o-livechat-ChannelInfoList .o_tag", { text: "events", count: 0 });
+    await press("Backspace");
+    await contains(".o-livechat-ChannelInfoList .o_tag", { text: "pricing", count: 0 });
+    await contains(".o-livechat-ExpertiseTagsAutocomplete input[placeholder='Add expertise']");
+    await click("a", { text: "events" });
+    await contains(".o-livechat-ChannelInfoList .o_tag", { text: "events" });
+});
+
+test("Can download transcript from channel info panel", async () => {
+    const pyEnv = await startServer();
+    const guestId = pyEnv["mail.guest"].create({ name: "Visitor #20" });
+    const channelId = pyEnv["discuss.channel"].create({
+        channel_member_ids: [
+            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
+        ],
+        channel_type: "livechat",
+        livechat_end_dt: serializeDate(today().plus({ days: -1 })),
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(
+        `a[href='${getOrigin()}/im_livechat/download_transcript/${channelId}']:text(Download)`
+    );
+});
+
+test("Disable actions for non-livechat users", async () => {
+    const pyEnv = await startServer();
+    const guestId = pyEnv["mail.guest"].create({ name: "Visitor #20" });
+    const channelId = pyEnv["discuss.channel"].create({
+        channel_member_ids: [
+            Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
+        ],
+        channel_type: "livechat",
+        livechat_status: "in_progress",
+    });
+    await start();
+    await openDiscuss(channelId);
+    await waitFor(".o-livechat-LivechatStatusSelection button:text(In progress):disabled");
+    await waitFor(".o-livechat-LivechatStatusSelection button:text(Waiting for customer):disabled");
+    await waitFor(".o-livechat-LivechatStatusSelection button:text(Looking for help):disabled");
+    await waitFor("textarea[placeholder='Add your notes here...']:disabled");
+    await waitFor(".o-livechat-ExpertiseTagsAutocomplete.o-disabled");
 });

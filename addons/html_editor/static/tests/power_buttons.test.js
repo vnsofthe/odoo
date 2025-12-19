@@ -10,6 +10,7 @@ import { setupEditor } from "./_helpers/editor";
 import { getContent, setSelection } from "./_helpers/selection";
 import { expectElementCount } from "./_helpers/ui_expectations";
 import { insertText } from "./_helpers/user_actions";
+import { em, s, strong, u } from "./_helpers/tags";
 
 describe.tags("desktop");
 describe("visibility", () => {
@@ -19,6 +20,26 @@ describe("visibility", () => {
         insertText(editor, "a");
         await animationFrame();
         expect(".o_we_power_buttons").not.toBeVisible();
+    });
+
+    test("should show power buttons on P tag containing strong (bold)", async () => {
+        await setupEditor(`<p>${strong("[]\u200B", "first")}</p>`);
+        expect(".o_we_power_buttons").toBeVisible();
+    });
+
+    test("should show power buttons on P tag containing em (italic)", async () => {
+        await setupEditor(`<p>${em("[]\u200B", "first")}</p>`);
+        expect(".o_we_power_buttons").toBeVisible();
+    });
+
+    test("should show power buttons on P tag containing u (underline)", async () => {
+        await setupEditor(`<p>${u("[]\u200B", "first")}</p>`);
+        expect(".o_we_power_buttons").toBeVisible();
+    });
+
+    test("should show power buttons on P tag containing s (strikethrough)", async () => {
+        await setupEditor(`<p>${s("[]\u200B", "first")}</p>`);
+        expect(".o_we_power_buttons").toBeVisible();
     });
 
     test("should not show power buttons on heading tags", async () => {
@@ -56,6 +77,13 @@ describe("visibility", () => {
         expect(".o_we_power_buttons").not.toBeVisible();
     });
 
+    test("should not show power buttons on block p tag with tab", async () => {
+        await setupEditor(
+            `<p><span class="oe-tabs" contenteditable="false" style="width: 40px;">\t</span>\u200b[]</p>`
+        );
+        expect(".o_we_power_buttons").not.toBeVisible();
+    });
+
     test("should not show power buttons on non empty block P tag", async () => {
         await setupEditor("<p>[]<br><br></p>");
         expect(".o_we_power_buttons").not.toBeVisible();
@@ -88,6 +116,16 @@ describe("visibility", () => {
             'div[data-oe-local-overlay-id="oe-power-buttons-overlay"]'
         );
         expect(powerButtons.getBoundingClientRect().left).toEqual(placeholderWidth + 20);
+    });
+});
+
+describe.tags("desktop");
+describe("cleanup", () => {
+    test("power buttons overlay is removed when editor is destroyed", async () => {
+        const { editor } = await setupEditor("<p>[]<br></p>");
+        expect("[data-oe-local-overlay-id='oe-power-buttons-overlay']").toHaveCount(1);
+        editor.destroy();
+        expect("[data-oe-local-overlay-id='oe-power-buttons-overlay']").toHaveCount(0);
     });
 });
 

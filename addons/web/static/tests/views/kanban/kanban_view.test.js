@@ -70,8 +70,10 @@ import {
     patchWithCleanup,
     quickCreateKanbanColumn,
     quickCreateKanbanRecord,
+    removeFacet,
     serverState,
     stepAllNetworkCalls,
+    switchView,
     toggleKanbanColumnActions,
     toggleKanbanRecordDropdown,
     toggleMenuItem,
@@ -88,6 +90,7 @@ import { FileInput } from "@web/core/file_input/file_input";
 import { browser } from "@web/core/browser/browser";
 import { currencies } from "@web/core/currency";
 import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
 import { SampleServer } from "@web/model/sample_server";
 import { KanbanCompiler } from "@web/views/kanban/kanban_compiler";
@@ -7019,8 +7022,6 @@ test("empty kanban with sample data", async () => {
         message: "there should be 10 sample records",
     });
     expect(".o_view_nocontent").toHaveCount(1);
-    expect(".ribbon").toHaveCount(1);
-    expect(".ribbon").toHaveText("SAMPLE DATA");
 
     await toggleSearchBarMenu();
     await toggleMenuItem("Match nothing");
@@ -7028,7 +7029,6 @@ test("empty kanban with sample data", async () => {
     expect(".o_content").not.toHaveClass("o_view_sample_data");
     expect(".o_kanban_record:not(.o_kanban_ghost)").toHaveCount(0);
     expect(".o_view_nocontent").toHaveCount(1);
-    expect(".ribbon").toHaveCount(0);
 });
 
 test("empty grouped kanban with sample data and many2many_tags", async () => {
@@ -7148,14 +7148,12 @@ test("non empty kanban with sample data", async () => {
     expect(".o_content").not.toHaveClass("o_view_sample_data");
     expect(".o_kanban_record:not(.o_kanban_ghost)").toHaveCount(4);
     expect(".o_view_nocontent").toHaveCount(0);
-    expect(".ribbon").toHaveCount(0);
 
     await toggleSearchBarMenu();
     await toggleMenuItem("Match nothing");
 
     expect(".o_content").not.toHaveClass("o_view_sample_data");
     expect(".o_kanban_record:not(.o_kanban_ghost)").toHaveCount(0);
-    expect(".ribbon").toHaveCount(0);
 });
 
 test("empty grouped kanban with sample data: add a column", async () => {
@@ -7398,7 +7396,7 @@ test("kanban with sample data grouped by m2o and existing groups", async () => {
                 __extra_domain: [["product_id", "=", "3"]],
             },
         ],
-        length: 2,
+        length: 1,
     }));
 
     await mountView({
@@ -7420,6 +7418,43 @@ test("kanban with sample data grouped by m2o and existing groups", async () => {
     expect(".o_kanban_group:first .o_column_title").toHaveText("hello");
     expect(".o_kanban_record:not(.o_kanban_ghost)").toHaveCount(16);
     expect(".o_kanban_record").toHaveText("hello");
+});
+
+test(`kanban grouped by m2o with sample data with more than 5 real groups`, async () => {
+    Partner._records = [];
+    onRpc("web_read_group", () => ({
+        // simulate 6, empty, real groups
+        groups: [1, 2, 3, 4, 5, 6].map((id) => ({
+            __count: 0,
+            __records: [],
+            product_id: [id, `Value ${id}`],
+            __extra_domain: [["product_id", "=", id]],
+        })),
+        length: 6,
+    }));
+
+    await mountView({
+        resModel: "partner",
+        type: "kanban",
+        arch: `
+            <kanban sample="1">
+                <templates>
+                    <div t-name="card">
+                        <field name="product_id"/>
+                    </div>
+                </templates>
+            </kanban>`,
+        groupBy: ["product_id"],
+    });
+    expect(".o_content").toHaveClass("o_view_sample_data");
+    expect(queryAllTexts(`.o_kanban_group .o_column_title`)).toEqual([
+        "Value 1",
+        "Value 2",
+        "Value 3",
+        "Value 4",
+        "Value 5",
+        "Value 6",
+    ]);
 });
 
 test.tags("desktop");
@@ -13489,10 +13524,12 @@ test("kanban records are middle clickable by default", async () => {
     await contains(".o_kanban_record").click({ ctrlKey: true });
     expect.verifySteps([
         "get menu_id-null",
+        "get current_lang-null",
         "get current_state-null",
         "get current_action-null",
         'set current_state-{"actionStack":[{"displayName":"","action":1,"view_type":"kanban"}],"action":1}',
         'set current_action-{"id":1,"res_model":"partner","type":"ir.actions.act_window","views":[[false,"kanban"],[false,"form"]]}',
+        "set current_lang-en",
         'get current_action-{"id":1,"res_model":"partner","type":"ir.actions.act_window","views":[[false,"kanban"],[false,"form"]]}',
         'get current_state-{"actionStack":[{"displayName":"","action":1,"view_type":"kanban"}],"action":1}',
         'set current_action-{"id":1,"res_model":"partner","type":"ir.actions.act_window","views":[[false,"kanban"],[false,"form"]]}',
@@ -13817,9 +13854,9 @@ test("groups will be scrolled to on unfold if outside of viewport", async () => 
             "the next group (which is folded) should stick to the right of the screen after the scroll",
     });
     expect(".o_column_folded:eq(0)").toHaveText("column 7\n(1)");
-    await contains('.o_kanban_group:contains("column 7\n(1)")').click();
+    await contains('.o_kanban_group:contains("column 7 (1)")').click();
     expect(".o_content").toHaveProperty("scrollLeft", 2154);
-    ({ x, width } = queryRect('.o_kanban_group:contains("column 7\n(1)")'));
+    ({ x, width } = queryRect('.o_kanban_group:contains("column 7 (1)")'));
     // TODO JUM: change digits option
     expect(x + width).toBeCloseTo(window.innerWidth, {
         digits: 0,
@@ -13831,7 +13868,7 @@ test("groups will be scrolled to on unfold if outside of viewport", async () => 
     expect(".o_content").toHaveProperty("scrollLeft", 3302);
     await contains(".o_kanban_group:last").click();
     expect(".o_content").toHaveProperty("scrollLeft", 3562);
-    ({ x, width } = queryRect('.o_kanban_group:contains("column 11\n(1)")'));
+    ({ x, width } = queryRect('.o_kanban_group:contains("column 11 (1)")'));
     // TODO JUM: change digits option
     expect(x + width).toBeCloseTo(window.innerWidth, {
         digits: 0,
@@ -14615,4 +14652,237 @@ test("Cache: unfolded is now folded", async () => {
     expect(queryAll(".o_kanban_record", { root: getKanbanColumn(0) })).toHaveCount(2);
     expect(getKanbanColumn(1)).toHaveClass("o_column_folded");
     expect(queryText(getKanbanColumn(1))).toBe("xmo\n(2)");
+});
+
+test.tags("desktop");
+test("scroll position is restored when coming back to kanban view", async () => {
+    Partner._views = {
+        kanban: `
+            <kanban>
+                <templates>
+                    <t t-name="card">
+                        <field name="foo"/>
+                    </t>
+                </templates>
+            </kanban>`,
+        list: `<list><field name="foo"/></list>`,
+        search: `<search />`,
+    };
+
+    for (let i = 1; i < 10; i++) {
+        Product._records.push({ id: 100 + i, name: `Product ${i}` });
+        for (let j = 1; j < 20; j++) {
+            Partner._records.push({
+                id: 100 * i + j,
+                product_id: 100 + i,
+                foo: `Record ${i}/${j}`,
+            });
+        }
+    }
+
+    let def;
+    onRpc("web_read_group", () => def);
+    await resize({ width: 800, height: 300 });
+    await mountWithCleanup(WebClient);
+    await getService("action").doAction({
+        res_model: "partner",
+        type: "ir.actions.act_window",
+        views: [
+            [false, "kanban"],
+            [false, "list"],
+        ],
+        context: {
+            group_by: ["product_id"],
+        },
+    });
+
+    expect(".o_kanban_view").toHaveCount(1);
+    // simulate scrolls in the kanban view
+    queryOne(".o_content").scrollTop = 100;
+    queryOne(".o_content").scrollLeft = 400;
+
+    await getService("action").switchView("list");
+    expect(".o_list_view").toHaveCount(1);
+
+    // the kanban is "lazy", so it displays the control panel directly, and the renderer later with
+    // the data => simulate this and check that the scroll position is correctly restored
+    def = new Deferred();
+    await getService("action").switchView("kanban");
+    expect(".o_kanban_view").toHaveCount(1);
+    expect(".o_kanban_renderer").toHaveCount(0);
+    def.resolve();
+    await animationFrame();
+    expect(".o_kanban_renderer").toHaveCount(1);
+    expect(".o_content").toHaveProperty("scrollTop", 100);
+    expect(".o_content").toHaveProperty("scrollLeft", 400);
+});
+
+test.tags("mobile");
+test("scroll position is restored when coming back to kanban view (mobile)", async () => {
+    Partner._views = {
+        kanban: `
+            <kanban>
+                <templates>
+                    <t t-name="card">
+                        <field name="foo"/>
+                    </t>
+                </templates>
+            </kanban>`,
+        list: `<list><field name="foo"/></list>`,
+        search: `<search />`,
+    };
+
+    for (let i = 1; i < 20; i++) {
+        Partner._records.push({
+            id: 100 + i,
+            foo: `Record ${i}`,
+        });
+    }
+
+    let def;
+    onRpc("web_search_read", () => def);
+    await mountWithCleanup(WebClient);
+    await getService("action").doAction({
+        res_model: "partner",
+        type: "ir.actions.act_window",
+        views: [
+            [false, "kanban"],
+            [false, "list"],
+        ],
+    });
+
+    expect(".o_kanban_view").toHaveCount(1);
+    // simulate a scroll in the kanban view
+    queryOne(".o_kanban_view").scrollTop = 100;
+
+    await getService("action").switchView("list");
+    expect(".o_list_view").toHaveCount(1);
+
+    // the kanban is "lazy", so it displays the control panel directly, and the renderer later with
+    // the data => simulate this and check that the scroll position is correctly restored
+    def = new Deferred();
+    await getService("action").switchView("kanban");
+    expect(".o_kanban_view").toHaveCount(1);
+    expect(".o_kanban_renderer").toHaveCount(0);
+    def.resolve();
+    await animationFrame();
+    expect(".o_kanban_renderer").toHaveCount(1);
+    expect(".o_kanban_view").toHaveProperty("scrollTop", 100);
+});
+
+test.tags("mobile");
+test("scroll position is restored when coming back to kanban view (grouped, mobile)", async () => {
+    Partner._views = {
+        kanban: `
+            <kanban>
+                <templates>
+                    <t t-name="card">
+                        <field name="foo"/>
+                    </t>
+                </templates>
+            </kanban>`,
+        list: `<list><field name="foo"/></list>`,
+        search: `<search />`,
+    };
+
+    Partner._records = [];
+    for (let i = 1; i < 5; i++) {
+        Product._records.push({ id: 100 + i, name: `Product ${i}` });
+        for (let j = 1; j < 20; j++) {
+            Partner._records.push({
+                id: 100 * i + j,
+                product_id: 100 + i,
+                foo: `Record ${i}/${j}`,
+            });
+        }
+    }
+
+    let def;
+    onRpc("web_read_group", () => def);
+    await resize({ width: 375, height: 667 }); // iphone se
+    await mountWithCleanup(WebClient);
+    await getService("action").doAction({
+        res_model: "partner",
+        type: "ir.actions.act_window",
+        views: [
+            [false, "kanban"],
+            [false, "list"],
+        ],
+        context: {
+            group_by: ["product_id"],
+        },
+    });
+
+    expect(".o_kanban_view").toHaveCount(1);
+    // simulate scrolls in the kanban view
+    queryOne(".o_kanban_renderer").scrollLeft = 656; // scroll to the third column
+    queryAll(".o_kanban_group")[2].scrollTop = 200;
+
+    await getService("action").switchView("list");
+    expect(".o_list_view").toHaveCount(1);
+
+    // the kanban is "lazy", so it displays the control panel directly, and the renderer later with
+    // the data => simulate this and check that the scroll position is correctly restored
+    def = new Deferred();
+    await getService("action").switchView("kanban");
+    expect(".o_kanban_view").toHaveCount(1);
+    expect(".o_kanban_renderer").toHaveCount(0);
+    def.resolve();
+    await animationFrame();
+    expect(".o_kanban_renderer").toHaveCount(1);
+    expect(".o_kanban_group:eq(2)").toHaveProperty("scrollTop", 200);
+    expect(".o_kanban_renderer").toHaveProperty("scrollLeft", 656);
+});
+
+test.tags("desktop");
+test("limit is reset when restoring a view after ungrouping", async () => {
+    Partner._views["kanban"] = `
+        <kanban sample="1">
+            <templates>
+                <t t-name="card">
+                    <field name="foo"/>
+                </t>
+            </templates>
+        </kanban>`;
+    Partner._views["list"] = '<list><field name="foo"/></list>';
+    Partner._views.search = `
+        <search>
+            <group>
+                <filter name="foo" string="Foo" context="{'group_by': 'foo'}"/>
+            </group>
+        </search>
+    `;
+
+    onRpc("partner", "web_search_read", ({ kwargs }) => {
+        const { domain, limit } = kwargs;
+        if (!domain.length) {
+            expect.step(`limit=${limit}`);
+        }
+    });
+
+    patchWithCleanup(user, {
+        hasGroup: () => true,
+    });
+
+    await mountWithCleanup(WebClient);
+
+    await getService("action").doAction({
+        type: "ir.actions.act_window",
+        id: 450,
+        xml_id: "action_450",
+        name: "Partners",
+        res_model: "partner",
+        views: [
+            [false, "kanban"],
+            [false, "list"],
+            [false, "form"],
+        ],
+        context: { search_default_foo: true },
+    });
+
+    await switchView("list");
+    await removeFacet("Foo");
+    expect.verifySteps(["limit=80"]);
+    await switchView("kanban");
+    expect.verifySteps(["limit=40"]);
 });

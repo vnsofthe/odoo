@@ -1110,6 +1110,12 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertFalse(record.filtered_domain([('name', 'like', 'F')]))
         self.assertFalse(record.filtered_domain([('name', 'ilike', 'f')]))
 
+    def test_20_like_multiline(self):
+        """ test filtered_domain() on multiline fields. """
+        record = self.env['test_orm.mixed'].create({'comment1': 'Foo\nBar'})
+        self.assertTrue(record.filtered_domain([('comment1', 'like', 'Bar')]))
+        self.assertTrue(record.filtered_domain([('comment1', 'ilike', 'bar')]))
+
     def test_21_date(self):
         """ test date fields """
         record = self.env['test_orm.mixed'].create({})
@@ -3252,6 +3258,10 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         record.invalidate_recordset()
         self.assertEqual(record.comment0, record_value)
 
+    def test_related_column_type(self):
+        related_float_field = self.env['test_orm.related']._fields['foo_float_id']
+        self.assertEqual(related_float_field.column_type[1], 'numeric')
+
 
 class TestX2many(TransactionExpressionCase):
 
@@ -3945,10 +3955,11 @@ class TestMagicFields(TransactionCase):
         self.assertTrue(field.store)
 
 
-class TestParentStore(TransactionCase):
+class TestParentStore(TransactionCaseWithUserDemo):
 
-    def setUp(self):
-        super().setUp()
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
         # make a tree of categories:
         #   0
         #  /|\
@@ -3957,7 +3968,7 @@ class TestParentStore(TransactionCase):
         #   4 5 6
         #      /|\
         #     7 8 9
-        Cat = self.env['test_orm.category']
+        Cat = cls.env['test_orm.category']
         cat0 = Cat.create({'name': '0'})
         cat1 = Cat.create({'name': '1', 'parent': cat0.id})
         cat2 = Cat.create({'name': '2', 'parent': cat0.id})
@@ -3968,8 +3979,8 @@ class TestParentStore(TransactionCase):
         cat7 = Cat.create({'name': '7', 'parent': cat6.id})
         cat8 = Cat.create({'name': '8', 'parent': cat6.id})
         cat9 = Cat.create({'name': '9', 'parent': cat6.id})
-        self._cats = Cat.concat(cat0, cat1, cat2, cat3, cat4,
-                                cat5, cat6, cat7, cat8, cat9)
+        cls._cats = Cat.concat(cat0, cat1, cat2, cat3, cat4,
+                               cat5, cat6, cat7, cat8, cat9)
 
     def cats(self, *indexes):
         """ Return the given categories. """
@@ -4007,7 +4018,6 @@ class TestParentStore(TransactionCase):
 
     def test_base_compute(self):
         """ Check the tree structure after computation from scratch. """
-        self.cats()._parent_store_compute()
         self.assertChildOf(self.cats(0), self.cats(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
         self.assertChildOf(self.cats(1), self.cats(1))
         self.assertChildOf(self.cats(2), self.cats(2))
@@ -4123,10 +4133,45 @@ class TestParentStore(TransactionCase):
         self.assertEqual(self.cats(8).depth, 2)
         self.assertEqual(self.cats(9).depth, 2)
 
+        # warmup
+        self.cats().create({'name': 'warmup'})
         # add a new node: one query to INSERT, one query to UPDATE parent_path
         with self.assertQueryCount(2):
             cat = self.cats().create({'name': '10', 'parent': self.cats(6).id})
             self.assertEqual(cat.depth, 2)
+
+    def test_with_ir_rule_behavior(self):
+        self.env['ir.rule'].create({
+            'name': 'category rule',
+            'model_id': self.env['ir.model']._get('test_orm.category').id,
+            'domain_force': str([('id', 'in', self.cats(3).ids)]),
+        })
+
+        # Ensure that we don't have access to inaccessible records
+        self.assertEqual(
+            self.cats().with_user(self.user_demo).search([('id', 'child_of', self.cats(3).ids)]),
+            self.cats(3),
+        )
+        self.assertEqual(
+            self.cats().with_user(self.user_demo).search([('id', 'parent_of', self.cats(3).ids)]),
+            self.cats(3),
+        )
+
+        Dis = self.env['test_orm.discussion']
+        dis_0, dis_3, dis_5, dis_7 = Dis.create([
+            {'name': 'A', 'categories': self.cats(0)},
+            {'name': 'B', 'categories': self.cats(3)},
+            {'name': 'C', 'categories': self.cats(5)},
+            {'name': 'D', 'categories': self.cats(7)},
+        ])
+        self.assertEqual(
+            Dis.with_user(self.user_demo).search([('categories', 'child_of', self.cats(3).ids)]),
+            dis_3 + dis_5 + dis_7,
+        )
+        self.assertEqual(
+            Dis.with_user(self.user_demo).search([('categories', 'parent_of', self.cats(3).ids)]),
+            dis_0 + dis_3,
+        )
 
 
 class TestRequiredMany2one(TransactionCase):

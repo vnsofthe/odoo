@@ -32,7 +32,7 @@ class OdooIMAP4(IMAP4):
     def check_unread_messages(self):
         self.select()
         _result, data = self.search(None, '(UNSEEN)')
-        self._unread_messages = data[0].split()
+        self._unread_messages = data[0].split() if data and data[0] else []
         self._unread_messages.reverse()
         return len(self._unread_messages)
 
@@ -297,8 +297,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u %(uid)d -p PASSWO
                         failed += 1
                         _logger.info('Failed to process mail from %s server %s.', *server_type_and_name, exc_info=True)
                         remaining_time = MailThread.env['ir.cron']._commit_progress()
-                    else:
-                        server_connection.handled_message(message_num)
+                    server_connection.handled_message(message_num)
                     if count >= batch_limit or not remaining_time:
                         break
                 server.error_date = False

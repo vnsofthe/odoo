@@ -246,11 +246,11 @@ class HrApplicant(models.Model):
                         email_normalized: {'lang': self.env.lang}
                     },
                 )
-            if applicant.partner_name and not applicant.partner_id.name:
+            if applicant.partner_name and applicant.partner_name != applicant.partner_id.name:
                 applicant.partner_id.name = applicant.partner_name
-            if email_normalized and not applicant.partner_id.email:
+            if email_normalized and email_normalized != applicant.partner_id.email:
                 applicant.partner_id.email = applicant.email_from
-            if applicant.partner_phone and not applicant.partner_id.phone:
+            if applicant.partner_phone and applicant.partner_phone != applicant.partner_id.phone:
                 applicant.partner_id.phone = applicant.partner_phone
 
     @api.depends("email_normalized", "partner_phone_sanitized", "linkedin_profile")
@@ -642,6 +642,10 @@ class HrApplicant(models.Model):
                 vals['email_from'] = vals['email_from'].strip()
         applicants = super().create(vals_list)
         applicants.sudo().interviewer_ids._create_recruitment_interviewers()
+
+        for applicant in applicants:
+            if applicant.talent_pool_ids and not applicant.pool_applicant_id:
+                applicant.pool_applicant_id = applicant
 
         if (applicants.interviewer_ids.partner_id - self.env.user.partner_id):
             for applicant in applicants:

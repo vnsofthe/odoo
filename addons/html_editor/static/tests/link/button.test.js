@@ -11,8 +11,8 @@ import {
     manuallyDispatchProgrammaticEvent,
 } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { contains } from "@web/../tests/web_test_helpers";
-import { setupEditor } from "../_helpers/editor";
+import { contains, onRpc } from "@web/../tests/web_test_helpers";
+import { setupEditor, testEditor } from "../_helpers/editor";
 import { cleanLinkArtifacts, unformat } from "../_helpers/format";
 import { getContent, setSelection } from "../_helpers/selection";
 import { insertText } from "../_helpers/user_actions";
@@ -50,6 +50,68 @@ describe("button style", () => {
         el.setAttribute("contenteditable", "false");
         expect(queryOne(".test-btn")).toHaveStyle({ userSelect: "none" });
     });
+    test("Button styling should not override inner font size", async () => {
+        onRpc("/test", () => ({}));
+        onRpc("/html_editor/link_preview_internal", () => ({
+            description: "test",
+            link_preview_name: "test",
+        }));
+        const { el } = await setupEditor(
+            unformat(`
+                <div>
+                    <span class="display-1-fs">a[b]c</span>
+                </div>
+            `)
+        );
+        await waitFor(".o-we-toolbar");
+        await click("button[name='link']");
+        await animationFrame();
+        await click('select[name="link_type"]');
+        await animationFrame();
+        await select("primary");
+        await animationFrame();
+        await contains(".o-we-linkpopover input.o_we_href_input_link").edit("/test");
+
+        // Ensure `.display-1-fs` overrides the `.btn`'s default font size.
+        const link = el.querySelector("a.btn");
+        const span = el.querySelector("span.display-1-fs");
+        expect(getComputedStyle(link).fontSize).toBe(getComputedStyle(span).fontSize);
+
+        expect(el).toHaveInnerHTML(
+            unformat(`
+                <div class="o-paragraph">
+                    <span class="display-1-fs">a\ufeff<a href="/test" class="btn btn-primary">\ufeffb\ufeff</a>\ufeffc</span>
+                </div>
+            `)
+        );
+    });
+
+    test("Should be able to change button style", async () => {
+        await testEditor({
+            contentBefore: unformat(`
+                <div class="o-paragraph">
+                    <span class="display-1-fs">a<a class="btn btn-fill-primary" href="#">[b]</a>c</span>
+                </div>
+            `),
+            stepFunction: (editor) => {
+                editor.shared.format.formatSelection("setFontSizeClassName", {
+                    formatProps: { className: "h1-fs" },
+                    applyStyle: true,
+                });
+            },
+            contentAfter: unformat(`
+                <div>
+                    <span class="display-1-fs">
+                        a
+                        <a class="btn btn-fill-primary" href="#">
+                            <span class="h1-fs">[b]</span>
+                        </a>
+                        c
+                    </span>
+                </div>
+            `),
+        });
+    });
 });
 
 const allowCustomOpt = {
@@ -75,6 +137,20 @@ describe("Custom button style", () => {
         expect(optionsvalues).toInclude("Button Primary");
         expect(optionsvalues).toInclude("Button Secondary");
         expect(optionsvalues).not.toInclude("Custom");
+    });
+    test("Editor allow button size style by default", async () => {
+        await setupEditor(
+            '<p><a href="https://test.com/" class="btn btn-primary">link[]Label</a></p>'
+        );
+        await waitFor(".o-we-linkpopover");
+        await click(".o_we_edit_link");
+        await animationFrame();
+        const optionsValues = [...queryOne('select[name="link_style_size"]').options].map(
+            (opt) => opt.label
+        );
+        expect(optionsValues).toInclude("Small");
+        expect(optionsValues).toInclude("Medium");
+        expect(optionsValues).toInclude("Large");
     });
     test("Editor don't allow target blank style by default", async () => {
         await setupEditor('<p><a href="https://test.com/">link[]Label</a></p>');
@@ -317,5 +393,35 @@ describe("button edit", () => {
         expect(cleanLinkArtifacts(getContent(el))).toBe(
             '<p>this is a <a href="http://test.test/" class="btn btn-fill-primary">X[]</a></p>'
         );
+    });
+
+    test("Should not remove invisible button", async () => {
+        const { el } = await setupEditor(
+            '<p><a href="http://test.test/" class="invisible btn btn-primary">a[]</a></p>',
+            {
+                styleContent: `
+                    .invisible {
+                        visibility: hidden;
+                    }
+                `,
+            }
+        );
+        await waitFor(".o-we-linkpopover");
+        await click(".o_we_edit_link");
+
+        await contains(".o-we-linkpopover input.o_we_label_link").fill("b");
+        await click(".o_we_apply_link");
+        expect(cleanLinkArtifacts(getContent(el))).toBe(
+            '<p><a href="http://test.test/" class="invisible btn btn-primary">ab[]</a></p>'
+        );
+    });
+});
+
+test("button should never contain selection placeholder", async () => {
+    await testEditor({
+        contentBefore:
+            '<button style="display: block" contenteditable="true"><div style="display: block" contenteditable="false">a</div></button>',
+        contentBeforeEdit:
+            '<button style="display: block" contenteditable="true"><div style="display: block" contenteditable="false">a</div></button>',
     });
 });

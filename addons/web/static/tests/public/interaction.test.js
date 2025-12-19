@@ -1079,6 +1079,29 @@ describe("waitFor...", () => {
             await click(".test");
             expect.verifySteps(["before", "in catch", "updatecontent"]);
         });
+
+        test("waitFor support promise is 'undefined'", async () => {
+            class Test extends Interaction {
+                static selector = ".test";
+                dynamicContent = {
+                    _root: { "t-on-click": this.onClick },
+                };
+
+                async onClick() {
+                    await this.waitFor(undefined);
+                    expect.step("clicked");
+                }
+
+                updateContent() {
+                    expect.step("updatecontent");
+                    super.updateContent();
+                }
+            }
+            await startInteraction(Test, TemplateTest);
+            expect.verifySteps([]);
+            await click(".test");
+            expect.verifySteps(["clicked", "updatecontent"]);
+        });
     });
 
     describe("waitForTimeout", () => {
@@ -1902,6 +1925,41 @@ describe("t-att and t-out", () => {
         await advanceTime(1000);
         expect("span").not.toHaveAttribute("animal");
         expect("span").toHaveAttribute("egg", "mysterious");
+    });
+
+    test("t-out-... resets at stop", async () => {
+        class Test extends Interaction {
+            static selector = "span";
+            dynamicContent = {
+                _root: { "t-out": () => "colibri" },
+            };
+        }
+        const { core } = await startInteraction(Test, TemplateTest);
+        expect("span").toHaveText("colibri");
+        core.stopInteractions();
+        expect("span").toHaveText("coucou");
+    });
+
+    test("t-out-... restores all values on stop", async () => {
+        class Test extends Interaction {
+            static selector = "div";
+            dynamicContent = {
+                span: { "t-out": () => "colibri" },
+            };
+        }
+        const { core } = await startInteraction(
+            Test,
+            `
+            <div>
+                <span>penguin</span>
+                <span>ostrich</span>
+            </div>
+        `
+        );
+        expect("span").toHaveText("colibri");
+        core.stopInteractions();
+        expect("span:first").toHaveText("penguin");
+        expect("span:last").toHaveText("ostrich");
     });
 });
 

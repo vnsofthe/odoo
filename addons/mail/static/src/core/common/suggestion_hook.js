@@ -180,11 +180,14 @@ export class UseSuggestion {
         this.clearSearch();
     }
     get thread() {
-        return this.composer.thread || this.composer.message.thread;
+        return this.composer.thread || this.composer.message?.thread;
     }
     insert(option) {
         let position = this.search.position + 1;
-        if ([":", "::"].includes(this.search.delimiter) || this.comp.composerService.htmlEnabled) {
+        if (
+            [":", "::"].includes(this.search.delimiter) ||
+            (this.comp.composerService.htmlEnabled && this.search.delimiter !== "/")
+        ) {
             position = this.search.position;
         }
         if (this.comp.composerService.htmlEnabled) {
@@ -209,7 +212,7 @@ export class UseSuggestion {
         if (this.comp.composerService.htmlEnabled) {
             let inlineElement;
             if (option.partner) {
-                inlineElement = generatePartnerMentionElement(option.partner);
+                inlineElement = generatePartnerMentionElement(option.partner, this.thread);
             } else if (option.isSpecial) {
                 inlineElement = generateSpecialMentionElement(option.label);
             } else if (option.role) {
@@ -222,6 +225,7 @@ export class UseSuggestion {
             this.comp.editor.shared.dom.insert(inlineElement);
             const [anchorNode, anchorOffset] = rightPos(inlineElement);
             this.comp.editor.shared.selection.setSelection({ anchorNode, anchorOffset });
+            this.comp.editor.shared.dom.insert("\u00A0");
             this.comp.editor.shared.history.addStep();
         } else {
             // remove the user-typed search delimiter
@@ -251,6 +255,9 @@ export class UseSuggestion {
     }
 
     async fetchSuggestions() {
+        if (!this.thread || status(this.comp) === "destroyed") {
+            return;
+        }
         let resetFetchingState = true;
         try {
             this.abortController?.abort();
@@ -272,7 +279,7 @@ export class UseSuggestion {
                 this.state.isFetching = false;
             }
         }
-        if (status(this.comp) === "destroyed") {
+        if (!this.thread || status(this.comp) === "destroyed") {
             return;
         }
         this.update();

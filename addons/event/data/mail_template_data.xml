@@ -82,7 +82,7 @@
                                 </a>
                             </td>
                             <td>
-                                <a t-attf-href="https://www.google.com/calendar/render?action=TEMPLATE&amp;text={{ object.event_id.name }}&amp;dates={{ date_begin }}/{{ date_end }}&amp;location={{ location }}&amp;details={{ object.event_id._get_external_description() }}" target="new"
+                                <a t-attf-href="https://www.google.com/calendar/render?action=TEMPLATE&amp;text={{ object.event_id.name }}&amp;dates={{ date_begin }}/{{ date_end }}&amp;location={{ location }}&amp;details={{ object.event_id._get_external_description_url_encoded() }}" target="new"
                                     style="padding-top: 10px; padding-right:8px; padding-bottom:2px; padding-left:8px; margin-left: 8px; border-radius: 3px; background-color: #E7E9ED;">
                                     <img src="/event/static/src/img/google-calendar-128.png" alt="Google" title="Google" style="height: 20px; vertical-align: baseline;"/>
                                 </a>
@@ -347,8 +347,8 @@
                         <br/>
                         The order for this ticket has reference <t t-out="object.sale_order_id.name"/>
                         and was placed on <t t-out="object.sale_order_id.date_order.date()"/>
-                        <t t-if="object.sale_order_line_id.price_unit"> for an amount of
-                            <t t-out="object.sale_order_line_id.price_unit" t-options="{'widget': 'monetary', 'display_currency': object.sale_order_line_id.currency_id}"/>
+                        <t t-if="object.sale_order_line_id.price_total"> for an amount of
+                            <t t-out="object.sale_order_line_id.price_total" t-options="{'widget': 'monetary', 'display_currency': object.sale_order_line_id.currency_id}"/>
                         </t>.
                     </div>
                     <br/>
@@ -370,7 +370,7 @@
                                 </a>
                             </td>
                             <td>
-                                <a t-attf-href="https://www.google.com/calendar/render?action=TEMPLATE&amp;text={{ object.event_id.name }}&amp;dates={{ date_begin }}/{{ date_end }}&amp;location={{ location }}&amp;details={{ object.event_id._get_external_description() }}" target="new"
+                                <a t-attf-href="https://www.google.com/calendar/render?action=TEMPLATE&amp;text={{ object.event_id.name }}&amp;dates={{ date_begin }}/{{ date_end }}&amp;location={{ location }}&amp;details={{ object.event_id._get_external_description_url_encoded() }}" target="new"
                                     style="padding-top: 10px; padding-right:8px; padding-bottom:2px; padding-left:8px; margin-left: 8px; border-radius: 3px; background-color: #E7E9ED;">
                                     <img src="/event/static/src/img/google-calendar-128.png" alt="Google" title="Google" style="height: 20px; vertical-align: baseline;"/>
                                 </a>
@@ -645,7 +645,7 @@
                                 </a>
                             </td>
                             <td>
-                                <a t-attf-href="https://www.google.com/calendar/render?action=TEMPLATE&amp;text={{ object.event_id.name }}&amp;dates={{ date_begin }}/{{ date_end }}&amp;location={{ location }}&amp;details={{ object.event_id._get_external_description() }}" target="new"
+                                <a t-attf-href="https://www.google.com/calendar/render?action=TEMPLATE&amp;text={{ object.event_id.name }}&amp;dates={{ date_begin }}/{{ date_end }}&amp;location={{ location }}&amp;details={{ object.event_id._get_external_description_url_encoded() }}" target="new"
                                     style="padding-top: 10px; padding-right:8px; padding-bottom:2px; padding-left:8px; margin-left: 8px; border-radius: 3px; background-color: #E7E9ED;">
                                     <img src="/event/static/src/img/google-calendar-128.png" alt="Google" title="Google" style="height: 20px; vertical-align: baseline;"/>
                                 </a>

@@ -627,7 +627,11 @@ test("Duplicating a sheet correctly duplicates Odoo chart", async () => {
     const sheetId = model.getters.getActiveSheetId();
     const secondSheetId = "secondSheetId";
     const chartId = model.getters.getChartIds(sheetId)[0];
-    model.dispatch("DUPLICATE_SHEET", { sheetId, sheetIdTo: secondSheetId });
+    model.dispatch("DUPLICATE_SHEET", {
+        sheetId,
+        sheetIdTo: secondSheetId,
+        sheetNameTo: "Next name",
+    });
     const chartIds = model.getters.getChartIds(secondSheetId);
     expect(chartIds.length).toBe(1);
     expect(model.getters.getChart(chartIds[0]) instanceof OdooChart).toBe(true);
@@ -1536,6 +1540,7 @@ test("available granularities without filter", async () => {
     const chartId = model.getters.getChartIds(sheetId)[0];
 
     expect(model.getters.getAvailableChartGranularities(chartId).map((g) => g.value)).toEqual([
+        "day",
         "week",
         "month",
         "quarter",
@@ -1584,6 +1589,7 @@ test("available granularities with a date filter", async () => {
     );
     model.updateMode("dashboard");
     expect(model.getters.getAvailableChartGranularities(chartId).map((g) => g.value)).toEqual([
+        "day",
         "week",
         "month",
         "quarter",
@@ -1632,6 +1638,7 @@ test("hour is an available granularity with a filtered datetime field", async ()
     );
     model.updateMode("dashboard");
     expect(model.getters.getAvailableChartGranularities(chartId).map((g) => g.value)).toEqual([
+        "day",
         "week",
         "month",
         "quarter",

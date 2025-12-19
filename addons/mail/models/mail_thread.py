@@ -6,6 +6,7 @@ import datetime
 import dateutil
 import email
 import email.policy
+import encodings
 import hashlib
 import hmac
 import json
@@ -20,7 +21,7 @@ from email import message_from_string
 from email.message import EmailMessage
 from xmlrpc import client as xmlrpclib
 
-from lxml import etree
+from lxml import etree, html
 from markupsafe import Markup, escape
 from requests import Session
 from werkzeug import urls
@@ -50,6 +51,12 @@ from odoo.tools.mail import (
 MAX_DIRECT_PUSH = 5
 
 _logger = logging.getLogger(__name__)
+
+# monkey-patching encodings so that it will recognize `charset=cp-850` in emails
+# as a correct alias for cp850 when decoding email parts with the email python library.
+# The key "cp_850" will implicitly match "cp_850" and "cp-850"
+# See https://stackoverflow.com/a/51961225
+encodings.aliases.aliases['cp_850'] = 'cp850'
 
 
 class MailThread(models.AbstractModel):
@@ -941,14 +948,14 @@ class MailThread(models.AbstractModel):
         If the email is related to a partner, we consider that the number of message_bounce
         is not relevant anymore as the email is valid - as we received an email from this
         address. The model is here hardcoded because we cannot know with which model the
-        incomming mail match. We consider that if a mail arrives, we have to clear bounce for
+        incoming mail match. We consider that if a mail arrives, we have to clear bounce for
         each model having bounce count.
         """
-        valid_email = message_dict['email_from']
-        if valid_email:
+        normalized_from = email_normalize(message_dict['email_from'])
+        if normalized_from:
             bl_models = self.env['ir.model'].sudo().search(['&', ('is_mail_blacklist', '=', True), ('model', '!=', 'mail.thread.blacklist')])
             for model in [bl_model for bl_model in bl_models if bl_model.model in self.env]:  # transient test mode
-                self.env[model.model].sudo().search([('message_bounce', '>', 0), ('email_normalized', '=', valid_email)])._message_reset_bounce(valid_email)
+                self.env[model.model].sudo().search([('message_bounce', '>', 0), ('email_normalized', '=', normalized_from)])._message_reset_bounce(normalized_from)
 
     @api.model
     def _detect_is_bounce(self, message, message_dict):
@@ -1050,7 +1057,7 @@ class MailThread(models.AbstractModel):
 
             # search messages linked to email -> alias updating records
             if doc_ids and not loop_new:
-                base_msg_domain = Domain([('model', '=', model._name), ('res_id', 'in', doc_ids), ('create_date', '>=', create_date_limit)])
+                base_msg_domain = Domain([('model', '=', model._name), ('res_id', 'in', doc_ids), ('create_date', '>=', create_date_limit), ('message_type', '=', 'email')])
                 if author_id:
                     msg_domain = Domain('author_id', '=', author_id) & base_msg_domain
                 else:
@@ -2993,7 +3000,10 @@ class MailThread(models.AbstractModel):
                 [('res_id', '=', self.id), ('model', '=', self._name), ('message_type', '!=', 'user_notification')],
                 order='date desc, id desc',
                 limit=200,  # arbitrary, but sometimes loops / spam may creater a long history
-            ).sorted(lambda msg: (msg.message_type in ('comment', 'email'), msg.date, msg.id), reverse=True)
+            ).sorted(
+                lambda msg: (msg.message_type in ('comment', 'email'), msg.date or msg.create_date, msg.id),
+                reverse=True,
+            )
             current_ancestor = current_ancestor[:1]
         return current_ancestor.id
 
@@ -4913,12 +4923,26 @@ class MailThread(models.AbstractModel):
 
         msg_values = {}
         if body is not None:
-            msg_values["body"] = (
-                # keep html if already Markup, otherwise escape
-                escape(body) + Markup("<span class='o-mail-Message-edited'/>")
-                if body or not message._filter_empty()
-                else ""
-            )
+            if body or not message._filter_empty():
+                tree = html.fragment_fromstring(escape(body), create_parent="div")
+                children = tree.getchildren()
+                if len(children) > 0:  # body is a valid html
+                    # If the last element is a div or p, add the edited span inside it to avoid the edit markup
+                    # to be on its own line. Otherwise, append it to the end of the last element.
+                    last_div_element = (
+                        children[-1] if children[-1].tag in ["div", "p"] else tree
+                    )
+                    last_div_element.text = (last_div_element.text or '') + (' ' if last_div_element.text else '')
+                    etree.SubElement(last_div_element, "span", attrib={"class": "o-mail-Message-edited"})
+                    msg_values["body"] = (
+                        # markup: it is considered safe, as coming from html.fragment_fromstring
+                        (tree.text or "") + Markup("".join(etree.tostring(child, encoding="unicode") for child in tree))
+                    )
+                else:  # body is plain text
+                    # keep html if already Markup, otherwise escape
+                    msg_values["body"] = escape(body) + Markup("<span class='o-mail-Message-edited'/>")
+            else:
+                msg_values["body"] = ""
         if attachment_ids:
             msg_values.update(
                 self._process_attachments_for_post([], attachment_ids, {

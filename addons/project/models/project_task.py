@@ -794,6 +794,8 @@ class ProjectTask(models.Model):
 
     def _inverse_display_name(self):
         for task in self:
+            if not task.display_name:
+                continue
             pattern = re.compile(r'^%s.+?%s$' % (
                 ('').join(task._get_cannot_start_with_patterns()),
                 ('').join(task._get_groups_patterns()))
@@ -1398,10 +1400,15 @@ class ProjectTask(models.Model):
             for dom in domain:
                 if len(dom) == 3:
                     _, op, value = dom
+                    if op in ("any", "not any"):
+                        new_op = "in" if op == "any" else "not in"
+                        ids = [val[2] for val in value if isinstance(val, (tuple, list)) and isinstance(val[2], int)]
+                        new_domain.append(("id", new_op, ids))
+                        continue
                     op = "ilike" if op == "child_of" else op
                     if isinstance(value, list) and all(isinstance(val, int) for val in value):
                         new_domain.append(("id", op, value))
-                    if isinstance(value, str) or (isinstance(value, list) and not all(isinstance(val, str) for val in value)):
+                    elif isinstance(value, str) or (isinstance(value, list) and not all(isinstance(val, str) for val in value)):
                         new_domain.append(("name", op, value))
                     if isinstance(value, int):
                         if op == "=":
@@ -1674,13 +1681,13 @@ class ProjectTask(models.Model):
         )
         partners = self.env['res.partner'].concat(*matched_partners)
         unresolved_emails = set(sanitized_email_dict) - set(partners.mapped("email"))
-        unmatched_partner_emails = [sanitized_email_dict.get(email) for email in unresolved_emails]
         if project_id:
             project = self.env["project.project"].browse(project_id)
             project_alias_address = project.alias_name + "@" + project.alias_domain_id.name
-            # Removing project alias from unmatched_partner_emails as this will be added to cc_mail address and when
+            # Removing project alias from unresolved_emails as this will be added to cc_mail address and when
             # a mail is sent unnecessary partner is created in the name of project_alias
-            unmatched_partner_emails.remove(project_alias_address)
+            unresolved_emails.discard(project_alias_address)
+        unmatched_partner_emails = [sanitized_email_dict.get(email) for email in unresolved_emails]
 
         users = partners.user_ids
         internal_user_ids = users.filtered(lambda u: not u.share).ids

@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
+import logging
 
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 
 class PosOrderLine(models.Model):
@@ -41,6 +44,12 @@ class PosOrder(models.Model):
         ('kiosk', 'Self-Order Kiosk')
     ])
 
+    def write(self, vals):
+        if 'table_id' in vals and self.self_ordering_table_id:
+            # Clear stale self-order table link when the order is transferred to a new table.
+            vals['self_ordering_table_id'] = vals['table_id']
+        return super().write(vals)
+
     @api.model
     def _load_pos_self_data_domain(self, data, config):
         return [('id', '=', False)]
@@ -72,6 +81,13 @@ class PosOrder(models.Model):
             config.notify_synchronisation(config.current_session_id.id, self.env.context.get('device_identifier', 0))
             config._notify('ORDER_STATE_CHANGED', {})
 
+    def _send_self_order_receipt(self):
+        if self.email:
+            try:
+                self.action_send_self_order_receipt(self.email, self.preset_id.mail_template_id.id, False, False)
+            except UserError as e:
+                _logger.warning("Error while sending email: %s", e.args[0])
+
     def action_send_self_order_receipt(self, email, mail_template_id, ticket_image, basic_image):
         self.ensure_one()
         self.email = email
@@ -79,7 +95,7 @@ class PosOrder(models.Model):
         if not mail_template:
             raise UserError(_("The mail template with xmlid %s has been deleted.", mail_template_id))
         email_values = {'email_to': email}
-        if self.state == 'paid':
+        if self.state == 'paid' and ticket_image:
             email_values['attachment_ids'] = self._get_mail_attachments(self.name, ticket_image, basic_image)
         mail_template.send_mail(self.id, force_send=True, email_values=email_values)
 

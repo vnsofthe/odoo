@@ -74,6 +74,7 @@ _ref_vat = {
     'si': 'SI12345679',
     'sk': 'SK2022749619',
     'sm': 'SM24165',
+    'th': '1234545678781',
     'tr': _lt('17291716060 (NIN) or 1729171602 (VKN)'),
     'uy': _lt("Example: '219999830019' (format: 12 digits, all numbers, valid check digit)"),
     've': 'V-12345678-1, V123456781, V-12.345.678-1',
@@ -116,13 +117,16 @@ class ResPartner(models.Model):
             # may have a VATIN starting with "EU" instead of a country code.
             return vat, False
 
+        do_eu_check = False
         prefixed_country = ''
         eu_prefix_country_group = self.env['res.country.group'].search([('code', '=', 'EU_PREFIX')], limit=1)
-        if 'EU_PREFIX' in country.country_group_codes and vat_prefix:
-            country_code = EU_EXTRA_VAT_CODES_INV.get(vat_prefix, vat_prefix)
-            if country_code in eu_prefix_country_group.country_ids.mapped('code'):
+        country_code = EU_EXTRA_VAT_CODES_INV.get(vat_prefix, vat_prefix)
+        if country_code in eu_prefix_country_group.country_ids.mapped('code'):
+            if 'EU_PREFIX' in country.country_group_codes and vat_prefix:
                 vat = vat_number
                 prefixed_country = vat_prefix
+            else:
+                do_eu_check = True
 
         code_to_check = prefixed_country or country.code
         vat = self._format_vat_number(code_to_check, vat)
@@ -141,6 +145,12 @@ class ResPartner(models.Model):
         double_prefix = prefixed_country and vat_to_return.startswith(prefixed_country + prefixed_country)
         if not self._check_vat_number(code_to_check, vat) or double_prefix:
             partner_label = _("partner [%s]", partner_name)
+            if do_eu_check:
+                try:
+                    return self._run_vat_checks(self.env['res.country'].search([('code', '=', country_code)], limit=1), vat_prefix + vat_number, partner_name, validation)
+                except ValidationError:
+                    msg = self._build_vat_error_message(code_to_check, vat, partner_label)
+                    raise ValidationError(msg + "\n\n" + _('If you are trying to input a European number, this is the expected format: ') + _ref_vat[country_code.lower()])
             if validation == 'error':
                 msg = self._build_vat_error_message(code_to_check, vat, partner_label)
                 raise ValidationError(msg)
@@ -264,6 +274,11 @@ class ResPartner(models.Model):
     _check_tin1_ro_natural_persons = re.compile(r'[1-9]\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\d{6}')
     _check_tin2_ro_natural_persons = re.compile(r'9000\d{9}')
 
+    def check_vat_do(self, vat):
+        is_valid_vat = stdnum.util.get_cc_module("do", "vat").is_valid
+        is_valid_cedula = stdnum.util.get_cc_module("do", "cedula").is_valid
+        return is_valid_vat(vat) or is_valid_cedula(vat)
+
     def check_vat_ro(self, vat):
         """
             Check Romanian VAT number that can be for example 'RO1234567897 or 'xyyzzaabbxxxx' or '9000xxxxxxxx'.
@@ -292,12 +307,15 @@ class ResPartner(models.Model):
             return True
         return stdnum.util.get_cc_module('gr', 'vat').is_valid(vat)
 
+    # Our EDI provider Infile has designated this range of testing VATs for our customers.
+    __check_vat_gt_testing_infile = re.compile(r'98[0-9]{10}K')
+
     def check_vat_gt(self, vat):
         """
         Allow some custom Guatemala NIT numbers to pass the test to be used for testing the Guatemalan EDI.
         """
         guatemalan_test_vats = ('11201220K', '11201350K')
-        if vat in guatemalan_test_vats:
+        if vat in guatemalan_test_vats or self.__check_vat_gt_testing_infile.match(vat):
             return True
         return stdnum.util.get_cc_module('gt', 'vat').is_valid(vat)
 
@@ -724,6 +742,10 @@ class ResPartner(models.Model):
 
         return True
 
+    def check_vat_th(self, vat):
+        check_func = stdnum.util.get_cc_module('th', 'tin').is_valid
+        return check_func(vat)
+
     def check_vat_de(self, vat):
         is_valid_vat = stdnum.util.get_cc_module("de", "vat").is_valid
         is_valid_stnr = stdnum.util.get_cc_module("de", "stnr").is_valid
@@ -812,3 +834,10 @@ class ResPartner(models.Model):
         if self.env.context.get('import_file'):
             self.env.remove_to_compute(self._fields['vies_valid'], self)
         return res
+
+    def _create_contact_parent_company(self):
+        new_company = super()._create_contact_parent_company()
+        if new_company and self.vies_valid:
+            new_company.env.remove_to_compute(self._fields['vies_valid'], new_company)
+            new_company.vies_valid = self.vies_valid
+        return new_company

@@ -5,8 +5,14 @@ import { Dialog } from "@web/core/dialog/dialog";
 import { getActiveHotkey } from "@web/core/hotkeys/hotkey_service";
 import { localization } from "@web/core/l10n/localization";
 import { getFirstAndLastTabableElements } from "@web/core/ui/ui_service";
+import { cookie } from "@web/core/browser/cookie";
 import { useChildRef } from "@web/core/utils/hooks";
 import { SnippetViewer } from "./snippet_viewer";
+
+/**
+ * @typedef {((arg: { iframe: HTMLIFrameElement }) => void)[]} snippet_preview_dialog_stylesheets_handlers
+ * @typedef {string[]} snippet_preview_dialog_bundles
+ */
 
 export class AddSnippetDialog extends Component {
     static template = "html_builder.AddSnippetDialog";
@@ -68,6 +74,7 @@ export class AddSnippetDialog extends Component {
             root.mount(iframeDocument.body);
 
             await this.insertStyle();
+            this.insertColorScheme();
             this.state.showIframe = true;
         });
 
@@ -123,6 +130,22 @@ export class AddSnippetDialog extends Component {
         const iframeDocument = this.iframeRef.el.contentDocument;
         iframeDocument.body.scrollTop = 0;
     }
+
+    /**
+     * Retrieves the color-scheme cookie and injects it into the iframe's
+     * <head> and add a custom class. This is necessary to allow the dark mode
+     * to be handled correctly across browsers.
+     */
+    insertColorScheme() {
+        const colorScheme = cookie.get("color_scheme") || "light";
+        const metaElement = document.createElement("meta");
+        const iframeDocument = this.iframeRef.el.contentDocument;
+        metaElement.setAttribute("name", "color-scheme");
+        metaElement.content = colorScheme;
+        iframeDocument.head.appendChild(metaElement);
+        iframeDocument.body.parentElement.classList.add("o_add_snippets_preview--" + colorScheme);
+    }
+
     /**
      * Handles the tablist navigation.
      *

@@ -18,13 +18,14 @@
 # Jeffery CHEN <jeffery9@gmail.com>, 2023
 # Emily Jia <eji@odoo.com>, 2023
 # "Tiffany Chang (tic)" <tic@odoo.com>, 2025.
+# Weblate <noreply-mt-weblate@weblate.org>, 2025.
 msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 16.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-09-30 18:35+0000\n"
-"PO-Revision-Date: 2025-09-16 15:32+0000\n"
-"Last-Translator: \"Tiffany Chang (tic)\" <tic@odoo.com>\n"
+"POT-Creation-Date: 2025-12-12 18:35+0000\n"
+"PO-Revision-Date: 2025-11-08 21:57+0000\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.odoo.com/"
 "projects/odoo-19/mail/zh_Hans/>\n"
 "Language: zh_CN\n"
@@ -249,13 +250,6 @@ msgstr ""
 #: code:addons/mail/static/src/js/rotting_mixin/rotting_widget.js:0
 msgid "%(numberOfDays)sd"
 msgstr ""
-
-#. module: mail
-#. odoo-javascript
-#: code:addons/mail/static/src/core/common/composer.js:0
-msgid ""
-"%(open_button)s%(icon)s%(open_em)sDiscard editing%(close_em)s%(close_button)s"
-msgstr "%(open_button)s%(icon)s%(open_em)s放弃编辑%(close_em)s%(close_button)s"
 
 #. module: mail
 #. odoo-javascript
@@ -1724,6 +1718,7 @@ msgstr "附件"
 #. module: mail
 #. odoo-javascript
 #: code:addons/mail/static/src/discuss/call/common/call_settings.xml:0
+#: code:addons/mail/static/src/discuss/call/common/quick_voice_settings.xml:0
 msgid "Audio Output"
 msgstr ""
 
@@ -1741,7 +1736,7 @@ msgstr "身份验证过的业务伙伴"
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_ice_server_form
 msgid "Authentication"
-msgstr ""
+msgstr "认证"
 
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_compose_message__author_id
@@ -1994,6 +1989,12 @@ msgstr "模糊背景"
 
 #. module: mail
 #. odoo-javascript
+#: code:addons/mail/static/src/discuss/call/common/quick_video_settings.xml:0
+msgid "Blur background"
+msgstr ""
+
+#. module: mail
+#. odoo-javascript
 #: code:addons/mail/static/src/discuss/call/common/call_settings.xml:0
 msgid "Blur video background"
 msgstr "模糊视频背景"
@@ -2117,8 +2118,8 @@ msgstr "浏览器"
 #. module: mail
 #. odoo-javascript
 #: code:addons/mail/static/src/discuss/call/common/device_select.xml:0
-msgid "Browser default"
-msgstr "默认浏览器"
+msgid "Browser Default"
+msgstr ""
 
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_push_device__endpoint
@@ -2195,9 +2196,9 @@ msgstr "通话时长：%(duration)s。"
 #. module: mail
 #. odoo-javascript
 #: code:addons/mail/static/src/discuss/call/common/call_settings.xml:0
-#: code:addons/mail/static/src/discuss/core/public/welcome_page.xml:0
+#: code:addons/mail/static/src/discuss/call/common/quick_video_settings.xml:0
 msgid "Camera"
-msgstr ""
+msgstr "摄像头"
 
 #. module: mail
 #. odoo-javascript
@@ -2436,7 +2437,7 @@ msgstr "链接类型"
 #. module: mail
 #: model:ir.actions.act_window,name:mail.action_res_users_my_fullpage
 msgid "Change My Preferences"
-msgstr ""
+msgstr "更改我的首选项"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_mail_activity__activity_decoration
@@ -2844,7 +2845,7 @@ msgstr "恭喜，您的收件箱是空的！"
 #. odoo-python
 #: code:addons/mail/models/res_users.py:0
 msgid "Connection Test Successful!"
-msgstr ""
+msgstr "连接测试成功！"
 
 #. module: mail
 #. odoo-javascript
@@ -3355,6 +3356,7 @@ msgstr "截止日期：%s"
 #. module: mail
 #. odoo-javascript
 #: code:addons/mail/static/src/discuss/call/common/call_actions.js:0
+#: code:addons/mail/static/src/discuss/call/common/quick_voice_settings.xml:0
 msgid "Deafen"
 msgstr "关闭扬声器"
 
@@ -3635,6 +3637,12 @@ msgstr "丢弃"
 
 #. module: mail
 #. odoo-javascript
+#: code:addons/mail/static/src/core/common/composer.xml:0
+msgid "Discard editing"
+msgstr ""
+
+#. module: mail
+#. odoo-javascript
 #: code:addons/mail/static/src/discuss/call/common/call_actions.js:0
 #: code:addons/mail/static/src/discuss/call/common/thread_actions.js:0
 #: model_terms:ir.ui.view,arch_db:mail.discuss_channel_rtc_session_view_tree
@@ -3644,8 +3652,8 @@ msgstr "中断连接"
 #. module: mail
 #. odoo-javascript
 #: code:addons/mail/static/src/discuss/call/common/rtc_service.js:0
-msgid "Disconnected from the RTC call by the server"
-msgstr "服务器断开与 RTC 调用的连接"
+msgid "Disconnected from the call by the server"
+msgstr ""
 
 #. module: mail
 #: model:ir.actions.client,name:mail.action_discuss
@@ -4895,7 +4903,7 @@ msgstr "全屏视频"
 #. odoo-javascript
 #: code:addons/mail/static/src/discuss/call/common/call_actions.js:0
 msgid "Fullscreen"
-msgstr ""
+msgstr "全屏"
 
 #. module: mail
 #. odoo-javascript
@@ -5050,7 +5058,7 @@ msgstr "有错误"
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_res_users__has_external_mail_server
 msgid "Has External Mail Server"
-msgstr ""
+msgstr "拥有外部邮件服务器"
 
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_ir_model__is_mail_activity
@@ -5563,7 +5571,7 @@ msgstr "在%(country)s"
 #. module: mail
 #: model:ir.model.fields.selection,name:mail.selection__res_users__notification_type__inbox
 msgid "In Odoo"
-msgstr ""
+msgstr "在Odoo上"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_mail_compose_message__scheduled_date
@@ -5827,6 +5835,18 @@ msgid "Invitation already sent to this address"
 msgstr ""
 
 #. module: mail
+#. odoo-javascript
+#: code:addons/mail/static/src/discuss/core/common/channel_invitation.js:0
+msgid "Invitation link copied!"
+msgstr ""
+
+#. module: mail
+#. odoo-javascript
+#: code:addons/mail/static/src/discuss/core/common/channel_invitation.js:0
+msgid "Invitation link copy failed (Permission denied?)!"
+msgstr ""
+
+#. module: mail
 #. odoo-python
 #: code:addons/mail/wizard/mail_followers_edit.py:0
 msgid "Invitation to follow %(document_model)s."
@@ -5868,6 +5888,12 @@ msgstr "邀请用户"
 #: code:addons/mail/static/src/discuss/core/public_web/discuss_command_palette.xml:0
 msgid "Invite people"
 msgstr "邀请人员"
+
+#. module: mail
+#. odoo-javascript
+#: code:addons/mail/static/src/discuss/core/common/channel_invitation.js:0
+msgid "Invite people or email"
+msgstr ""
 
 #. module: mail
 #. odoo-javascript
@@ -6072,7 +6098,7 @@ msgstr "加入频道"
 #. odoo-javascript
 #: code:addons/mail/static/src/discuss/call/common/call_actions.js:0
 msgid "Join Video Call"
-msgstr ""
+msgstr "加入视频会议"
 
 #. module: mail
 #: model:ir.actions.act_window,name:mail.discuss_channel_action_view
@@ -6395,12 +6421,6 @@ msgstr "链接预览"
 #: model:ir.model,name:mail.model_mail_message_link_preview
 msgid "Link between link previews and messages"
 msgstr "链接预览及讯息内的链接"
-
-#. module: mail
-#. odoo-javascript
-#: code:addons/mail/static/src/discuss/core/common/channel_invitation.js:0
-msgid "Link copied!"
-msgstr "链接已复制！"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_activity_schedule_view_form
@@ -7162,7 +7182,7 @@ msgstr "语音附件的元数据"
 #. module: mail
 #. odoo-javascript
 #: code:addons/mail/static/src/discuss/call/common/call_settings.xml:0
-#: code:addons/mail/static/src/discuss/core/public/welcome_page.xml:0
+#: code:addons/mail/static/src/discuss/call/common/quick_voice_settings.xml:0
 msgid "Microphone"
 msgstr ""
 
@@ -8351,7 +8371,7 @@ msgstr "发信邮件服务器"
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_res_users__outgoing_mail_server_type
 msgid "Outgoing Mail Server Type"
-msgstr ""
+msgstr "外发邮件服务器类型"
 
 #. module: mail
 #: model:ir.model,name:mail.model_mail_mail
@@ -8364,12 +8384,6 @@ msgstr "发出邮件"
 #: model:ir.model.fields,field_description:mail.field_mail_message__mail_server_id
 msgid "Outgoing mail server"
 msgstr "发送邮件服务器"
-
-#. module: mail
-#. odoo-javascript
-#: code:addons/mail/static/src/discuss/core/public/welcome_page.xml:0
-msgid "Output"
-msgstr ""
 
 #. module: mail
 #. odoo-javascript
@@ -8603,6 +8617,12 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/mail/static/src/discuss/core/common/delete_thread_dialog.xml:0
 msgid "Permanently delete this thread?"
+msgstr ""
+
+#. module: mail
+#. odoo-javascript
+#: code:addons/mail/static/src/discuss/call/common/device_select.xml:0
+msgid "Permission Needed"
 msgstr ""
 
 #. module: mail
@@ -8952,7 +8972,7 @@ msgstr "隐私"
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_canned_response_view_search
 msgid "Private"
-msgstr ""
+msgstr "私有的"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_fetchmail_server__object_id
@@ -9022,6 +9042,12 @@ msgstr "一键通话快捷方式"
 
 #. module: mail
 #. odoo-javascript
+#: code:addons/mail/static/src/discuss/call/common/quick_voice_settings.xml:0
+msgid "Push-to-Talk"
+msgstr ""
+
+#. module: mail
+#. odoo-javascript
 #: code:addons/mail/static/src/discuss/call/common/call_settings.xml:0
 msgid "Push-to-talk key"
 msgstr "一键通话按键"
@@ -9030,7 +9056,7 @@ msgstr "一键通话按键"
 #. odoo-javascript
 #: code:addons/mail/static/src/core/common/notification_model.js:0
 msgid "Queued"
-msgstr ""
+msgstr "排队"
 
 #. module: mail
 #. odoo-javascript
@@ -10001,6 +10027,12 @@ msgid "Select a user..."
 msgstr "选择用户…"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/wizard/mail_activity_schedule.py:0
+msgid "Selected user '%(user)s' cannot upload documents on model '%(model)s'"
+msgstr ""
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_discuss_channel__self_member_id
 msgid "Self Member"
 msgstr "自己会员"
@@ -10046,7 +10078,7 @@ msgstr "发送电子邮件"
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_template__email_from
 msgid "Send From"
-msgstr ""
+msgstr "发送自"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.email_template_form
@@ -10057,7 +10089,7 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/mail/static/src/views/web/view_dialog/avatar_user_form_view_dialog.xml:0
 msgid "Send Invitation"
-msgstr ""
+msgstr "发送邀请"
 
 #. module: mail
 #. odoo-javascript
@@ -10294,7 +10326,7 @@ msgstr "共享屏幕"
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_canned_response_view_search
 msgid "Shared"
-msgstr ""
+msgstr "分享"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.email_template_form
@@ -10913,12 +10945,12 @@ msgstr "测试和确认"
 #. odoo-javascript
 #: code:addons/mail/static/src/views/fields/mail_server_configurator_selection/mail_server_configurator_selection.xml:0
 msgid "Test Connection"
-msgstr ""
+msgstr "测试连接"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_template_preview_view_form
 msgid "Test Record"
-msgstr ""
+msgstr "测试记录"
 
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_mail__body_html
@@ -11000,11 +11032,6 @@ msgstr "头像已更新！"
 #: model:ir.model.constraint,message:mail.constraint_discuss_channel_uuid_unique
 msgid "The channel UUID must be unique"
 msgstr "频道 UUID 必须是唯一的"
-
-#. module: mail
-#: model:ir.model.constraint,message:mail.constraint_discuss_channel_channel_type_not_null
-msgid "The channel type cannot be empty"
-msgstr "频道类型不能为空"
 
 #. module: mail
 #. odoo-javascript
@@ -11516,7 +11543,7 @@ msgstr "讨论串"
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_ir_attachment__thumbnail
 msgid "Thumbnail"
-msgstr ""
+msgstr "缩略图"
 
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_activity__user_tz
@@ -12000,6 +12027,12 @@ msgid "Unnamed"
 msgstr "未命名的"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/mail_tracking_value.py:0
+msgid "Unnamed %(record_model_name)s (%(record_id)s)"
+msgstr ""
+
+#. module: mail
 #. odoo-javascript
 #: code:addons/mail/static/src/core/common/message_card_list.xml:0
 #: code:addons/mail/static/src/discuss/message_pin/common/message_actions.js:0
@@ -12477,6 +12510,13 @@ msgstr "视频"
 
 #. module: mail
 #. odoo-javascript
+#: code:addons/mail/static/src/discuss/call/common/call_actions.js:0
+#: code:addons/mail/static/src/discuss/call/common/quick_video_settings.xml:0
+msgid "Video Settings"
+msgstr "视频设置"
+
+#. module: mail
+#. odoo-javascript
 #: code:addons/mail/static/src/discuss/call/common/call_context_menu.xml:0
 msgid "Video player:"
 msgstr "视频播放器："
@@ -12571,6 +12611,9 @@ msgid "Voice & Video"
 msgstr "语音和视频"
 
 #. module: mail
+#. odoo-javascript
+#: code:addons/mail/static/src/discuss/call/web/quick_video_settings_patch.js:0
+#: code:addons/mail/static/src/discuss/call/web/quick_voice_settings_patch.js:0
 #: model:ir.actions.client,name:mail.discuss_call_settings_action
 msgid "Voice & Video Settings"
 msgstr "语音和视频设置"
@@ -12590,6 +12633,13 @@ msgstr "语音检测"
 #: code:addons/mail/static/src/discuss/voice_message/common/voice_recorder.xml:0
 msgid "Voice Message"
 msgstr "语音消息"
+
+#. module: mail
+#. odoo-javascript
+#: code:addons/mail/static/src/discuss/call/common/call_actions.js:0
+#: code:addons/mail/static/src/discuss/call/common/quick_voice_settings.xml:0
+msgid "Voice Settings"
+msgstr "语音设置"
 
 #. module: mail
 #. odoo-javascript
@@ -13339,7 +13389,7 @@ msgstr "例如.讨论提案"
 #: model_terms:ir.ui.view,arch_db:mail.mail_canned_response_view_form
 #: model_terms:ir.ui.view,arch_db:mail.mail_canned_response_view_tree
 msgid "e.g. Hello, how may I help you?"
-msgstr ""
+msgstr "例如：您好！请问有什么可以帮您的吗？"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_activity_plan_template_view_form
@@ -13740,6 +13790,24 @@ msgstr "你的别名"
 #: code:addons/mail/models/discuss/discuss_channel_member.py:0
 msgid "“%(member_name)s” in “%(channel_name)s”"
 msgstr "\"%(channel_name)s\"中的\"%(member_name)s\""
+
+#~ msgid "Browser default"
+#~ msgstr "默认浏览器"
+
+#~ msgid "Disconnected from the RTC call by the server"
+#~ msgstr "服务器断开与 RTC 调用的连接"
+
+#~ msgid "Link copied!"
+#~ msgstr "链接已复制！"
+
+#~ msgid ""
+#~ "%(open_button)s%(icon)s%(open_em)sDiscard editing%(close_em)s%"
+#~ "(close_button)s"
+#~ msgstr ""
+#~ "%(open_button)s%(icon)s%(open_em)s放弃编辑%(close_em)s%(close_button)s"
+
+#~ msgid "The channel type cannot be empty"
+#~ msgstr "频道类型不能为空"
 
 #~ msgid "Add Reaction"
 #~ msgstr "添加回应"
@@ -15141,9 +15209,6 @@ msgstr "\"%(channel_name)s\"中的\"%(member_name)s\""
 #~ msgid "VS button"
 #~ msgstr "VS按钮"
 
-#~ msgid "Video Settings"
-#~ msgstr "视频设置"
-
 #~ msgid "View image"
 #~ msgstr "查看图像"
 
@@ -15152,9 +15217,6 @@ msgstr "\"%(channel_name)s\"中的\"%(member_name)s\""
 
 #~ msgid "Virgo"
 #~ msgstr "处女座"
-
-#~ msgid "Voice Settings"
-#~ msgstr "语音设置"
 
 #~ msgid "Voice detection threshold"
 #~ msgstr "语音检测阈值"

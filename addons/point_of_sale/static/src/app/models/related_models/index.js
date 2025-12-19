@@ -10,6 +10,7 @@ import {
     STORE_SYMBOL,
     mapObj,
     convertDateTimeToRaw,
+    convertDateToRaw,
     BACKREF_PREFIX,
     PARENT_X2MANY_TYPES,
     SERIALIZED_UI_STATE_PROP,
@@ -121,7 +122,7 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
         }
 
         readMany(ids) {
-            return ids.map((value) => this.read(value));
+            return ids.map((value) => this.read(value)).filter(Boolean);
         }
 
         // aliases
@@ -211,22 +212,24 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
             }
 
             if (!(event in callbacks[this.name])) {
-                callbacks[this.name][event] = [];
+                callbacks[this.name][event] = new Map();
             }
 
-            callbacks[this.name][event].push(callback);
+            const key = uuidv4();
+            callbacks[this.name][event].set(key, callback);
+            return () => callbacks[this.name][event].delete(key);
         }
 
         triggerEvents(event, data) {
             if (
                 !(event in callbacks[this.name]) ||
-                callbacks[this.name][event].length === 0 ||
+                callbacks[this.name][event].size === 0 ||
                 !data
             ) {
                 return;
             }
 
-            for (const callback of callbacks[this.name][event]) {
+            for (const callback of callbacks[this.name][event].values()) {
                 callback(data);
             }
         }
@@ -293,7 +296,9 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                     }
                 } else {
                     rawData[fieldName] = DATE_TIME_TYPE.has(field.type)
-                        ? convertDateTimeToRaw(value)
+                        ? field.type === "datetime"
+                            ? convertDateTimeToRaw(value)
+                            : convertDateToRaw(value)
                         : value;
                 }
             }
@@ -446,7 +451,10 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                     const oldValue = record[RAW_SYMBOL][name];
                     let newValue = vals[name];
                     if (DATE_TIME_TYPE.has(field.type)) {
-                        newValue = convertDateTimeToRaw(newValue);
+                        newValue =
+                            field.type === "datetime"
+                                ? convertDateTimeToRaw(newValue)
+                                : convertDateToRaw(newValue);
                     }
                     if (newValue !== oldValue) {
                         record[RAW_SYMBOL][name] = newValue;
@@ -647,7 +655,10 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                         if (!isUpdate) {
                             createdIds.push(record.id);
                         } else {
-                            modelEvents.triggerEvents("update", { id: record.id });
+                            modelEvents.triggerEvents("update", {
+                                id: record.id,
+                                fields: Object.keys(rawData),
+                            });
                         }
                         resultsArray.push(record);
                     }

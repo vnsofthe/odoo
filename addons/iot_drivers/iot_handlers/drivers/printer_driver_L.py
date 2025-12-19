@@ -3,6 +3,7 @@
 from base64 import b64decode
 from cups import IPPError, IPP_JOB_COMPLETED, IPP_JOB_PROCESSING, IPP_JOB_PENDING, CUPS_FORMAT_AUTO
 from escpos import printer
+from escpos.escpos import EscposIO
 import escpos.exceptions
 import logging
 import netifaces as ni
@@ -29,9 +30,9 @@ class PrinterDriver(PrinterDriverBase):
         self.device_name = device['device-make-and-model']
         self.ip = device.get('ip')
 
-        if any(cmd in device['device-id'] for cmd in ['CMD:STAR;', 'CMD:ESC/POS;']):
+        if any(cmd in device['device-id'] for cmd in ['CMD:STAR;', 'CMD:ESC/POS;']) or "tm-m30" in self.device_name.lower():
             self.device_subtype = "receipt_printer"
-        elif any(cmd in device['device-id'] for cmd in ['COMMAND SET:ZPL;', 'CMD:ESCLABEL;']):
+        elif any(cmd in device['device-id'] for cmd in ['COMMAND SET:ZPL;', 'CMD:ESCLABEL;']) or "zpl" in self.device_name.lower():
             self.device_subtype = "label_printer"
         else:
             self.device_subtype = "office_printer"
@@ -57,7 +58,6 @@ class PrinterDriver(PrinterDriverBase):
             return
         try:
             self.escpos_device.open()
-            self.escpos_device.set_with_default(align='center')
             self.escpos_device.close()
         except escpos.exceptions.Error as e:
             _logger.info("%s - Could not initialize escpos class: %s", self.device_name, e)
@@ -145,18 +145,29 @@ class PrinterDriver(PrinterDriverBase):
         title, body = self._printer_status_content()
 
         commands = self.RECEIPT_PRINTER_COMMANDS[self.receipt_protocol]
-        dev = self.escpos_device
-        if dev:
-            dev.set(align='center', double_height=True, double_width=True)
-            dev.textln(title.decode())
-            dev.set_with_default(align='center', double_height=False, double_width=False)
-            for elem in body.decode().split('\n'):
-                dev.textln(elem)
-            dev.qr(f"http://{helpers.get_ip()}", size=6)
-            dev.cut()
-        else:
-            title = commands['title'] % title
-            self.print_raw(commands['center'] + title + b'\n' + body + commands['cut'])
+        if self.escpos_device:
+            if not self.check_printer_status():
+                return
+            try:
+                with EscposIO(self.escpos_device) as dev:
+                    dev.printer.set(align='center', double_height=True, double_width=True)
+                    dev.printer.textln(title.decode())
+                    dev.printer.set_with_default(align='center', double_height=False, double_width=False)
+                    dev.writelines(body.decode())
+                    ip = helpers.get_ip()
+                    if ip:
+                        dev.printer.qr(f"http://{ip}", size=6)
+                    else:
+                        wifi_qr = wifi.get_qr_data_for_wifi()
+                        if wifi_qr:
+                            dev.printer.qr(wifi_qr, size=6)
+                self.send_status(status='success')
+                return
+            except (escpos.exceptions.Error, OSError, AssertionError, AttributeError):
+                _logger.warning("Failed to print QR status receipt, falling back to simple receipt")
+
+        title = commands['title'] % title
+        self.print_raw(commands['center'] + title + b'\n' + body + commands['cut'])
 
     def print_status_zpl(self):
         iot_status = self._get_iot_status()
@@ -188,9 +199,12 @@ class PrinterDriver(PrinterDriverBase):
         :return: The title and the body of the status ticket
         :rtype: tuple of bytes
         """
-
         wlan = identifier = homepage = pairing_code = mac_address = ""
         iot_status = self._get_iot_status()
+
+        wan_quality = helpers.check_network("www.odoo.com")
+        to_gateway_quality = helpers.check_network()
+        to_printer_quality = helpers.check_network(self.ip) if self.ip else None
 
         if iot_status["pairing_code"]:
             pairing_code = (
@@ -200,7 +214,7 @@ class PrinterDriver(PrinterDriverBase):
             )
 
         if iot_status['ssid']:
-            wlan = '\nWireless network:\n%s\n\n' % iot_status["ssid"]
+            wlan = '\nWireless network:\n%s\n' % iot_status["ssid"]
 
         ips = iot_status["ips"]
         if len(ips) == 0:
@@ -213,13 +227,22 @@ class PrinterDriver(PrinterDriverBase):
         else:
             ip = '\nIoT Box IP Addresses:\n%s\n' % '\n'.join(ips)
 
+        if len(ips) == 0:
+            network_quality = ""
+        else:
+            network_quality = "\nNetwork quality:\n - To Odoo server: %s\n" % wan_quality
+            if to_gateway_quality:
+                network_quality += " - To Modem: %s\n" % to_gateway_quality
+            if to_printer_quality:
+                network_quality += " - To Printer (%s): %s\n" % (self.ip, to_printer_quality)
+
         if len(ips) >= 1:
             identifier = '\nIdentifier:\n%s\n' % iot_status["identifier"]
             mac_address = '\nMac Address:\n%s\n' % iot_status["mac_address"]
-            homepage = '\nIoT Box Homepage:\nhttp://%s:8069\n\n' % ips[0]
+            homepage = '\nIoT Box Homepage:\nhttp://%s:8069\n' % ips[0]
 
         title = b'IoT Box Connected' if helpers.get_odoo_server_url() else b'IoT Box Status'
-        body = pairing_code + wlan + identifier + mac_address + ip + homepage
+        body = pairing_code + wlan + identifier + mac_address + ip + network_quality + homepage
 
         return title, body.encode()
 

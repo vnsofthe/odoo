@@ -198,7 +198,21 @@ export class ListRenderer extends Component {
         });
         this.state = useState({ groupInput: false, currencyRates: null });
         onWillStart(async () => {
-            if (!this.isX2Many && this.hasMonetary) {
+            const needsCurrencyRates = this.props.archInfo.columns.some((column) => {
+                if (column.type !== "field") {
+                    return false;
+                }
+                const field = this.props.list.fields[column.name];
+                if (field.type !== "monetary" && column.widget !== "monetary") {
+                    return false;
+                }
+                const currencyField = this.getCurrencyField(column);
+                if (!(currencyField in this.props.list.activeFields)) {
+                    return false;
+                }
+                return ["sum", "avg", "max", "min"].some((agg) => agg in column.attrs);
+            });
+            if (needsCurrencyRates) {
                 this.state.currencyRates = await getCurrencyRates();
             }
         });
@@ -288,10 +302,11 @@ export class ListRenderer extends Component {
                     const column = this.cellToFocus.column;
                     const forward = this.cellToFocus.forward;
                     this.focusCell(column, forward);
-                } else if (this.lastEditedCell) {
-                    this.focusCell(this.lastEditedCell.column, true);
                 } else {
-                    this.focusCell(this.columns[0]);
+                    const column = this.lastEditedCell?.column || this.columns[0];
+                    if (column.widget !== "daterange" || !this.editedRecord.data[column.name]) {
+                        this.focusCell(column);
+                    }
                 }
             }
             this.cellToFocus = null;
@@ -344,6 +359,7 @@ export class ListRenderer extends Component {
         );
     }
 
+    // deprecated, remove in master
     get hasMonetary() {
         return this.props.archInfo.columns.some((column) => {
             if (column.type !== "field") {
@@ -720,7 +736,7 @@ export class ListRenderer extends Component {
                     } else {
                         currencyId = values[0][currencyField] && values[0][currencyField].id;
                     }
-                    if (currencyId && func) {
+                    if (func) {
                         const currencies = this.getFieldCurrencies(fieldName);
                         // in case of multiple currencies, convert values into default currency using conversion rates
                         if (currencies.size > 1) {
@@ -1127,9 +1143,6 @@ export class ListRenderer extends Component {
             colspan = firstAggregateIndex;
         } else {
             colspan = Math.max(1, this.columns.length - DEFAULT_GROUP_PAGER_COLSPAN);
-            if (this.displayOptionalFields) {
-                colspan++;
-            }
         }
         if (this.hasSelectors) {
             colspan++;

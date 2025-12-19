@@ -365,6 +365,11 @@ class IrModel(models.Model):
         if crons:
             crons.unlink()
 
+        # delete related ir_model_data
+        model_data = self.env['ir.model.data'].search([('model', 'in', self.mapped('model'))])
+        if model_data:
+            model_data.unlink()
+
         self._drop_table()
         res = super().unlink()
 
@@ -625,7 +630,12 @@ class IrModelFields(models.Model):
     @api.constrains('domain')
     def _check_domain(self):
         for field in self:
-            safe_eval(field.domain or '[]')
+            try:
+                safe_eval(field.domain or '[]')
+            except ValueError as e:
+                raise ValidationError(
+                    _("An error occurred while evaluating the domain:\n%(error)s", error=e)
+                ) from e
 
     @api.constrains('name')
     def _check_name(self):
@@ -1015,11 +1025,16 @@ class IrModelFields(models.Model):
                 if relation and not IrModel._get_id(relation):
                     raise UserError(_("Model %s does not exist!", vals['relation']))
 
-                if vals.get('ttype') == 'one2many' and not self.search_count([
-                    ('ttype', '=', 'many2one'),
-                    ('model', '=', vals['relation']),
-                    ('name', '=', vals['relation_field']),
-                ]):
+                if (
+                    vals.get('ttype') == 'one2many' and
+                    vals.get("store", True) and
+                    not vals.get("related") and
+                    not self.search_count([
+                        ('ttype', '=', 'many2one'),
+                        ('model', '=', vals['relation']),
+                        ('name', '=', vals['relation_field']),
+                    ])
+                ):
                     raise UserError(_("Many2one %(field)s on model %(model)s does not exist!", field=vals['relation_field'], model=vals['relation']))
 
         if any(model in self.pool for model in models):
@@ -2511,7 +2526,12 @@ class IrModelData(models.Model):
 
         # remove non-model records first, grouped by batches of the same model
         for model, items in itertools.groupby(unique(records_items), itemgetter(0)):
-            delete(self.env[model].browse(item[1] for item in items))
+            ids = [item[1] for item in items]
+            # we cannot guarantee that the ir.model.data points to an existing model
+            if model in self.env:
+                delete(self.env[model].browse(ids))
+            else:
+                _logger.info("Orphan ir.model.data records %s refer to unavailable model '%s'", ids, model)
 
         # Remove copied views. This must happen after removing all records from
         # the modules to remove, otherwise ondelete='restrict' may prevent the

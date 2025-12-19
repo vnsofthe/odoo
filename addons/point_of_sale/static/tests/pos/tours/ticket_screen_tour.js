@@ -197,9 +197,20 @@ registry.category("web_tour.tours").add("LotRefundTour", {
         [
             Chrome.startPoS(),
             Dialog.confirm("Open Register"),
+            Chrome.clickOrders(),
+            Chrome.clickOnScanButton(),
+            TicketScreen.checkCameraIsOpen(),
+            Chrome.clickOnScanButton(),
+            Chrome.clickRegister(),
             ProductScreen.clickDisplayedProduct("Product A"),
             ProductScreen.enterLotNumber("123456789"),
             ProductScreen.selectedOrderlineHas("Product A", "1"),
+            Chrome.clickOrders(),
+            TicketScreen.selectOrder("001"),
+            Chrome.clickOnScanButton(),
+            TicketScreen.checkCameraIsOpen(),
+            Chrome.clickOnScanButton(),
+            Chrome.clickRegister(),
             ProductScreen.clickPayButton(),
             PaymentScreen.clickPaymentMethod("Bank"),
             PaymentScreen.clickValidate(),
@@ -245,6 +256,32 @@ registry.category("web_tour.tours").add("RefundFewQuantities", {
             PaymentScreen.clickBack(),
             ProductScreen.isShown(),
             Order.hasLine("Sugar", "-0.02", "-0.06"),
+        ].flat(),
+});
+
+registry.category("web_tour.tours").add("refund_multiple_products_amounts_compliance", {
+    steps: () =>
+        [
+            Chrome.startPoS(),
+            Dialog.confirm("Open Register"),
+            ProductScreen.clickDisplayedProduct("Test Product"),
+            inLeftSide([
+                ...["2"].map(Numpad.click),
+                ...ProductScreen.selectedOrderlineHasDirect("Test Product", "2", "20"),
+            ]),
+            ProductScreen.clickPayButton(),
+            PaymentScreen.clickPaymentMethod("Cash"),
+            PaymentScreen.clickValidate(),
+            ReceiptScreen.isShown(),
+            ReceiptScreen.clickNextOrder(),
+            ...ProductScreen.clickRefund(),
+            TicketScreen.selectOrder("001"),
+            ProductScreen.clickNumpad("2"),
+            TicketScreen.confirmRefund(),
+            PaymentScreen.isShown(),
+            PaymentScreen.clickPaymentMethod("Cash"),
+            PaymentScreen.clickValidate(),
+            ReceiptScreen.isShown(),
         ].flat(),
 });
 
@@ -366,6 +403,7 @@ registry
                 Chrome.startPoS(),
                 Dialog.confirm("Open Register"),
                 ProductScreen.addOrderline("Desk Pad", "2", "4"),
+                ProductScreen.clickPriceList("Percentage Pricelist"),
                 ProductScreen.clickPayButton(),
                 PaymentScreen.clickPaymentMethod("Bank"),
                 PaymentScreen.clickValidate(),
@@ -435,5 +473,56 @@ registry.category("web_tour.tours").add("test_order_with_existing_serial", {
             inLeftSide({
                 trigger: ".info-list:contains('SN SN2')",
             }),
+        ].flat(),
+});
+
+registry.category("web_tour.tours").add("test_lot_refund_lower_qty", {
+    steps: () =>
+        [
+            Chrome.startPoS(),
+            Dialog.confirm("Open Register"),
+            ProductScreen.clickDisplayedProduct("Serial Product"),
+            ProductScreen.enterExistingLotNumbers(["SN1", "SN2"]),
+            ProductScreen.selectedOrderlineHas("Serial Product", "2.00"),
+            ProductScreen.clickPayButton(),
+            PaymentScreen.clickPaymentMethod("Bank"),
+            PaymentScreen.clickValidate(),
+            ReceiptScreen.isShown(),
+            ReceiptScreen.clickNextOrder(),
+            ProductScreen.clickRefund(),
+            TicketScreen.selectOrder("001"),
+            ProductScreen.clickNumpad("1"),
+            TicketScreen.toRefundTextContains("To Refund: 1"),
+            TicketScreen.confirmRefund(),
+            PaymentScreen.clickBack(),
+            ProductScreen.isShown(),
+            {
+                trigger: ".info-list:contains('SN SN1')",
+            },
+            ProductScreen.clickLotIcon(),
+            {
+                trigger: ".o-autocomplete--dropdown-item:contains('SN2')",
+            },
+            Dialog.confirm(),
+            {
+                content: "go back to the products",
+                trigger: ".actionpad .back-button",
+                run: "click",
+                isActive: ["mobile"],
+            },
+            ProductScreen.clickPayButton(),
+            PaymentScreen.clickPaymentMethod("Bank"),
+            PaymentScreen.clickValidate(),
+            ReceiptScreen.isShown(),
+            ReceiptScreen.clickNextOrder(),
+            ProductScreen.clickRefund(),
+            TicketScreen.selectOrder("001"),
+            ProductScreen.clickNumpad("1"),
+            TicketScreen.confirmRefund(),
+            PaymentScreen.clickBack(),
+            ProductScreen.isShown(),
+            {
+                trigger: ".info-list:contains('SN SN2')",
+            },
         ].flat(),
 });

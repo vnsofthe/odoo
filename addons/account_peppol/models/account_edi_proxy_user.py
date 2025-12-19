@@ -229,7 +229,6 @@ class Account_Edi_Proxy_ClientUser(models.Model):
         else:
             journal = (
                 journal
-                or self.company_id.peppol_self_billing_reception_journal_id
                 or self.env['account.journal'].search(
                     [
                         *self.env['account.journal']._check_company_domain(self.company_id),
@@ -252,6 +251,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
             move.is_in_extractable_state = False
 
         move._extend_with_attachments([file_data], new=True)
+        move._autopost_bill()
         attachment.write({'res_model': 'account.move', 'res_id': move.id})
         return {'uuid': uuid, 'move': move}
 
@@ -327,9 +327,6 @@ class Account_Edi_Proxy_ClientUser(models.Model):
                     "/api/peppol/1/ack",
                     params={'message_uuids': uuids_to_ack},
                 )
-            if created_moves:
-                for journal, moves_in_journal in created_moves.grouped('journal_id').items():
-                    journal._notify_einvoices_received(moves_in_journal)
 
         if need_retrigger:
             self.env.ref('account_peppol.ir_cron_peppol_get_new_documents')._trigger()
@@ -492,6 +489,20 @@ class Account_Edi_Proxy_ClientUser(models.Model):
 
         self.company_id._reset_peppol_configuration()
         self.unlink()
+
+    def _peppol_deregister_participant_to_sender(self):
+        self.ensure_one()
+
+        if self.company_id.account_peppol_proxy_state == 'receiver':
+            # fetch all documents and message statuses before unlinking the edi user
+            # so that the invoices are acknowledged
+            self._cron_peppol_get_message_status()
+            self._cron_peppol_get_new_documents()
+            if not modules.module.current_test:
+                self.env.cr.commit()
+
+        self._call_peppol_proxy(endpoint='/api/peppol/1/unregister_to_sender')
+        self.company_id.account_peppol_proxy_state = 'sender'
 
     @api.model
     def _peppol_auto_register_services(self, module):

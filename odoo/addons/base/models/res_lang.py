@@ -64,6 +64,9 @@ class ResLang(models.Model):
             ('%d-%m-%Y', '31-01-%s' % current_year),
             ('%m-%d-%Y', '01-31-%s' % current_year),
             ('%Y-%m-%d', '%s-01-31' % current_year),
+            ('%d.%m.%Y', '31.01.%s' % current_year),
+            ('%m.%d.%Y', '01.31.%s' % current_year),
+            ('%Y.%m.%d', '%s.01.31' % current_year),
         ]
 
     name = fields.Char(required=True)
@@ -163,6 +166,16 @@ class ResLang(models.Model):
         lang = self.with_context(active_test=False).search([('code', '=', code)])
         if lang and not lang.active:
             lang.active = True
+        return lang
+
+    def _activate_and_install_lang(self, code):
+        """ Activate languages and update their translations
+        :param code: code of the language to activate
+        :return: the language matching 'code' activated
+        """
+        lang = self.with_context(active_test=False).search([('code', '=', code)])
+        if lang and not lang.active:
+            lang.action_unarchive()
         return lang
 
     def _create_lang(self, lang, lang_name=None):

@@ -8,31 +8,13 @@ import { enhancedButtons } from "@point_of_sale/app/components/numpad/numpad";
 import { patch } from "@web/core/utils/patch";
 import { PosStore } from "@point_of_sale/app/services/pos_store";
 import { accountTaxHelpers } from "@account/helpers/account_tax";
-import { getTaxesAfterFiscalPosition } from "@point_of_sale/app/models/utils/tax_utils";
 
 patch(PosStore.prototype, {
     async onClickSaleOrder(clickedOrderId) {
-        const selectedOption = await makeAwaitable(this.dialog, SelectionPopup, {
-            title: _t("What do you want to do?"),
-            list: [
-                { id: "0", label: _t("Settle the order"), item: "settle" },
-                {
-                    id: "1",
-                    label: _t("Apply a down payment (percentage)"),
-                    item: "dpPercentage",
-                },
-                {
-                    id: "2",
-                    label: _t("Apply a down payment (fixed amount)"),
-                    item: "dpAmount",
-                },
-            ],
-        });
-        if (!selectedOption) {
-            return;
-        }
         const sale_order = await this._getSaleOrder(clickedOrderId);
-
+        await this._processSaleOrder(sale_order);
+    },
+    async _processSaleOrder(sale_order) {
         const currentSaleOrigin = this.getOrder()
             .getOrderlines()
             .find((line) => line.sale_order_origin_id)?.sale_order_origin_id;
@@ -61,6 +43,29 @@ patch(PosStore.prototype, {
             fiscal_position_id: orderFiscalPos,
         });
 
+        //Add a down payment for transactions that were already done online
+        if (sale_order.amount_paid > 0) {
+            this.addDownPaymentProductOrderlineToOrder(sale_order, -sale_order.amount_paid, false);
+        }
+        const selectedOption = await makeAwaitable(this.dialog, SelectionPopup, {
+            title: _t("What do you want to do?"),
+            list: [
+                { id: "0", label: _t("Settle the order"), item: "settle" },
+                {
+                    id: "1",
+                    label: _t("Apply a down payment (percentage)"),
+                    item: "dpPercentage",
+                },
+                {
+                    id: "2",
+                    label: _t("Apply a down payment (fixed amount)"),
+                    item: "dpAmount",
+                },
+            ],
+        });
+        if (!selectedOption) {
+            return;
+        }
         selectedOption == "settle"
             ? await this.settleSO(sale_order, orderFiscalPos)
             : await this.downPaymentSO(sale_order, selectedOption == "dpPercentage");
@@ -100,7 +105,7 @@ patch(PosStore.prototype, {
                 line.product_id = this.config.down_payment_product_id;
             }
 
-            const taxes = getTaxesAfterFiscalPosition(line.tax_ids, orderFiscalPos, this.models);
+            const taxes = orderFiscalPos?.getTaxesAfterFiscalPosition(line.tax_ids) || line.tax_ids;
             const newLineValues = {
                 product_tmpl_id: line.product_id?.product_tmpl_id,
                 product_id: line.product_id,
@@ -127,7 +132,7 @@ patch(PosStore.prototype, {
             if (line.display_type === "line_section") {
                 continue;
             }
-            newLineValues.attribute_value_ids = line.product_custom_attribute_value_ids.map(
+            newLineValues.attribute_value_ids = (line.product_custom_attribute_value_ids || []).map(
                 (value_line) => {
                     if (value_line?.custom_product_template_attribute_value_id) {
                         return ["link", value_line.custom_product_template_attribute_value_id];
@@ -163,34 +168,67 @@ patch(PosStore.prototype, {
             newLine.setUnitPrice(converted_line.price_unit);
             newLine.setDiscount(line.discount);
 
+            const lot_splitted_lines = [];
             const product_unit = line.product_id.uom_id;
             if (product_unit && !product_unit.is_pos_groupable) {
                 let remaining_quantity = newLine.qty;
                 newLineValues.product_id = newLine.product_id;
+                const priceUnit = newLine.price_unit;
                 newLine.delete();
                 while (!product_unit.isZero(remaining_quantity)) {
                     const splitted_line = this.models["pos.order.line"].create({
                         ...newLineValues,
                     });
                     splitted_line.setQuantity(Math.min(remaining_quantity, 1.0), true);
+                    splitted_line.setUnitPrice(priceUnit);
                     splitted_line.setDiscount(line.discount);
                     remaining_quantity -= splitted_line.qty;
+                    if (splitted_line.product_id.tracking == "lot") {
+                        lot_splitted_lines.push(splitted_line);
+                    }
                 }
             }
 
             // Order line can only hold one lot, so we need to split the line if there are multiple lots
-            if (line.product_id.tracking == "lot" && converted_line.lot_names.length > 0) {
+            if (
+                line.product_id.tracking == "lot" &&
+                converted_line.lot_names.length > 0 &&
+                useLoadedLots
+            ) {
                 newLine.delete();
+                let total_lot_quantity = 0;
                 for (const lot of converted_line.lot_names) {
+                    let lot_remaining_quantity = converted_line.lot_qty_by_name[lot] || 0;
+                    while (lot_splitted_lines.length && lot_remaining_quantity > 0) {
+                        const splitted_line = lot_splitted_lines.shift();
+                        splitted_line.setPackLotLines({
+                            modifiedPackLotLines: [],
+                            newPackLotLines: [{ lot_name: lot }],
+                            setQuantity: false,
+                        });
+                        total_lot_quantity += splitted_line.qty;
+                        lot_remaining_quantity -= splitted_line.qty;
+                    }
+                    if (lot_remaining_quantity > 0 && lot_splitted_lines.length == 0) {
+                        const splitted_line = this.models["pos.order.line"].create({
+                            ...newLineValues,
+                        });
+                        splitted_line.setQuantity(lot_remaining_quantity, true);
+                        splitted_line.setDiscount(line.discount);
+                        splitted_line.setPackLotLines({
+                            modifiedPackLotLines: [],
+                            newPackLotLines: [{ lot_name: lot }],
+                            setQuantity: false,
+                        });
+                        total_lot_quantity += lot_remaining_quantity;
+                    }
+                }
+                if (total_lot_quantity < newLineValues.qty && lot_splitted_lines.length == 0) {
                     const splitted_line = this.models["pos.order.line"].create({
                         ...newLineValues,
                     });
-                    splitted_line.setQuantity(converted_line.lot_qty_by_name[lot] || 0, true);
-                    splitted_line.setPackLotLines({
-                        modifiedPackLotLines: [],
-                        newPackLotLines: [{ lot_name: lot }],
-                        setQuantity: false,
-                    });
+                    splitted_line.setQuantity(newLineValues.qty - total_lot_quantity, true);
+                    splitted_line.setDiscount(line.discount);
                 }
             }
         }
@@ -209,18 +247,6 @@ patch(PosStore.prototype, {
     },
 
     async downPaymentSO(saleOrder, isPercentage) {
-        if (!this.config.down_payment_product_id && this.config.raw.down_payment_product_id) {
-            await this.data.read("product.product", [this.config.raw.down_payment_product_id]);
-        }
-        if (!this.config.down_payment_product_id) {
-            this.dialog.add(AlertDialog, {
-                title: _t("No down payment product"),
-                body: _t(
-                    "It seems that you didn't configure a down payment product in your point of sale. You can go to your point of sale configuration to choose one."
-                ),
-            });
-            return;
-        }
         const payload = await makeAwaitable(this.dialog, NumberPopup, {
             title: _t("Down Payment"),
             subtitle: _t("Due balance: %s", this.env.utils.formatCurrency(saleOrder.amount_unpaid)),
@@ -237,6 +263,25 @@ patch(PosStore.prototype, {
             return;
         }
 
+        const amount = parseFloat(payload);
+        this.addDownPaymentProductOrderlineToOrder(saleOrder, amount, isPercentage);
+    },
+    async loadDownPaymentProduct() {
+        if (!this.config.down_payment_product_id && this.config.raw.down_payment_product_id) {
+            await this.data.read("product.product", [this.config.raw.down_payment_product_id]);
+        }
+        if (!this.config.down_payment_product_id) {
+            this.dialog.add(AlertDialog, {
+                title: _t("No down payment product"),
+                body: _t(
+                    "It seems that you didn't configure a down payment product in your point of sale. You can go to your point of sale configuration to choose one."
+                ),
+            });
+            return;
+        }
+    },
+    addDownPaymentProductOrderlineToOrder(saleOrder, amount, isPercentage) {
+        this.loadDownPaymentProduct();
         const saleOrderLines = saleOrder.order_line.filter((soLine) => !soLine.display_type);
         const baseLines = [];
         for (const saleOrderLine of saleOrderLines) {
@@ -249,12 +294,11 @@ patch(PosStore.prototype, {
         }
         accountTaxHelpers.add_tax_details_in_base_lines(baseLines, this.company);
         accountTaxHelpers.round_base_lines_tax_details(baseLines, this.company);
-
-        let amount = parseFloat(payload);
         if (isPercentage) {
             const percentage = amount / 100.0;
             amount = baseLines.length ? saleOrder.amount_unpaid * percentage : 0.0;
         }
+
         const downPaymentProduct = this.config.down_payment_product_id;
         const groupingFunction = (base_line) => ({
             grouping_key: { product_id: downPaymentProduct },
