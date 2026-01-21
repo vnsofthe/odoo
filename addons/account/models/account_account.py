@@ -413,11 +413,17 @@ class AccountAccount(models.Model):
             record.root_id = self.env['account.root']._from_account_code(record.placeholder_code)
 
     def _search_account_root(self, operator, value):
-        if operator not in ('in', 'child_of'):
+        if operator not in ('in', 'child_of', 'any'):
             return NotImplemented
-        roots = self.env['account.root'].browse(value)
+        if operator == 'any':
+            if isinstance(value, Domain) and value.field_expr == 'display_name' and value.operator == 'in':
+                roots = self.env['account.root'].browse(value.value)
+            else:
+                return NotImplemented
+        else:
+            roots = self.env['account.root'].browse(value)
         return Domain.OR(
-            Domain('placeholder_code', '=ilike', root.name + ('' if operator == 'in' and not root.parent_id else '%'))
+            Domain('placeholder_code', '=ilike', root.name + ('' if operator in ['in', 'any'] and not root.parent_id else '%'))
             for root in roots
         )
 
@@ -573,8 +579,7 @@ class AccountAccount(models.Model):
         balances = {
             account.id: balance
             for account, balance in self.env['account.move.line']._read_group(
-                domain=[('account_id', 'in', self.ids), ('parent_state', '=', 'posted'), ('company_id', '=', self.env.company.id)],
-                groupby=['account_id'],
+                domain=[('account_id', 'in', self.ids), ('parent_state', '=', 'posted'), ('company_id', 'child_of', self.env.company.id)], groupby=['account_id'],
                 aggregates=['balance:sum'],
             )
         }
@@ -664,12 +669,12 @@ class AccountAccount(models.Model):
     @api.depends('account_type')
     def _compute_include_initial_balance(self):
         for account in self:
-            account.include_initial_balance = account.internal_group not in ['income', 'expense']
+            account.include_initial_balance = account.internal_group not in ['income', 'expense'] and account.account_type != 'equity_unaffected'
 
     def _search_include_initial_balance(self, operator, value):
         if operator != 'in':
             return NotImplemented
-        return [('internal_group', 'not in', ['income', 'expense'])]
+        return [('internal_group', 'not in', ['income', 'expense']), ('account_type', '!=', 'equity_unaffected')]
 
     def _get_internal_group(self, account_type):
         return account_type.split('_', maxsplit=1)[0]

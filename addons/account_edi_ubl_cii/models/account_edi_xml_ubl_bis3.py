@@ -127,6 +127,11 @@ class AccountEdiXmlUbl_Bis3(models.AbstractModel):
                 'cac:Address': self._get_address_node({'partner': shipping_partner})
             },
         }
+        # TODO master: clean that code a bit hacky, when the module account_add_gln is merged with account
+        if gln := 'global_location_number' in shipping_partner._fields and shipping_partner.global_location_number:
+            document_node['cac:Delivery']['cac:DeliveryLocation'].update({
+                'cbc:ID': {'schemeID': '0088', '_text': gln},
+            })
 
     def _add_invoice_payment_means_nodes(self, document_node, vals):
         super()._add_invoice_payment_means_nodes(document_node, vals)
@@ -165,6 +170,10 @@ class AccountEdiXmlUbl_Bis3(models.AbstractModel):
                         'cbc:ID': {'_text': commercial_partner.peppol_endpoint}
                     }
                 ]
+        elif commercial_partner.country_code == 'BE' and commercial_partner.company_registry:
+            party_node['cac:PartyIdentification'] = {
+                'cbc:ID': {'_text': commercial_partner.company_registry}
+            }
 
         party_node['cac:PartyTaxScheme'] = party_tax_scheme = [
             {
@@ -206,6 +215,10 @@ class AccountEdiXmlUbl_Bis3(models.AbstractModel):
             party_node['cac:PartyLegalEntity']['cbc:CompanyID'] = {
                 '_text': ''.join(char for char in commercial_partner.company_registry if char.isdigit
                 ())
+            }
+        elif commercial_partner.country_code == 'BE' and commercial_partner.company_registry:
+            party_node['cac:PartyLegalEntity']['cbc:CompanyID'] = {
+                '_text': commercial_partner.company_registry
             }
         else:
             party_node['cac:PartyLegalEntity']['cbc:CompanyID'] = {
@@ -291,9 +304,6 @@ class AccountEdiXmlUbl_Bis3(models.AbstractModel):
         # Add 'tax_currency_code'.
         self._ubl_add_values_tax_currency_code(vals)
 
-        # Add 'tax_totals'.
-        self._ubl_add_values_tax_totals(vals)
-
         # Add 'payable_rounding_amount' to manage cash rounding.
         self._ubl_add_values_payable_rounding_amount(vals)
 
@@ -303,6 +313,9 @@ class AccountEdiXmlUbl_Bis3(models.AbstractModel):
             for base_line in vals['base_lines']
             if base_line not in vals['_ubl_values']['payable_rounding_base_lines']
         ]
+
+        # Add 'tax_totals'.
+        self._ubl_add_values_tax_totals(vals)
 
         # Add 'allowance_charge_early_payment' to manage the early payment discount.
         self._ubl_add_values_allowance_charge_early_payment(vals)
@@ -535,7 +548,7 @@ class AccountEdiXmlUbl_Bis3(models.AbstractModel):
         line_nodes = vals['document_node'][line_tag]
 
         for line_node in line_nodes:
-            if not line_node['cac:Item']['cbc:Name']['_text']:
+            if not (line_node['cac:Item']['cbc:Name'] or {}).get('_text'):
                 # [BR-25]-Each Invoice line (BG-25) shall contain the Item name (BT-153).
                 constraints.update({'cen_en16931_item_name': _("Each invoice line should have a product or a label.")})
                 break

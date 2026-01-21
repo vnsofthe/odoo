@@ -230,17 +230,18 @@ describe("restaurant pos_store.js", () => {
             let id = 1;
             let lineId = 1;
             const createOrderForTable = async () => {
+                const orderId = `${id++}_string`;
                 const lines = [
                     {
                         id: `${lineId++}_string`,
-                        order_id: 31,
+                        order_id: orderId,
                         product_id: 5,
                         qty: 1,
                         write_date: date,
                     },
                     {
                         id: `${lineId++}_string`,
-                        order_id: 31,
+                        order_id: orderId,
                         product_id: 6,
                         qty: 1,
                         write_date: date,
@@ -248,7 +249,7 @@ describe("restaurant pos_store.js", () => {
                 ];
                 const order = [
                     {
-                        id: `${id++}_string`,
+                        id: orderId,
                         lines: lines.map((line) => line.id),
                         write_date: date,
                         table_id: table.id,
@@ -412,6 +413,19 @@ describe("restaurant pos_store.js", () => {
         expect(order2.table_id.id).toBe(table2.id);
         expect(order2.course_ids.length).toBe(1);
         expect(line2.course_id.id).toBe(course2.id);
+    });
+
+    test("mergeOrders sums guest counts", async () => {
+        const store = await setupPosEnv();
+        const models = store.models;
+        const table1 = models["restaurant.table"].get(2);
+        const table2 = models["restaurant.table"].get(3);
+        const order1 = store.addNewOrder({ table_id: table1 });
+        order1.setCustomerCount(3);
+        const order2 = store.addNewOrder({ table_id: table2 });
+        order2.setCustomerCount(5);
+        await store.mergeOrders(order1, order2);
+        expect(order2.getCustomerCount()).toBe(8);
     });
 
     test("getCustomerCount", async () => {

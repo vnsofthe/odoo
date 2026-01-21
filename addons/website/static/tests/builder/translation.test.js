@@ -2,7 +2,7 @@ import { Builder } from "@html_builder/builder";
 import { EditWebsiteSystrayItem } from "@website/client_actions/website_preview/edit_website_systray_item";
 import { setContent, setSelection } from "@html_editor/../tests/_helpers/selection";
 import { insertText, pasteHtml, pasteText } from "@html_editor/../tests/_helpers/user_actions";
-import { beforeEach, describe, expect, test } from "@odoo/hoot";
+import { beforeEach, delay, describe, expect, globals, press, test } from "@odoo/hoot";
 import {
     animationFrame,
     manuallyDispatchProgrammaticEvent,
@@ -20,6 +20,7 @@ import { expectElementCount } from "@html_editor/../tests/_helpers/ui_expectatio
 import { uniqueId } from "@web/core/utils/functions";
 import { TranslationPlugin } from "@website/builder/plugins/translation_plugin";
 import { dummyBase64Img } from "@html_builder/../tests/helpers";
+import { getTranslatedElements } from "./translated_elements_getter.hoot";
 
 defineWebsiteModels();
 
@@ -323,11 +324,25 @@ test("test that powerbox should not open in translate mode", async () => {
     const textNode = editor.editable.querySelector("span").firstChild;
     expect(textNode.nodeType).toBe(Node.TEXT_NODE);
     setSelection({ anchorNode: textNode, anchorOffset: 0 });
-    await animationFrame();
     // Simulate typing `/`
     await insertText(editor, "/");
     await animationFrame();
     await expectElementCount(".o-we-powerbox", 0);
+});
+
+test("copy of a translated span should not copy branding attributes", async () => {
+    const { getEditor } = await setupSidebarBuilderForTranslation({
+        websiteContent: getTranslateEditable({ inWrap: "a<b>c</b>a" }),
+    });
+    await contains(":iframe [contenteditable=true]").focus();
+    const editor = getEditor();
+    const textNode = editor.editable.querySelector("b").firstChild;
+    expect(textNode.nodeType).toBe(Node.TEXT_NODE);
+    setSelection({ anchorNode: textNode, anchorOffset: 0, focusNode: textNode, focusOffset: 1 });
+    const clipboardData = new DataTransfer();
+    await press(["ctrl", "c"], { dataTransfer: clipboardData });
+    expect(clipboardData.getData("text/plain")).toBe("c");
+    expect(clipboardData.getData("text/html")).toBe(`<b>c</b>`);
 });
 
 describe("save translation", () => {
@@ -476,6 +491,23 @@ test("Ensure the contenteditable attributes have been set before the Translation
     });
 });
 
+test("sidebar should open even when translated elements fetch is slow", async () => {
+    const originalFetch = globals.fetch;
+
+    patchWithCleanup(globals, {
+        async fetch(url, options) {
+            if (url === "/website/get_translated_elements") {
+                await delay(100);
+            }
+            return originalFetch.call(this, url, options);
+        },
+    });
+    await setupSidebarBuilderForTranslation({
+        websiteContent: getTranslateEditable({ inWrap: "Hello" }),
+    });
+    expect(".o_builder_sidebar_open").toHaveCount(1);
+});
+
 function getTranslateEditable({
     inWrap,
     oeId = "526",
@@ -514,6 +546,7 @@ async function setupSidebarBuilderForTranslation(options) {
             },
         }
     );
+    await getTranslatedElements();
     await openBuilderSidebar();
     return { getEditor, getEditableContent };
 }
