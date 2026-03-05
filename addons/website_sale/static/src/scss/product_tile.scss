@@ -46,6 +46,8 @@
     margin-right: var(--o-wsale-card-margin-x);
     width: 100%;
     container: oe_product_cart / inline-size;
+    contain: layout style;
+    content-visibility: auto;
 
     &:before {
         $_y: var(--o-wsale-card-pseudobg-y, MIN(#{map-get($spacers, 3) * -0.5}, calc(var(--o-wsale-products-grid-gap-y) / 2)));
@@ -113,7 +115,7 @@
         }
         .oe_product_image_img, .oe_product_image_img_secondary {
             position: absolute;
-            object-fit: var(--o-wsale-card-thumb-fill-mode, contain);
+            object-fit: var(--o-wsale-card-thumb-fill-mode, contain) !important;
             object-position: var(--o-wsale-card-thumb-position, center);
             background-size: var(--o-wsale-card-thumb-fill-mode, contain);
             background-position: var(--o-wsale-card-thumb-position, center);

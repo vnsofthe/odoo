@@ -516,7 +516,6 @@ class ResourceCalendar(models.Model):
             ('resource_id', 'in', [False] + [r.id for r in resources_list]),
             ('date_from', '<=', end_dt.astimezone(utc).replace(tzinfo=None)),
             ('date_to', '>=', start_dt.astimezone(utc).replace(tzinfo=None)),
-            ('company_id', 'in', [False] + ([r.company_id.id for r in resources_list if r.company_id] or [self.company_id.id])),
         ]
 
         # retrieve leave intervals in (start_dt, end_dt)
@@ -693,7 +692,7 @@ class ResourceCalendar(models.Model):
         self.ensure_one()
         hour_count = 0.0
         for attendance in self._get_global_attendances():
-            hour_count += attendance.hour_to - attendance.hour_from
+            hour_count += attendance.duration_hours
         return hour_count / 2 if self.two_weeks_calendar else hour_count
 
     def _get_hours_per_day(self):
@@ -976,9 +975,11 @@ class ResourceCalendar(models.Model):
         if day_period:
             attendances = [att for att in init_attendances if att.day_period == day_period]
             for attendance in filter(lambda att: att.day_period == 'full_day', init_attendances):
+                # Split full-day attendances at their midpoint.
+                half_time = (attendance.hour_from + attendance.hour_to) / 2
                 attendances.append(attendance._replace(
-                    hour_from=attendance.hour_from if day_period == 'morning' else 12,
-                    hour_to=attendance.hour_to if day_period == 'afternoon' else 12,
+                    hour_from=attendance.hour_from if day_period == 'morning' else half_time,
+                    hour_to=attendance.hour_to if day_period == 'afternoon' else half_time,
                 ))
 
         else:

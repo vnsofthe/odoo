@@ -325,6 +325,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         attribute_value_ids = set(itertools.chain.from_iterable(attribute_value_dict.values()))
         if attribute_values:
             request.session['attribute_values'] = attribute_values
+            post['attribute_values'] = attribute_values
         else:
             request.session.pop('attribute_values', None)
 
@@ -820,7 +821,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
                             and ptav.product_attribute_value_id.id in attribute_value_ids
                         )
                     )[:1]
-                ) or ptal.product_template_value_ids[:1]
+                ) or ptal.product_template_value_ids.filtered('ptav_active')[:1]
             )
             combination_info = product._get_combination_info(
                 combination=request.env['product.template.attribute.value'].concat(combination)
@@ -1562,8 +1563,11 @@ class WebsiteSale(payment_portal.PaymentPortal):
     def express_checkout_shipping_address_compute_taxes(self):
         order_sudo = request.cart
         order_sudo._recompute_taxes()
+        amount_without_delivery = order_sudo._compute_amount_total_without_delivery()
 
-        return payment_utils.to_minor_currency_units(order_sudo.amount_total, order_sudo.currency_id)
+        return payment_utils.to_minor_currency_units(
+            amount_without_delivery, order_sudo.currency_id
+        )
 
     def _get_shop_payment_errors(self, order):
         """ Check that there is no error that should block the payment.

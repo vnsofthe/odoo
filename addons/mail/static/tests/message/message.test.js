@@ -258,6 +258,24 @@ test("Editing message keeps the mentioned channels", async () => {
     await contains(".o-mail-DiscussContent-threadName", { value: "other" });
 });
 
+test("Editing message keeps the mentioned roles", async () => {
+    const pyEnv = await startServer();
+    pyEnv["res.role"].create([{ name: "admin" }]);
+    const channelId = pyEnv["discuss.channel"].create({ name: "general" });
+    await start();
+    await openDiscuss(channelId);
+    await insertText(".o-mail-Composer-input", "@");
+    await click(".o-mail-Composer-suggestion strong", { text: "admin" });
+    await press("Enter");
+    await contains(".o-discuss-mention", { text: "@admin" });
+    await click(".o-mail-Message [title='Edit']");
+    await contains(".o-mail-Message .o-mail-Composer-input", { value: "@admin" });
+    await insertText(".o-mail-Message .o-mail-Composer-input", "@admin edit", { replace: true });
+    await click(".o-mail-Message button", { text: "save" });
+    await contains(".o-mail-Message-content", { text: "@admin edit (edited)" });
+    await contains(".o-discuss-mention", { text: "@admin" });
+});
+
 test("Can edit message comment in chatter", async () => {
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({ name: "TestPartner" });
@@ -475,6 +493,13 @@ test("Do not call server on save if no changes", async () => {
     await click(".o-mail-Message [title='Edit']");
     await click(".o-mail-Message button", { text: "save" });
     await waitForSteps([]);
+    await click(".o-mail-Message [title='Edit']");
+    await insertText(".o-mail-Message .o-mail-Composer-input", " - updated");
+    await click(".o-mail-Message button", { text: "save" });
+    await waitForSteps(["update_content"]);
+    await click(".o-mail-Message [title='Edit']");
+    await click(".o-mail-Message button", { text: "save" });
+    await waitForSteps([]);
 });
 
 test("Update the link previews when a message is edited", async () => {
@@ -587,7 +612,7 @@ test("mentions and special mentions are kept when editing message", async () => 
     });
     await click(".o-mail-Message [title='Edit']");
     await contains(".o-mail-Message .o-mail-Composer-html", {
-        text: "Hello @Mitchell Admin and @everyone",
+        text: "Hello \uFEFF@Mitchell Admin\uFEFF and \uFEFF@everyone",
         contains: [
             ["a.o_mail_redirect[contenteditable=false]", { text: "@Mitchell Admin" }],
             ["a.o-discuss-mention[contenteditable=false]", { text: "@everyone" }],
@@ -599,9 +624,10 @@ test("mentions and special mentions are kept when editing message", async () => 
             ".o-mail-Message .o-mail-Composer-html.odoo-editor-editable"
         ),
     };
+    const paragraph = editor.editable.querySelector("div.o-paragraph");
     setSelection({
-        anchorNode: editor.editable.querySelector("div.o-paragraph"),
-        anchorOffset: 4 /* at the end = after 4 nodes: "Hello" <first mention> "and" <second mention> */,
+        anchorNode: paragraph,
+        anchorOffset: paragraph.childNodes.length,
     });
     await htmlInsertText(editor, " abc");
     await click(".o-mail-Message button", { text: "save" });
@@ -1125,6 +1151,26 @@ test("toggle_star message", async () => {
     await waitForSteps(["rpc:toggle_message_starred"]);
     await contains(".o-mail-Message");
     await contains(".o-mail-Message [title='Add Star']" + " i.fa-star-o");
+});
+
+test("can star a persistent message without thread", async () => {
+    const pyEnv = await startServer();
+    const messageId = pyEnv["mail.message"].create({
+        body: "Test",
+        message_type: "user_notification",
+        needaction: true,
+    });
+    pyEnv["mail.notification"].create({
+        mail_message_id: messageId,
+        notification_status: "sent",
+        notification_type: "inbox",
+        res_partner_id: serverState.partnerId,
+    });
+    await start();
+    await openDiscuss("mail.box_inbox");
+    await contains(".o-mail-Message:not([data-starred]):contains('Test')");
+    await click(".o-mail-Message:contains('Test') [title='Add Star']");
+    await contains(".o-mail-Message[data-starred]:contains('Test')");
 });
 
 test("Name of message author is only displayed in chat window for partners others than the current user", async () => {

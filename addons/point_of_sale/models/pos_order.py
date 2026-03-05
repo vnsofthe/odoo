@@ -9,7 +9,6 @@ from uuid import uuid4
 from random import randrange
 from pprint import pformat
 
-import psycopg2
 import pytz
 
 from odoo import api, fields, models, tools, _
@@ -87,6 +86,10 @@ class PosOrder(models.Model):
         if not order.get('company_id'):
             order['company_id'] = pos_session.config_id.company_id.id
 
+        if self.env.context.get('current_order_uuid') and order['uuid'] == self.env.context['current_order_uuid']:
+            # Prioritize the server date for the order that is currently being processed
+            order['date_order'] = fields.Datetime.now()
+
         pos_order = False
         record_uuid_mapping = order.pop('relations_uuid_mapping', {})
 
@@ -107,6 +110,17 @@ class PosOrder(models.Model):
             for field in ['lines', 'payment_ids']:
                 if order.get(field):
                     existing_ids = set(pos_order[field].ids)
+                    existing_line_ids = {line.uuid: line.id for line in pos_order[field]}
+                    for line in order[field]:
+                        if len(line) < 3:
+                            continue
+                        line_vals = line[2]
+                        if line[0] == Command.CREATE and line_vals.get('uuid') in existing_line_ids:
+                            # If we try to create (line[0] == Command.CREATE) a line with a uuid that already
+                            # exists on another line of the same order, we transform the creation
+                            # into an update (line[0] = Command.UPDATE) of the existing line.
+                            line[0] = Command.UPDATE
+                            line[1] = existing_line_ids[line_vals.get('uuid')]
                     pos_order.write({field: order[field]})
                     added_ids = set(pos_order[field].ids) - existing_ids
                     if added_ids:
@@ -122,8 +136,8 @@ class PosOrder(models.Model):
 
         for model_name, mapping in record_uuid_mapping.items():
             owner_records = self.env[model_name].search([('uuid', 'in', mapping.keys())])
-            for uuid, fields in mapping.items():
-                for name, uuids in fields.items():
+            for uuid, field_names in mapping.items():
+                for name, uuids in field_names.items():
                     params = self.env[model_name]._fields[name]
                     if params.type in ['one2many', 'many2many']:
                         records = self.env[params.comodel_name].search([('uuid', 'in', uuids)])
@@ -139,15 +153,7 @@ class PosOrder(models.Model):
     def _process_saved_order(self, draft):
         self.ensure_one()
         if not draft and self.state != 'cancel':
-            try:
-                self.action_pos_order_paid()
-            except psycopg2.DatabaseError:
-                # do not hide transactional errors, the order(s) won't be saved!
-                raise
-            except UserError as e:
-                _logger.warning('Could not fully process the POS Order: %s', tools.exception_to_unicode(e))
-            except Exception as e:
-                _logger.error('Could not fully process the POS Order: %s', tools.exception_to_unicode(e), exc_info=True)
+            self.action_pos_order_paid()
             self._create_order_picking()
             self._compute_total_cost_in_real_time()
 
@@ -533,8 +539,15 @@ class PosOrder(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_draft_or_cancel(self):
-        if any(pos_order.state not in ['draft', 'cancel'] for pos_order in self):
-            raise UserError(_('In order to delete a sale, it must be new or cancelled.'))
+        order_to_cancel = self.env['pos.order']
+        for pos_order in self:
+            if pos_order.state not in ['draft', 'cancel']:
+                raise UserError(_('In order to delete a sale, it must be new or cancelled.'))
+            if pos_order.state == 'draft':
+                order_to_cancel |= pos_order
+        # Cancel orders before deletion to trigger notifications and keep the UI in sync
+        if order_to_cancel:
+            order_to_cancel.action_pos_order_cancel()
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -868,7 +881,6 @@ class PosOrder(models.Model):
 
         fiscal_position = self.fiscal_position_id
         pos_config = self.config_id
-        rounding_method = pos_config.rounding_method
         move_type = 'out_invoice' if not any(order.is_refund for order in self) else 'out_refund'
         invoice_payment_term_id = (
             self.partner_id.property_payment_term_id.id
@@ -892,11 +904,13 @@ class PosOrder(models.Model):
             'fiscal_position_id': fiscal_position.id,
             'invoice_line_ids': self._prepare_invoice_lines(move_type),
             'invoice_payment_term_id': invoice_payment_term_id,
-            'invoice_cash_rounding_id': rounding_method.id,
         }
         if is_single_order and self.refunded_order_id.account_move:
             vals['ref'] = _('Reversal of: %s', self.refunded_order_id.account_move.name)
             vals['reversed_entry_id'] = self.refunded_order_id.account_move.id
+
+        if pos_config.cash_rounding and (not pos_config.only_round_cash_method or any(p.payment_method_id.is_cash_count for p in self.payment_ids)):
+            vals['invoice_cash_rounding_id'] = pos_config.rounding_method.id
 
         if any(order.floating_order_name for order in self):
             vals.update({'narration': ', '.join(self.filtered('floating_order_name').mapped('floating_order_name'))})
@@ -997,10 +1011,10 @@ class PosOrder(models.Model):
                 ('product_id.valuation', '=', 'real_time'),
             ])
             for stock_move in stock_moves:
-                product_accounts = stock_move.product_id._get_product_accounts()
+                product_accounts = stock_move.with_company(stock_move.company_id).product_id._get_product_accounts()
                 expense_account = product_accounts['expense']
                 stock_account = product_accounts['stock_valuation']
-                balance = -sum(stock_move.mapped('value'))
+                balance = stock_move.value if stock_move.is_out else -stock_move.value
                 aml_vals_list_per_nature['stock'].append({
                     'name': _("Stock variation for %s", stock_move.product_id.name),
                     'account_id': expense_account.id,
@@ -1074,21 +1088,35 @@ class PosOrder(models.Model):
         })
         reversal_entry.action_post()
 
-        pos_account_receivable = self.company_id.account_default_pos_receivable_account_id
-        account_receivable = self.payment_ids.payment_method_id.receivable_account_id
-        reversal_entry_receivable = reversal_entry.line_ids.filtered(lambda l: l.account_id in (pos_account_receivable + account_receivable))
-        payment_receivable = payment_moves.line_ids.filtered(lambda l: l.account_id in (pos_account_receivable + account_receivable))
-        lines_to_reconcile = defaultdict(lambda: self.env['account.move.line'])
-        for line in (reversal_entry_receivable | payment_receivable):
-            lines_to_reconcile[line.account_id] |= line
-        for line in lines_to_reconcile.values():
-            line.filtered(lambda l: not l.reconciled).reconcile()
+        partner = self.partner_id.commercial_partner_id
+        accounts = (
+            self.company_id.account_default_pos_receivable_account_id |
+            self.payment_ids.mapped('payment_method_id.receivable_account_id') |
+            partner.property_account_receivable_id
+        )
+
+        candidate_lines = reversal_entry.line_ids
+        if payment_moves.line_ids:
+            candidate_lines |= payment_moves.line_ids
+        else:
+            candidate_lines |= self.session_move_id.line_ids.filtered(
+                lambda l: l.partner_id == partner and l.account_id == partner.property_account_receivable_id
+            )
+
+        lines_by_account = {}
+        for line in candidate_lines:
+            if line.account_id in accounts and not line.reconciled:
+                lines_by_account.setdefault(line.account_id, self.env['account.move.line'])
+                lines_by_account[line.account_id] |= line
+        for lines in lines_by_account.values():
+            lines.reconcile()
 
     def action_pos_order_invoice(self):
         self.ensure_one()
         if not (move := self.account_move):
+            is_picking_created = self._should_create_picking_real_time()
             self.write({'to_invoice': True})
-            if self.company_id.anglo_saxon_accounting and self.session_id.update_stock_at_closing and self.session_id.state != 'closed':
+            if not is_picking_created and self._should_create_picking_real_time() and self.session_id.state != 'closed':
                 self._create_order_picking()
             move = self._generate_pos_order_invoice()
         return {
@@ -1104,6 +1132,9 @@ class PosOrder(models.Model):
 
     def _get_invoice_post_context(self):
         return {"skip_invoice_sync": True}
+
+    def _get_payments(self):
+        return self.payment_ids.sudo().with_company(self.company_id)
 
     def _generate_pos_order_invoice(self):
         if not self.env['res.company']._with_locked_records(self, allow_raising=False):
@@ -1121,7 +1152,7 @@ class PosOrder(models.Model):
         for session, orders in self.grouped('session_id').items():
             is_session_closed = session.state == 'closed'
             for order in orders:
-                order_payments = order.payment_ids.sudo().with_company(company)
+                order_payments = order._get_payments()
                 payment_moves = order_payments._create_payment_moves(is_session_closed)
                 all_payment_moves |= payment_moves
                 if is_session_closed:
@@ -1147,20 +1178,22 @@ class PosOrder(models.Model):
         (payment_receivable_lines | invoice_receivable_lines).sudo().with_company(invoice.company_id).reconcile()
 
     def action_pos_order_cancel(self):
+        draft_orders = self.filtered(lambda o: o.state == 'draft')
         if self.env.context.get('active_ids'):
             orders = self.browse(self.env.context.get('active_ids'))
             order_is_in_futur = any(order.preset_time and order.preset_time.date() > fields.Date.today() for order in orders)
             if order_is_in_futur:
                 raise UserError(_('The order delivery / pickup date is in the future. You cannot cancel it.'))
+            if not draft_orders:
+                raise UserError(_('This order has already been paid. You cannot set it back to draft or edit it.'))
 
-        today_orders = self.filtered(lambda order: order.state == 'draft' and (not order.preset_time or order.preset_time.date() <= fields.Date.today()))
-        next_days_orders = self.filtered(lambda order: order.preset_time and order.preset_time.date() > fields.Date.today() and order.state == 'draft')
-        next_days_orders.session_id = False
-        today_orders.write({'state': 'cancel'})
-        for config in today_orders.config_id:
-            config.notify_synchronisation(config.current_session_id.id, self.env.context.get('device_identifier', 0))
+        if draft_orders:
+            draft_orders.write({'state': 'cancel'})
+            for config in draft_orders.mapped('config_id'):
+                config.notify_synchronisation(config.current_session_id.id, self.env.context.get('device_identifier', 0))
+
         return {
-            'pos.order': self._load_pos_data_read(today_orders, self.config_id)
+            'pos.order': self._load_pos_data_read(draft_orders, self.config_id)
         }
 
     def _get_open_order(self, order):
@@ -1253,7 +1286,10 @@ class PosOrder(models.Model):
         return self.env['pos.order.line'].browse(refunded_orderline_ids).mapped('order_id')
 
     def _should_create_picking_real_time(self):
-        return not self.session_id.update_stock_at_closing or (self.company_id.anglo_saxon_accounting and self.to_invoice)
+        return not self.session_id.update_stock_at_closing or self._force_create_picking_real_time()
+
+    def _force_create_picking_real_time(self):
+        return self.company_id.anglo_saxon_accounting and self.to_invoice
 
     def _create_order_picking(self):
         self.ensure_one()
@@ -1496,7 +1532,7 @@ class PosOrderLine(models.Model):
     ], string='Price Type', default='original')
     margin = fields.Monetary(string="Margin", compute='_compute_margin')
     margin_percent = fields.Float(string="Margin (%)", compute='_compute_margin', digits=(12, 4))
-    total_cost = fields.Float(string='Total cost', digits='Product Price', readonly=True)
+    total_cost = fields.Float(string='Total cost', min_display_digits='Product Price', readonly=True)
     is_total_cost_computed = fields.Boolean(help="Allows to know if the total cost has already been computed or not")
     discount = fields.Float(string='Discount (%)', digits=0, default=0.0)
     order_id = fields.Many2one('pos.order', string='Order Ref', ondelete='cascade', required=True, index=True)

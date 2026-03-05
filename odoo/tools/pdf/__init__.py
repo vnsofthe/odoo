@@ -222,10 +222,11 @@ def to_pdf_stream(attachment) -> io.BytesIO | None:
     if not attachment.raw:
         _logger.warning("%s has no raw data.", attachment)
         return None
+
+    if attachment_raw := attachment._get_pdf_raw():
+        return io.BytesIO(attachment_raw)
     stream = io.BytesIO(attachment.raw)
-    if attachment.mimetype == 'application/pdf':
-        return stream
-    elif attachment.mimetype.startswith('image'):
+    if attachment.mimetype.startswith('image'):
         output_stream = io.BytesIO()
         Image.open(stream).convert("RGB").save(output_stream, format="pdf")
         return output_stream
@@ -642,7 +643,7 @@ class OdooPdfFileWriter(PdfFileWriter):
                 DictionaryObject({
                     NameObject('/CheckSum'): createStringObject(md5(attachment['content']).hexdigest()),
                     NameObject('/ModDate'): createStringObject(datetime.now().strftime(DEFAULT_PDF_DATETIME_FORMAT)),
-                    NameObject('/Size'): NameObject(f"/{len(attachment['content'])}"),
+                    NameObject('/Size'): NumberObject(len(attachment['content'])),
                 }),
         })
         if attachment.get('subtype'):

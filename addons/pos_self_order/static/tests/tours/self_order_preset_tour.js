@@ -43,7 +43,7 @@ registry.category("web_tour.tours").add("self_order_preset_delivery_tour", {
         Utils.clickBtn("Order"),
         CartPage.fillInput("Name", "Dr Dre"),
         CartPage.fillInput("Email", "dre@dr.com"),
-        CartPage.fillInput("Phone", "0490 90 43 90"),
+        CartPage.fillInput("Phone", "+32490904390"),
         CartPage.fillInput("Street and Number", "Rue du Bronx 90"),
         CartPage.fillInput("Zip", "9999"),
         CartPage.fillInput("City", "New York"),
@@ -88,8 +88,7 @@ registry.category("web_tour.tours").add("test_slot_limit_orders", {
         ProductPage.clickProduct("Free"),
         Utils.clickBtn("Checkout"),
         Utils.clickBtn("Order"),
-        // Will always pick the first available: 00:00
-        CartPage.selectRandomValueInInput(".slot-select"),
+        CartPage.selectSpecificValueInInput(".slot-select", "18:00"),
         CartPage.fillInput("Name", "Dr Dre"),
         Utils.clickBtn("Continue"),
         Utils.clickBtn("Ok"),
@@ -98,7 +97,7 @@ registry.category("web_tour.tours").add("test_slot_limit_orders", {
         ProductPage.clickProduct("Free"),
         Utils.clickBtn("Checkout"),
         Utils.clickBtn("Order"),
-        CartPage.checkSlotUnavailable("00:00"),
+        CartPage.checkSlotUnavailable("18:00"),
     ],
 });
 

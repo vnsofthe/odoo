@@ -33,13 +33,7 @@ import {
 
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
-import {
-    createElementWithContent,
-    htmlJoin,
-    isHtmlEmpty,
-    isMarkup,
-    setElementContent,
-} from "@web/core/utils/html";
+import { htmlJoin, isHtmlEmpty, isMarkup, setElementContent } from "@web/core/utils/html";
 import { FileUploader } from "@web/views/fields/file_handler";
 import { isEmail } from "@web/core/utils/strings";
 import { isDisplayStandalone, isIOS, isMobileOS } from "@web/core/browser/feature_detection";
@@ -47,7 +41,8 @@ import { Dropdown } from "@web/core/dropdown/dropdown";
 import { DropdownItem } from "@web/core/dropdown/dropdown_item";
 import { useComposerActions } from "@mail/core/common/composer_actions";
 import { ActionList } from "@mail/core/common/action_list";
-import { lastLeaf } from "@html_editor/utils/dom_traversal";
+import { closestElement, lastLeaf } from "@html_editor/utils/dom_traversal";
+import { rightPos } from "@html_editor/utils/position";
 
 const EDIT_CLICK_TYPE = {
     CANCEL: "cancel",
@@ -195,6 +190,7 @@ export class Composer extends Component {
                 }
                 if (focus && this.editor) {
                     this.editor.shared.selection.focusEditable();
+                    this.editor.shared.selection.selectAroundNonEditable();
                 }
             },
             () => [this.props.autofocus + this.props.composer.autofocus, this.props.placeholder]
@@ -255,10 +251,25 @@ export class Composer extends Component {
                 return;
             }
             setElementContent(this.editor.editable, composerHtml);
-            this.editor.shared.selection.setCursorEnd(lastLeaf(this.editor.editable));
+            this.setEditorCursorEnd();
             this.editor.shared.history.addStep();
         });
         void composerProxy.composerHtml; // start observing
+    }
+
+    setEditorCursorEnd() {
+        const lastNode = lastLeaf(this.editor?.editable);
+        if (!lastNode) {
+            return;
+        }
+        const nonEditableAncestor = closestElement(lastNode, (el) => !el.isContentEditable);
+        if (nonEditableAncestor && this.editor.editable.contains(nonEditableAncestor)) {
+            const [anchorNode, anchorOffset] = rightPos(nonEditableAncestor);
+            this.editor.shared.selection.setSelection({ anchorNode, anchorOffset });
+        } else {
+            this.editor.shared.selection.setCursorEnd(lastNode);
+        }
+        this.editor.shared.selection.selectAroundNonEditable();
     }
 
     get areAllActionsDisabled() {
@@ -303,7 +314,7 @@ export class Composer extends Component {
             classList: ["o-mail-Composer-html"],
             onChange: () => this.onChangeWysiwygContent(),
             onEditorReady: () => {
-                this.editor.shared.selection.setCursorEnd(lastLeaf(this.editor.editable));
+                this.setEditorCursorEnd();
                 this.editor.shared.history.addStep();
             },
         };
@@ -457,8 +468,9 @@ export class Composer extends Component {
                     optionTemplate: "mail.Composer.suggestionCannedResponse",
                     options: suggestions.map((suggestion) => ({
                         cannedResponse: suggestion,
-                        source: suggestion.source,
                         label: suggestion.substitution,
+                        source: suggestion.source,
+                        title: suggestion.substitution,
                         classList: "o-mail-Composer-suggestion",
                     })),
                 };
@@ -597,18 +609,7 @@ export class Composer extends Component {
             // Reset signature when recovering an empty body.
             composer.emailAddSignature = true;
         }
-        let signature = this.thread.effectiveSelf.main_user_id?.signature;
-        if (signature) {
-            const divElement = document.createElement("div");
-            divElement.setAttribute("data-o-mail-quote", "1");
-            divElement.append(
-                document.createElement("br"),
-                document.createTextNode("-- "),
-                document.createElement("br"),
-                ...createElementWithContent("div", signature).childNodes
-            );
-            signature = markup(divElement.outerHTML);
-        }
+        const signature = this.thread.effectiveSelf.main_user_id?.getSignatureBlock();
         default_body = this.formatDefaultBodyForFullComposer(
             default_body,
             this.props.composer.emailAddSignature ? signature : ""
@@ -917,14 +918,20 @@ export class Composer extends Component {
             emailAddSignature,
             replyToMessageId,
         }) => {
-            browser.localStorage.setItem(
-                composer.localId,
-                JSON.stringify({
-                    emailAddSignature,
-                    replyToMessageId,
-                    composerHtml: isMarkup(composerHtml) ? ["markup", composerHtml] : composerHtml,
-                })
-            );
+            if (isHtmlEmpty(composerHtml)) {
+                browser.localStorage.removeItem(composer.localId);
+            } else {
+                browser.localStorage.setItem(
+                    composer.localId,
+                    JSON.stringify({
+                        emailAddSignature,
+                        replyToMessageId,
+                        composerHtml: isMarkup(composerHtml)
+                            ? ["markup", composerHtml]
+                            : composerHtml,
+                    })
+                );
+            }
         };
         if (this.state.isFullComposerOpen) {
             this.fullComposerBus.trigger("SAVE_CONTENT", {

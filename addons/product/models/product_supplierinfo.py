@@ -28,7 +28,7 @@ class ProductSupplierinfo(models.Model):
         'Quantity', default=0.0, required=True, digits="Product Unit",
         help="The quantity to purchase from this vendor to benefit from the unit price. If a vendor unit is set, quantity should be specified in this unit, otherwise it should be specified in the default unit of the product.")
     price = fields.Float(
-        'Unit Price', digits='Product Price', default=0.0, help="The price to purchase a product")
+        'Unit Price', min_display_digits='Product Price', default=0.0, help="The price to purchase a product")
     price_discounted = fields.Float('Discounted Price', compute='_compute_price_discounted')
     company_id = fields.Many2one(
         'res.company', 'Company',
@@ -84,8 +84,6 @@ class ProductSupplierinfo(models.Model):
         for rec in self:
             if self.env.get('default_product_id'):
                 rec.product_id = self.env.get('default_product_id')
-            elif not rec.product_id and rec.product_variant_count == 1:
-                rec.product_id = rec.product_tmpl_id.product_variant_id
 
     @api.onchange('product_tmpl_id')
     def _onchange_product_tmpl_id(self):

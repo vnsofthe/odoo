@@ -3,9 +3,11 @@ import {
     contains,
     createVideoStream,
     defineMailModels,
+    dragenterFiles,
+    dropFiles,
     listenStoreFetch,
-    mockGetMedia,
     makeMockRtcNetwork,
+    mockGetMedia,
     openDiscuss,
     patchUiSize,
     setupChatHub,
@@ -15,8 +17,6 @@ import {
     triggerEvents,
     triggerHotkey,
     waitStoreFetch,
-    dragenterFiles,
-    dropFiles,
 } from "@mail/../tests/mail_test_helpers";
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 import {
@@ -24,9 +24,19 @@ import {
     CROSS_TAB_HOST_MESSAGE,
 } from "@mail/discuss/call/common/rtc_service";
 
-import { beforeEach, describe, expect, getFixture, test } from "@odoo/hoot";
-import { advanceTime, hover, manuallyDispatchProgrammaticEvent, queryFirst } from "@odoo/hoot-dom";
-import { mockSendBeacon, mockUserAgent } from "@odoo/hoot-mock";
+import {
+    advanceTime,
+    beforeEach,
+    describe,
+    expect,
+    getFixture,
+    hover,
+    manuallyDispatchProgrammaticEvent,
+    mockSendBeacon,
+    mockUserAgent,
+    queryFirst,
+    test,
+} from "@odoo/hoot";
 import {
     asyncStep,
     Command,
@@ -38,6 +48,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 
+import { waitNotifications } from "@bus/../tests/bus_test_helpers";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 
 describe.current.tags("desktop");
@@ -613,17 +624,12 @@ test("expand call participants when joining a call", async () => {
 });
 
 test("start call when accepting from push notification", async () => {
-    const serviceWorker = Object.assign(new EventTarget(), {
-        register: () => Promise.resolve(),
-        ready: Promise.resolve(),
-    });
-    patchWithCleanup(window.navigator, { serviceWorker });
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });
     await start();
     await openDiscuss("mail.box_inbox");
     await contains(".o-mail-DiscussContent-threadName[title=Inbox]");
-    serviceWorker.dispatchEvent(
+    navigator.serviceWorker.dispatchEvent(
         new MessageEvent("message", {
             data: { action: "OPEN_CHANNEL", data: { id: channelId, joinCall: true } },
         })
@@ -913,6 +919,35 @@ test("dynamic focus switches to talking participant", async () => {
     await contains(".o-dropdown-item", { count: 0 });
     await click("[title='More']");
     await contains(".o-dropdown-item:contains('Autofocus speaker')");
+});
+
+test("Shows warning badge on mic/camera on non-granted permission in meeting conversations", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    pyEnv["discuss.channel.rtc.session"].create({
+        channel_member_id: pyEnv["discuss.channel.member"].create({
+            channel_id: channelId,
+            partner_id: pyEnv["res.partner"].create({ name: "Bob" }),
+        }),
+        channel_id: channelId,
+    });
+    const env = await start();
+    const rtc = env.services["discuss.rtc"];
+    rtc.microphonePermission = "denied";
+    rtc.cameraPermission = "denied";
+    await openDiscuss(channelId);
+    await click("button[title='New Meeting']");
+    await contains("button[title='Stop camera']");
+    await contains("button[title='Stop camera'].o-tag-DANGER");
+    await contains("button[title='Stop camera'].o-tag-WARNING_BADGE");
+
+    await click(".o-mail-DiscussSidebarChannel:text('General')");
+    await click("[title='Join Call']");
+    await contains("button[title='Turn camera on']");
+    await contains("button[title='Turn camera on'].o-tag-DANGER", { count: 0 });
+    await contains("button[title='Turn camera on'].o-tag-WARNING_BADGE", { count: 0 });
+    await click("button[title='Disconnect']");
+    await waitNotifications(["discuss.channel.rtc.session/ended"]);
 });
 
 test("should not show context menu on participant card when not in a call", async () => {
@@ -1238,4 +1273,29 @@ test("open conversation from call invitation (discuss app)", async () => {
     await contains(".o-discuss-CallInvitation");
     await click("[title='Join Call']");
     await contains(".o-mail-DiscussContent-threadName[title=General]");
+});
+
+test("show warning when blur hardware acceleration is not available", async () => {
+    const pyEnv = await startServer();
+    patchWithCleanup(HTMLCanvasElement.prototype, {
+        getContext(type) {
+            if (type.includes("webgl")) {
+                return false;
+            }
+            return super.getContext(type);
+        },
+    });
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    await start();
+    await openDiscuss(channelId);
+    await click("[title='Start Call']");
+    await click("button[title='Turn camera on']");
+    await click("button[title='Video Settings']");
+    await click(":has(:text(Blur background)) .form-switch");
+    await contains(".o-discuss-BlurPerformanceWarning-button");
+    expect(".o-discuss-BlurPerformanceWarning-button").toBeVisible();
+    await contains(".o-discuss-CallDropdown-content:has(:text('Performance Warning:'))");
+    expect(".o-discuss-CallDropdown-content:has(:text('Performance Warning:'))").toBeVisible();
+    await click("[title='Dismiss warning']");
+    await contains(".o-discuss-BlurPerformanceWarning-button", { count: 0 });
 });

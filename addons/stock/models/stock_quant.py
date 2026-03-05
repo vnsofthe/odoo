@@ -265,7 +265,7 @@ class StockQuant(models.Model):
         allowed_fields = self._get_inventory_fields_create()
         for vals in vals_list:
             if is_inventory_mode and any(f in vals for f in ['inventory_quantity', 'inventory_quantity_auto_apply']):
-                if any(field for field in vals.keys() if field not in allowed_fields):
+                if any(field for field in vals if not field.startswith('x_') and field not in allowed_fields):
                     raise UserError(_("Quant's creation is restricted, you can't do this operation."))
                 auto_apply = 'inventory_quantity_auto_apply' in vals
                 inventory_quantity = vals.pop('inventory_quantity_auto_apply', False) or vals.pop(
@@ -552,7 +552,8 @@ class StockQuant(models.Model):
         self.inventory_quantity = 0
         if self.env.context.get('inventory_report_mode'):
             self._apply_inventory()
-        self.user_id = self.env.user.id
+        else:
+            self.user_id = self.env.user.id
 
     @api.depends('location_id', 'lot_id', 'package_id', 'owner_id')
     def _compute_display_name(self):

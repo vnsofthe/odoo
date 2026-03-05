@@ -1,8 +1,5 @@
 from abc import ABC, abstractmethod
 from base64 import b64decode
-from escpos.escpos import EscposIO
-import escpos.printer
-import escpos.exceptions
 import io
 import logging
 from PIL import Image, ImageOps
@@ -14,27 +11,6 @@ from odoo.addons.iot_drivers.main import iot_devices
 from odoo.addons.iot_drivers.event_manager import event_manager
 
 _logger = logging.getLogger(__name__)
-
-
-def _read_escpos_with_retry(self):
-    """Replaces the python-escpos read function to perform repeated reads.
-
-    This is necessary due to an issue when using USB, where it takes several
-    reads to get the answer of the command that has just been sent.
-    """
-    assert self.device
-
-    for attempt in range(5):
-        if result := self.device.read(self.in_ep, 16):
-            return result
-
-        time.sleep(0.05)
-        _logger.debug("Read attempt %s failed", attempt)
-    return b""
-
-
-# Monkeypatch the USB printer read method with our retrying version
-escpos.printer.Usb._read = _read_escpos_with_retry
 
 
 class PrinterDriverBase(Driver, ABC):
@@ -62,7 +38,6 @@ class PrinterDriverBase(Driver, ABC):
         self.device_type = 'printer'
         self.job_ids = []
         self.job_action_ids = {}
-        self.escpos_device = None
 
         self._actions.update({
             'cashbox': self.open_cashbox,
@@ -227,27 +202,6 @@ class PrinterDriverBase(Driver, ABC):
         commands = self.RECEIPT_PRINTER_COMMANDS[self.receipt_protocol]
         for drawer in commands['drawers']:
             self.print_raw(drawer, action_unique_id=data.get("action_unique_id"))
-
-    def check_printer_status(self, action_unique_id=None):
-        if not self.escpos_device:
-            return True
-        try:
-            with EscposIO(self.escpos_device, autocut=False) as esc:
-                esc.printer.open()
-                if not esc.printer.is_online():
-                    self.send_status(status='error', message='ERROR_OFFLINE', action_unique_id=action_unique_id)
-                    return False
-                paper_status = esc.printer.paper_status()
-                if paper_status == 0:
-                    self.send_status(status='error', message='ERROR_NO_PAPER', action_unique_id=action_unique_id)
-                    return False
-                elif paper_status == 1:
-                    self.send_status(status='warning', message='WARNING_LOW_PAPER')
-        except (escpos.exceptions.Error, OSError, AssertionError, TypeError):
-            self.escpos_device = None
-            _logger.warning("Failed to query ESC/POS status")
-
-        return True
 
     def run(self):
         while True:

@@ -106,19 +106,40 @@ class SaleEdiXmlUbl_Bis3(models.AbstractModel):
         })
 
     def _add_sale_order_buyer_customer_party_nodes(self, document_node, vals):
-        document_node['cac:BuyerCustomerParty'] = {
-            'cac:Party': self._get_party_node({**vals, 'partner': vals['customer'], 'role': 'customer'})
+        # OVERRIDE
+        sub_vals = {
+            **vals,
+            'document_node': document_node,
         }
+        self._ubl_add_buyer_customer_party_node(sub_vals)
 
     def _add_sale_order_seller_supplier_party_nodes(self, document_node, vals):
-        document_node['cac:SellerSupplierParty'] = {
-            'cac:Party': self._get_party_node({**vals, 'partner': vals['supplier'], 'role': 'supplier'})
+        # OVERRIDE
+        sub_vals = {
+            **vals,
+            'document_node': document_node,
         }
+        self._ubl_add_seller_supplier_party_node(sub_vals)
+
+    def _ubl_get_delivery_node_from_delivery_address(self, vals):
+        # EXTENDS account.edi.xml.ubl_bis3
+        node = super()._ubl_get_delivery_node_from_delivery_address(vals)
+        node['cbc:ActualDeliveryDate'] = None
+        node['cac:DeliveryLocation'] = None
+        return node
 
     def _add_sale_order_delivery_nodes(self, document_node, vals):
-        document_node['cac:Delivery'] = {
-            'cac:DeliveryParty': self._get_party_node({**vals, 'partner': vals['partner_shipping'], 'role': 'delivery'})
+        # OVERRIDE
+        sub_vals = {
+            **vals,
+            'document_node': document_node,
+            'delivery': vals['partner_shipping'],
         }
+        self._ubl_add_delivery_nodes(sub_vals)
+
+        # Retro-compatibility with the "old" code.
+        if document_node['cac:Delivery']:
+            document_node['cac:Delivery'] = document_node['cac:Delivery'][0]
 
     def _add_sale_order_payment_terms_nodes(self, document_node, vals):
         sale_order = vals['sale_order']
@@ -137,22 +158,12 @@ class SaleEdiXmlUbl_Bis3(models.AbstractModel):
 
     def _add_sale_order_tax_total_nodes(self, document_node, vals):
         # OVERRIDE
-        ubl_values = vals['_ubl_values']
-        company = vals['company']
-        company_currency = company.currency_id
-        currency = vals['currency_id']
-
-        tax_total_nodes = document_node['cac:TaxTotal'] = []
-        for tax_total in ubl_values['tax_totals_currency'].values():
-            tax_total_node = self._ubl_get_tax_total_node(vals, tax_total)
-            tax_total_nodes.append(tax_total_node)
-
-        # Only one subtotal expressed in foreign currency in case of multi currencies.
-        if currency != company_currency:
-            for tax_total in ubl_values['tax_totals'].values():
-                tax_total_node = self._ubl_get_tax_total_node(vals, tax_total)
-                tax_total_node['cac:TaxSubtotal'] = []
-                tax_total_nodes.append(tax_total_node)
+        sub_vals = {
+            **vals,
+            'document_node': document_node,
+            'currency': vals['currency_id'],
+        }
+        self._ubl_add_tax_totals_nodes(sub_vals)
 
     def _add_sale_order_monetary_total_nodes(self, document_node, vals):
         ubl_values = vals['_ubl_values']
@@ -228,8 +239,8 @@ class SaleEdiXmlUbl_Bis3(models.AbstractModel):
 
             line_node = {}
             self._add_sale_order_line_id_nodes(line_node, line_vals)
-            self._add_sale_order_line_amount_nodes(line_node, line_vals)
             self._add_sale_order_line_allowance_charge_nodes(line_node, line_vals)
+            self._add_sale_order_line_amount_nodes(line_node, line_vals)
             self._add_sale_order_line_item_nodes(line_node, line_vals)
             self._add_sale_order_line_price_nodes(line_node, line_vals)
 
@@ -246,43 +257,46 @@ class SaleEdiXmlUbl_Bis3(models.AbstractModel):
 
     def _add_sale_order_line_amount_nodes(self, line_node, vals):
         # OVERRIDE
-        base_line = vals['base_line']
-        currency = vals['currency_id']
-
-        line_node.update({
-            'cbc:Quantity': {
-                '_text': base_line['quantity'],
-                'unitCode': self._get_uom_unece_code(base_line['product_uom_id']),
+        sub_vals = {
+            **vals,
+            'line_node': line_node,
+            'line_vals': {
+                'base_line': vals['base_line'],
             },
-            'cbc:LineExtensionAmount': {
-                '_text': FloatFmt(base_line['_ubl_values']['line_extension_amount'], min_dp=currency.decimal_places),
-                'currencyID': currency.name,
-            },
-        })
+        }
+        self._ubl_add_line_quantity_node(sub_vals)
+        self._ubl_add_line_extension_amount_node(sub_vals)
 
     def _add_sale_order_line_allowance_charge_nodes(self, line_node, vals):
         # OVERRIDE
-        base_line = vals['base_line']
-        ubl_values = base_line['_ubl_values']
-        allowance_charges_nodes = line_node['cac:AllowanceCharge'] = []
+        sub_vals = {
+            **vals,
+            'line_node': line_node,
+            'line_vals': {
+                'base_line': vals['base_line'],
+            },
+        }
+        self._ubl_add_line_allowance_charge_nodes(sub_vals)
 
         # Discount.
-        discount_values = ubl_values['allowance_charge_discount_currency']
-        if discount_values:
-            allowance_charges_nodes.append(self._ubl_get_line_allowance_charge_discount_node(vals, discount_values))
+        self._ubl_add_line_allowance_charge_nodes_for_discount(sub_vals)
 
         # Recycling contribution taxes.
-        for recycling_contribution_values in base_line['_ubl_values']['allowance_charges_recycling_contribution_currency']:
-            allowance_charges_nodes.append(self._ubl_get_line_allowance_charge_recycling_contribution_node(vals, recycling_contribution_values))
+        self._ubl_add_line_allowance_charge_nodes_for_recycling_contribution_taxes(sub_vals)
 
         # Excise taxes.
-        for excise_values in base_line['_ubl_values']['allowance_charges_excise_currency']:
-            allowance_charges_nodes.append(self._ubl_get_line_allowance_charge_excise_node(vals, excise_values))
+        self._ubl_add_line_allowance_charge_nodes_for_excise_taxes(sub_vals)
 
     def _add_sale_order_line_item_nodes(self, line_node, vals):
         # OVERRIDE
-        item_values = vals['base_line']['_ubl_values']['item_currency']
-        line_node['cac:Item'] = self._ubl_get_line_item_node(vals, item_values)
+        sub_vals = {
+            **vals,
+            'line_node': line_node,
+            'line_vals': {
+                'base_line': vals['base_line'],
+            },
+        }
+        self._ubl_add_line_item_node(sub_vals)
 
     def _add_sale_order_line_price_nodes(self, line_node, vals):
         # OVERRIDE

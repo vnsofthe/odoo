@@ -439,11 +439,12 @@ class HrVersion(models.Model):
         for tz, versions in self.grouped("tz").items():
             tz = pytz.timezone(tz) if tz else pytz.utc
             for version in versions:
+                if not version.contract_date_start:
+                    continue
+
                 version_start = tz.localize(fields.Datetime.to_datetime(version.date_start)).astimezone(pytz.utc).replace(tzinfo=None)
                 version_stop = tz.localize(datetime.combine(fields.Datetime.to_datetime(version.date_end or date_stop),
                                                  datetime.max.time())).astimezone(pytz.utc).replace(tzinfo=None)
-                if version_stop < date_start:
-                    continue
                 if version_stop < date_stop:
                     if version.date_generated_from != version.date_generated_to:
                         domain_to_nullify |= Domain([

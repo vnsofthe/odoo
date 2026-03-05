@@ -365,6 +365,10 @@ patch(PosStore.prototype, {
             );
         });
     },
+    async applyDiscount(percent, order = this.getOrder()) {
+        await super.applyDiscount(...arguments);
+        await this.updatePrograms();
+    },
     async addLineToCurrentOrder(vals, opt = {}, configure = true) {
         if (!vals.product_tmpl_id && vals.product_id) {
             vals.product_tmpl_id = vals.product_id.product_tmpl_id;
@@ -428,6 +432,9 @@ patch(PosStore.prototype, {
         }
 
         const result = await super.addLineToCurrentOrder(vals, opt, configure);
+        if (!result) {
+            return;
+        }
 
         const rewardsToApply = [];
         for (const reward of potentialRewards) {
@@ -558,9 +565,7 @@ patch(PosStore.prototype, {
 
         this.partnerId2CouponIds = {};
 
-        this.computeDiscountProductIdsForAllRewards({
-            ids: this.data.models["product.product"].getAllIds(),
-        });
+        this.computeDiscountProductIdsForAllRewards();
 
         this.models["product.product"].addEventListener(
             "create",
@@ -579,7 +584,8 @@ patch(PosStore.prototype, {
     },
 
     computeDiscountProductIdsForAllRewards(data) {
-        const products = this.models["product.product"].readMany(data.ids);
+        const productModel = this.models["product.product"].toRaw(); // Limit the number of reactivity proxy instances
+        const products = data ? productModel.readMany(data.ids) : productModel.getAll();
         for (const reward of this.models["loyalty.reward"].getAll()) {
             this.computeDiscountProductIds(reward, products);
         }
@@ -856,13 +862,15 @@ patch(PosStore.prototype, {
                     }
                 }
             }
-            if (payload.coupon_report) {
+            if (payload.coupon_report && Object.keys(payload.coupon_report).length > 0) {
                 for (const [actionId, active_ids] of Object.entries(payload.coupon_report)) {
                     await this.env.services.report.doAction(actionId, active_ids);
                 }
                 order.has_pdf_gift_card = Object.keys(payload.coupon_report).length > 0;
             }
-            order.new_coupon_info = payload.new_coupon_info;
+            if (payload.new_coupon_info?.length) {
+                order.new_coupon_info = payload.new_coupon_info;
+            }
         }
     },
 });

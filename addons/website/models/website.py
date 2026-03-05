@@ -1737,7 +1737,7 @@ class Website(models.Model):
         if len(self.env['website.rewrite'].search(redirects_domain, limit=1)) > 0:
             return True
 
-        router = request.env['ir.http'].routing_map().bind_to_environ(request.httprequest.environ)
+        router = self.env['ir.http'].routing_map().bind('')
         # If there is no rules matching this page, it does not exists
         if not router.test(path_info=page, method='GET'):
             return False
@@ -1801,7 +1801,7 @@ class Website(models.Model):
         if (self.env.user.has_group('base.group_system')
                 or self.env.user.has_group('website.group_website_designer')):
             return self.env["ir.actions.actions"]._for_xml_id("website.backend_dashboard")
-        return self.env["ir.actions.actions"]._for_xml_id("website.action_website")
+        raise AccessError(_("You don't have the necessary access rights to access this dashboard."))
 
     def get_client_action_url(self, url, mode_edit=False, mode_debug=0):
         action_params = {

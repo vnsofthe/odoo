@@ -553,6 +553,9 @@ class PosSession(models.Model):
             check_closing_session['open_order_ids'] = open_order_ids
             return check_closing_session
 
+        future_orders = self.order_ids.filtered(lambda order: order.preset_time and order.preset_time.date() > fields.Date.today() and order.state == 'draft')
+        future_orders.session_id = False
+
         validate_result = self.action_pos_session_closing_control(bank_payment_method_diffs=bank_payment_method_diffs)
 
         # If an error is raised, the user will still be redirected to the back end to manually close the session.
@@ -758,7 +761,7 @@ class PosSession(models.Model):
             session_destination_id = picking_type.default_location_dest_id.id
 
         for order in self._get_closed_orders():
-            if order.company_id.anglo_saxon_accounting and order.is_invoiced or order.shipping_date:
+            if order._force_create_picking_real_time() or order.shipping_date:
                 continue
             destination_id = order.partner_id.property_stock_customer.id or session_destination_id
             if destination_id in lines_grouped_by_dest_location:
@@ -964,10 +967,10 @@ class PosSession(models.Model):
                 ])
                 for stock_moves_batch in split_every(PREFETCH_MAX, stock_moves._ids, stock_moves.browse):
                     for move in stock_moves_batch:
-                        product_accounts = move.product_id._get_product_accounts()
+                        product_accounts = move.with_company(move.company_id).product_id._get_product_accounts()
                         exp_key = product_accounts['expense']
                         stock_key = product_accounts['stock_valuation']
-                        signed_product_qty = move.quantity
+                        signed_product_qty = move.product_uom._compute_quantity(move.quantity, move.product_id.uom_id, round=False)
                         if move._is_in():
                             signed_product_qty *= -1
                         amount = signed_product_qty * move._get_price_unit()
@@ -1686,8 +1689,9 @@ class PosSession(models.Model):
         self.state = 'opened'
         self.start_at = fields.Datetime.now()
         cash_payment_method_ids = self.config_id.payment_method_ids.filtered(lambda pm: pm.is_cash_count)
-        if cash_payment_method_ids:
+        if notes:
             self.opening_notes = notes
+        if cash_payment_method_ids:
             difference = cashbox_value - self.cash_register_balance_start
             self._post_cash_details_message('Opening cash', self.cash_register_balance_start, difference, notes)
             self.cash_register_balance_start = cashbox_value
@@ -1715,9 +1719,18 @@ class PosSession(models.Model):
         self.name = (self.config_id.name if sequence.prefix == '/' else '') + sequence.next_by_code('pos.session') + (self.name if self.name != '/' else '')
 
     def _post_cash_details_message(self, state, expected, difference, notes):
-        message = (state + " difference: " + self.currency_id.format(difference) + '\n' +
-           state + " expected: " + self.currency_id.format(expected) + '\n' +
-           state + " counted: " + self.currency_id.format(expected + difference) + '\n')
+        expected_formatted = self.currency_id.format(expected)
+        difference_formatted = self.currency_id.format(difference)
+        counted_formatted = self.currency_id.format(expected + difference)
+
+        if state == 'Opening cash':
+            message = _("Opening cash difference: %s \n", difference_formatted)
+            message += _("Opening cash expected: %s \n", expected_formatted)
+            message += _("Opening cash counted: %s \n", counted_formatted)
+        else:
+            message = _("Closing difference: %s \n", difference_formatted)
+            message += _("Closing expected: %s \n", expected_formatted)
+            message += _("Closing counted: %s \n", counted_formatted)
 
         if notes:
             message += _('Opening control message: ')
@@ -1872,9 +1885,9 @@ class PosSession(models.Model):
 
     def log_partner_message(self, partner_id, action, message_type):
         if message_type == 'ACTION_CANCELLED':
-            body = _('Action cancelled (%s)', action)
+            body = _('Action cancelled (%(ACTION)s)', ACTION=action)
         elif message_type == 'CASH_DRAWER_ACTION':
-            body = _('Cash drawer opened (%s)', action)
+            body = _('Cash drawer opened (%(ACTION)s)', ACTION=action)
         elif message_type == 'CASH_IN_OUT_UNLINK':
             body = _('Cash move deleted: %s', action)
 
