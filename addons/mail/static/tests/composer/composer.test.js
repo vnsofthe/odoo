@@ -31,6 +31,7 @@ import { Deferred, animationFrame, tick } from "@odoo/hoot-mock";
 import {
     Command,
     getService,
+    makeDialogMockEnv,
     onRpc,
     patchWithCleanup,
     serverState,
@@ -1052,6 +1053,35 @@ test("remove an uploading attachment", async () => {
     await contains(".o-mail-Composer .o-mail-AttachmentContainer", { count: 0 });
 });
 
+test("Can dismiss mail composer with 500+ active_ids", async () => {
+    // When there are more than 500 active_ids, _compute_res_ids
+    // short-circuits and leaves res_ids empty for performance reasons.
+    // In that case, the code must rely on active_ids and dismissing
+    // the dialog must not crash.
+    const pyEnv = await startServer();
+    const env = await makeDialogMockEnv();
+    const partnerId = pyEnv["res.partner"].create({ name: "Partner" });
+    registerArchs({
+        "mail.compose.message,false,form": `
+            <form string="Compose Email" js_class="mail_composer_form">
+                <field name="model"/>
+                <field name="partner_ids"/>
+            </form>`,
+    });
+    await start();
+    const composerId = pyEnv["mail.compose.message"].create({
+        model: "res.partner",
+        res_ids: "", // simulate >500 active_ids case
+        partner_ids: [],
+    });
+    await openFormView("mail.compose.message", composerId, {
+        context: { active_ids: [partnerId] },
+    });
+    expect(env.dialogData).not.toBeEmpty()
+    // Dialog is closed without errors
+    await env.dialogData.dismiss()
+});
+
 test("Uploading multiple files in the composer create multiple temporary attachments", async () => {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "test" });
@@ -1524,7 +1554,7 @@ test("composer reply-to message is restored on thread change", async () => {
             store.Thread.get({ model: "discuss.channel", id: channelId }).composer.localId
         )
     ).toBe(
-        '{"emailAddSignature":true,"replyToMessageId":1,"composerHtml":["markup","Hello World!"]}'
+        '{"emailAddSignature":true,"replyToMessageId":1,"composerHtml":["markup","Hello World!"],"fromFullComposer":false}'
     );
     // check local storage emptied on message post
     await click(".o-mail-Composer button:enabled[aria-label='Send']");
