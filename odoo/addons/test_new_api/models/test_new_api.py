@@ -464,6 +464,7 @@ class Related(models.Model):
     foo_bar_sudo_id = fields.Many2one(string='foo_bar_sudo_id', related='foo_id.bar_id', related_sudo=True)
     foo_bar_sudo_id_name = fields.Char('foo_bar_sudo_id_name', related='foo_bar_sudo_id.name', related_sudo=False)
 
+    foo_float_id = fields.Float(related='foo_id.test_float')
 
 class RelatedFoo(models.Model):
     _name = _description = 'test_new_api.related_foo'
@@ -472,6 +473,7 @@ class RelatedFoo(models.Model):
     bar_id = fields.Many2one('test_new_api.related_bar')
     bar_name = fields.Char('bar_name', related='bar_id.name', related_sudo=False)
 
+    test_float = fields.Float(digits='ORM Precision')
 
 class RelatedBar(models.Model):
     _name = _description = 'test_new_api.related_bar'
@@ -1506,6 +1508,25 @@ class SelectionRequiredWithWriteOverride(models.Model):
         return super().write(vals)
 
 
+class SelectionCompanyDependent(models.Model):
+    _name = 'test_new_api.model_selection_company_dependent'
+    _description = "Model with a company dependent selection field"
+
+    my_selection = fields.Selection([
+        ('manual', "Manual"),
+        ('auto', "Automatic"),
+    ], company_dependent=True)
+
+
+class SelectionCompanyDependentNullImplicit(models.Model):
+    _inherit = 'test_new_api.model_selection_company_dependent'
+    _description = "Model with a company dependent selection field extension without ondelete"
+
+    my_selection = fields.Selection(selection_add=[
+        ('semi_auto', "Semi-Automatic"),
+    ])
+
+
 # Special classes to ensure the correct usage of a shared cache amongst users.
 # See the method test_shared_cache_computed_field
 class SharedCacheComputeParent(models.Model):
@@ -2048,6 +2069,7 @@ class RelatedTranslation2(models.Model):
     name = fields.Char('Name Related', related='related_id.name', readonly=False)
     html = fields.Html('HTML Related', related='related_id.html', readonly=False)
     computed_name = fields.Char('Name Computed', compute='_compute_name')
+    name_en = fields.Char('Name EN', compute='_compute_name_en')
     computed_html = fields.Char('HTML Computed', compute='_compute_html')
 
     @api.depends_context('lang')
@@ -2055,6 +2077,11 @@ class RelatedTranslation2(models.Model):
     def _compute_name(self):
         for record in self:
             record.computed_name = record.related_id.name
+
+    @api.depends('name')
+    def _compute_name_en(self):
+        for record in self.with_context(lang='en_US'):
+            record.name_en = record.name
 
     @api.depends_context('lang')
     @api.depends('related_id.html')

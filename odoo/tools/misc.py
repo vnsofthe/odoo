@@ -29,7 +29,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Iterator, Mapping, MutableMapping, MutableSet, Reversible
 from contextlib import ContextDecorator, contextmanager
 from difflib import HtmlDiff
-from functools import reduce, wraps
+from functools import lru_cache, reduce, wraps
 from itertools import islice, groupby as itergroupby
 from operator import itemgetter
 
@@ -821,12 +821,22 @@ class lower_logging(logging.Handler):
             record.levelname = f'_{record.levelname}'
             record.levelno = self.to_level
             self.had_error_log = True
-            record.args = tuple(arg.replace('Traceback (most recent call last):', '_Traceback_ (most recent call last):') if isinstance(arg, str) else arg for arg in record.args)
+            if MungedTracebackLogRecord.__base__ is logging.LogRecord:
+                MungedTracebackLogRecord.__bases__ = (record.__class__,)
+            record.__class__ = MungedTracebackLogRecord
 
         if logging.getLogger(record.name).isEnabledFor(record.levelno):
             for handler in self.old_handlers:
                 if handler.level <= record.levelno:
                     handler.emit(record)
+
+
+class MungedTracebackLogRecord(logging.LogRecord):
+    def getMessage(self):
+        return super().getMessage().replace(
+            'Traceback (most recent call last):',
+            '_Traceback_ (most recent call last):',
+        )
 
 
 def stripped_sys_argv(*strip_args):
@@ -1086,12 +1096,22 @@ class OrderedSet(MutableSet[T], typing.Generic[T]):
     def intersection(self, *others):
         return reduce(OrderedSet.__and__, others, self)
 
+    def copy(self):
+        new_set = OrderedSet()
+        new_set._map = self._map.copy()  # Atomic dict copy
+        return new_set
+
 
 class LastOrderedSet(OrderedSet[T], typing.Generic[T]):
     """ A set collection that remembers the elements last insertion order. """
     def add(self, elem):
         self.discard(elem)
         super().add(elem)
+
+    def copy(self):
+        new_set = LastOrderedSet()
+        new_set._map = self._map.copy()  # Atomic dict copy
+        return new_set
 
 
 class Callbacks:
@@ -1166,6 +1186,9 @@ class Callbacks:
         """ Remove all callbacks and data from self. """
         self._funcs.clear()
         self.data.clear()
+
+    def __len__(self) -> int:
+        return len(self._funcs)
 
 
 class ReversedIterable(Reversible[T], typing.Generic[T]):
@@ -1310,6 +1333,7 @@ def get_lang(env: Environment, lang_code: str | None = None) -> LangData:
     return env['res.lang']._get_data(code=lang)
 
 
+@lru_cache
 def babel_locale_parse(lang_code: str | None) -> babel.Locale:
     if lang_code:
         try:

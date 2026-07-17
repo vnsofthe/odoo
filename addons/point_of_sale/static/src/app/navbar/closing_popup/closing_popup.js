@@ -164,8 +164,10 @@ export class ClosePosPopup extends Component {
         );
     }
     hasUserAuthority() {
+        return this.props.is_manager || this.allowedDifference();
+    }
+    allowedDifference() {
         return (
-            this.props.is_manager ||
             this.props.amount_authorized_diff == null ||
             this.getMaxDifference() <= this.props.amount_authorized_diff
         );
@@ -184,6 +186,7 @@ export class ClosePosPopup extends Component {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({ params: { action: "close" } }),
+                targetAddressSpace: odoo.use_lna ? "local" : undefined,
             }).catch(() => {
                 console.log("Failed to send data to customer display");
             });
@@ -288,7 +291,7 @@ export class ClosePosPopup extends Component {
     }
     async handleClosingError(response) {
         this.dialog.add(ConfirmationDialog, {
-            title: response.title || "Error",
+            title: response.title || _t("Error"),
             body: response.message,
             confirmLabel: _t("Review Orders"),
             cancelLabel: _t("Cancel Orders"),

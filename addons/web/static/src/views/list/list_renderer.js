@@ -26,6 +26,7 @@ import {
     onPatched,
     onWillPatch,
     onWillRender,
+    status,
     useExternalListener,
     useRef,
 } from "@odoo/owl";
@@ -214,7 +215,9 @@ export class ListRenderer extends Component {
             // HACK: we need to wait for the next tick to be sure that the Field components are patched.
             // OWL don't wait the patch for the children components if the children trigger a patch by himself.
             await Promise.resolve();
-
+            if (status(this) === "destroyed") {
+                return;
+            }
             if (this.activeElement !== this.uiService.activeElement) {
                 return;
             }
@@ -939,10 +942,12 @@ export class ListRenderer extends Component {
 
     getGroupPagerProps(group) {
         const list = group.list;
+        // For a single leveled group with a countLimit, we already have the full count.
+        const total = list.isGrouped ? list.count : group.count;
         return {
             offset: list.offset,
             limit: list.limit,
-            total: list.count,
+            total,
             onUpdate: async ({ offset, limit }) => {
                 await list.load({ limit, offset });
                 this.render(true);

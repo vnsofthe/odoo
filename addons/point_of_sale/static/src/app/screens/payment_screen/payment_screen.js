@@ -362,11 +362,7 @@ export class PaymentScreen extends Component {
         let nextScreen = this.nextScreen;
         let switchScreen = true;
 
-        if (
-            nextScreen === "ReceiptScreen" &&
-            this.currentOrder.nb_print === 0 &&
-            this.pos.config.iface_print_auto
-        ) {
+        if (nextScreen === "ReceiptScreen" && this.currentOrder.nb_print === 0 && this.autoPrint) {
             const invoiced_finalized = this.currentOrder.is_to_invoice()
                 ? this.currentOrder.finalized
                 : true;
@@ -392,6 +388,9 @@ export class PaymentScreen extends Component {
         if (!this.pos.config.module_pos_restaurant) {
             this.pos.checkPreparationStateAndSentOrderInPreparation(this.currentOrder);
         }
+    }
+    get autoPrint() {
+        return this.pos.config.iface_print_auto;
     }
     selectNextOrder() {
         if (this.currentOrder.originalSplittedOrder) {
@@ -568,12 +567,10 @@ export class PaymentScreen extends Component {
         // the current order is fully paid and due is zero.
         this.pos.paymentTerminalInProgress = false;
         const config = this.pos.config;
-        const currency = this.pos.currency;
         const currentOrder = line.pos_order_id;
         if (
             isPaymentSuccessful &&
             currentOrder.is_paid() &&
-            floatIsZero(currentOrder.get_due(), currency.decimal_places) &&
             config.auto_validate_terminal_payment
         ) {
             this.validateOrder(false);
@@ -608,14 +605,10 @@ export class PaymentScreen extends Component {
     }
     async sendForceDone(line) {
         line.set_payment_status("done");
+        this.pos.paymentTerminalInProgress = false;
         const config = this.pos.config;
-        const currency = this.pos.currency;
         const currentOrder = line.pos_order_id;
-        if (
-            currentOrder.is_paid() &&
-            floatIsZero(currentOrder.get_due(), currency.decimal_places) &&
-            config.auto_validate_terminal_payment
-        ) {
+        if (currentOrder.is_paid() && config.auto_validate_terminal_payment) {
             this.validateOrder(true);
         }
     }

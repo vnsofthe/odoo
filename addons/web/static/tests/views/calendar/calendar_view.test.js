@@ -1421,9 +1421,8 @@ test(`create event with timezone in week mode European locale`, async () => {
             </calendar>
         `,
     });
-
     await selectTimeRange("2016-12-13 08:00:00", "2016-12-13 10:00:00");
-    expect(`.fc-event-main .fc-event-time`).toHaveText("8:00 - 10:00");
+    expect(`.fc-event-main .fc-event-time`).toHaveText("08:00 - 10:00");
 
     await contains(`.o-calendar-quick-create--input`).edit("new event", { confirm: false });
     await contains(`.o-calendar-quick-create--create-btn`).click();
@@ -1434,6 +1433,23 @@ test(`create event with timezone in week mode European locale`, async () => {
     await contains(`.o_cw_popover_delete`).click();
     await contains(`.modal button.btn-primary`).click();
     expect(`.fc-event-main`).toHaveCount(0);
+});
+
+test(`create multi day event in week mode`, async () => {
+    mockTimeZone(2);
+
+    patchWithCleanup(CalendarCommonRenderer.prototype, {
+        get options() {
+            return { ...super.options, selectAllow: () => true };
+        },
+    });
+    await mountView({
+        resModel: "event",
+        type: "calendar",
+        arch: `<calendar date_start="start" date_stop="stop" mode="week"/>`,
+    });
+    await selectTimeRange("2016-12-13 11:00:00", "2016-12-14 16:00:00");
+    expect(`.fc-event-main .fc-event-time`).toHaveText("11:00 - 16:00");
 });
 
 test(`default week start (US)`, async () => {
@@ -5178,7 +5194,7 @@ test("update time while drag and drop on month mode", async () => {
     expect(".o_field_widget[name='stop'] input").toHaveValue("12/29/2016 10:00:00");
 });
 
-test("html field on calendar shouldn't have a tooltip", async () => {
+test("html and boolean fields on calendar shouldn't have a tooltip", async () => {
     Event._fields.description = fields.Html();
     Event._records[0].description = "<p>test html field</p>";
     await mountView({
@@ -5187,13 +5203,17 @@ test("html field on calendar shouldn't have a tooltip", async () => {
         arch: `
             <calendar date_start="start">
                 <field name="description"/>
+                <field name="is_all_day"/>
             </calendar>
         `,
     });
 
     await clickEvent(MockServer.env["event"][0].id);
     const descriptionField = queryFirst('.o_cw_popover_field .o_field_widget[name="description"]');
-    const parentLi = descriptionField.closest("li");
+    let parentLi = descriptionField.closest("li");
+    expect(parentLi).toHaveAttribute("data-tooltip", "");
+    const isAllDayField = queryFirst('.o_cw_popover_field .o_field_widget[name="is_all_day"]');
+    parentLi = isAllDayField.closest("li");
     expect(parentLi).toHaveAttribute("data-tooltip", "");
 });
 

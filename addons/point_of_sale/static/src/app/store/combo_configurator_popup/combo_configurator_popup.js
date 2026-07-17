@@ -62,7 +62,8 @@ export class ComboConfiguratorPopup extends Component {
         } else {
             const product = comboItem.product_id;
             const price = this.pos.getProductPrice(product, extra_price);
-            return this.env.utils.formatCurrency(price);
+            const formattedPrice = this.env.utils.formatCurrency(Math.abs(price));
+            return price > 0 ? `+ ${formattedPrice}` : `- ${formattedPrice}`;
         }
     }
 
@@ -115,5 +116,9 @@ export class ComboConfiguratorPopup extends Component {
     confirm() {
         this.props.getPayload(this.getSelectedComboItems());
         this.props.close();
+    }
+
+    getAvailableComboLines(combo) {
+        return combo.combo_item_ids.filter((line) => line.product_id?.active);
     }
 }

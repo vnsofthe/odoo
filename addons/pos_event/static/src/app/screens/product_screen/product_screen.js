@@ -30,7 +30,7 @@ patch(ProductScreen.prototype, {
         }
 
         if (product.event_id.seats_available === 0 && product.event_id.seats_limited) {
-            this.notification.add("No more seats available for this event", {
+            this.notification.add(_t("No more seats available for this event"), {
                 type: "danger",
             });
             return;
@@ -58,6 +58,9 @@ patch(ProductScreen.prototype, {
             return;
         }
 
+        const globalIdentificationAnswers = {};
+        const identificationQuestionTypes = ["name", "email", "phone", "company_name"];
+
         const { globalSimpleChoice, globalTextAnswer } = Object.entries(result.byOrder).reduce(
             (acc, [questionId, answer]) => {
                 const question = this.pos.models["event.question"].get(parseInt(questionId));
@@ -68,6 +71,12 @@ patch(ProductScreen.prototype, {
                     acc.globalSimpleChoice[questionId] = answer;
                 } else if (answer) {
                     acc.globalTextAnswer[questionId] = answer;
+                    if (
+                        identificationQuestionTypes.includes(question.question_type) &&
+                        !(question.question_type in globalIdentificationAnswers)
+                    ) {
+                        globalIdentificationAnswers[question.question_type] = answer;
+                    }
                 }
 
                 return acc;
@@ -85,11 +94,17 @@ patch(ProductScreen.prototype, {
             });
 
             for (const registration of data) {
-                const userData = {};
+                // Global answers have precedence for identification question types.
+                const userData = { ...globalIdentificationAnswers };
                 for (const [questionId, answer] of Object.entries(registration)) {
                     const question = this.pos.models["event.question"].get(parseInt(questionId));
 
-                    if (!question) {
+                    if (
+                        !question ||
+                        !answer ||
+                        !identificationQuestionTypes.includes(question.question_type) ||
+                        question.question_type in userData
+                    ) {
                         continue;
                     }
 

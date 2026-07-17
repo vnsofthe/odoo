@@ -116,6 +116,7 @@ class Job(models.Model):
               AND act.date_deadline <= %(today)s::date AND app.active
               AND app.job_id IN %(job_ids)s
               AND sta.hired_stage IS NOT TRUE
+              AND act.active
             GROUP BY app.job_id, act_state
         """, {
             'today': fields.Date.context_today(self),
@@ -152,7 +153,7 @@ class Job(models.Model):
         users_by_company = dict(
             self.env["res.users"]._read_group(
                 domain=domain,
-                groupby=["company_id"],
+                groupby=["company_ids"],
                 aggregates=["id:recordset"],
             ),
         )

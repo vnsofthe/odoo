@@ -1,7 +1,17 @@
 /** @odoo-module **/
 
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
-import { click, hover, leave, queryFirst, waitFor, press, Deferred, edit } from "@odoo/hoot-dom";
+import {
+    click,
+    hover,
+    leave,
+    queryFirst,
+    waitFor,
+    press,
+    Deferred,
+    edit,
+    waitForNone,
+} from "@odoo/hoot-dom";
 import { advanceTime, animationFrame, disableAnimations, runAllTimers } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import {
@@ -710,7 +720,7 @@ test("Tour backward when the pointed element disappear and ignore warn step", as
     registry.category("web_tour.tours").add("tour1", {
         steps: () => [
             { trigger: "button.foo", run: "click" },
-            { trigger: "button.bar" },
+            { trigger: "button.foo" },
             { trigger: "button.bar", run: "click" },
         ],
     });
@@ -747,7 +757,7 @@ test("Tour backward when the pointed element disappear and ignore warn step", as
     await contains("button.bar").click();
     await animationFrame();
     expect(".o_tour_pointer").toHaveCount(0);
-    expect.verifySteps(["Step 'button.bar' ignored.", "Step 'button.bar' ignored."]);
+    expect.verifySteps(["Step 'button.foo' ignored.", "Step 'button.foo' ignored."]);
 });
 
 test("Tour started by the URL", async () => {
@@ -1191,4 +1201,40 @@ test("Don't backward when action manager is busy", async () => {
     await contains("button.bar").click();
     await animationFrame();
     expect(".o_tour_pointer").toHaveCount(0);
+});
+
+test("pointer hidden when trigger is behind overlay", async () => {
+    registry.category("web_tour.tours").add("tour1", {
+        steps: () => [{ trigger: "button.foo", run: "click" }],
+    });
+
+    class DummyDialog extends Component {
+        static props = ["*"];
+        static components = { Dialog };
+        static template = xml`
+            <Dialog>
+                <button class="a">A</button>
+            </Dialog>
+        `;
+    }
+
+    class Dummy extends Component {
+        static props = ["*"];
+        static components = {};
+        static template = xml`
+            <button class="foo w-100">Foo</button>
+        `;
+    }
+
+    await mountWithCleanup(Dummy);
+
+    await getService("tour_service").startTour("tour1", { mode: "manual" });
+    await waitFor(".o_tour_pointer");
+    getService("dialog").add(DummyDialog, {});
+    await waitFor(".modal");
+    await waitForNone(".o_tour_pointer");
+    await contains(".modal .btn-close").click();
+    await waitFor(".o_tour_pointer");
+    // Finalize the dummy tour to avoid leaving in a dirty state
+    await contains("button.foo").click();
 });

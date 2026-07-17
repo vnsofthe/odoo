@@ -4,10 +4,12 @@ import { isImageUrl } from "@html_editor/utils/url";
 import { ImageDescription } from "./image_description";
 import { ImagePadding } from "./image_padding";
 import { createFileViewer } from "@web/core/file_viewer/file_viewer_hook";
-import { boundariesOut, childNodeIndex } from "@html_editor/utils/position";
+import { boundariesOut } from "@html_editor/utils/position";
 import { withSequence } from "@html_editor/utils/resource";
 import { ImageTransformButton } from "./image_transform_button";
-import { isEmpty } from "@html_editor/utils/dom_info";
+import { callbacksForCursorUpdate } from "@html_editor/utils/selection";
+import { closestBlock } from "@html_editor/utils/blocks";
+import { fillEmpty } from "@html_editor/utils/dom";
 
 function hasShape(imagePlugin, shapeName) {
     return () => imagePlugin.isSelectionShaped(shapeName);
@@ -60,6 +62,7 @@ export class ImagePlugin extends Plugin {
             {
                 id: "image",
                 isApplied: (targetedNodes) =>
+                    targetedNodes.length &&
                     targetedNodes.every(
                         // All nodes should be images or its ancestors
                         (node) => node.nodeName === "IMG" || node.querySelector?.("img")
@@ -132,6 +135,7 @@ export class ImagePlugin extends Plugin {
                 title: _t("Resize Default"),
                 text: _t("Default"),
                 isActive: () => this.hasImageSize(""),
+                isAvailable: () => this.config.allowImageResize ?? true,
             },
             {
                 id: "resize_100",
@@ -141,6 +145,7 @@ export class ImagePlugin extends Plugin {
                 title: _t("Resize Full"),
                 text: "100%",
                 isActive: () => this.hasImageSize("100%"),
+                isAvailable: () => this.config.allowImageResize ?? true,
             },
             {
                 id: "resize_50",
@@ -150,6 +155,7 @@ export class ImagePlugin extends Plugin {
                 title: _t("Resize Half"),
                 text: "50%",
                 isActive: () => this.hasImageSize("50%"),
+                isAvailable: () => this.config.allowImageResize ?? true,
             },
             {
                 id: "resize_25",
@@ -159,6 +165,7 @@ export class ImagePlugin extends Plugin {
                 title: _t("Resize Quarter"),
                 text: "25%",
                 isActive: () => this.hasImageSize("25%"),
+                isAvailable: () => this.config.allowImageResize ?? true,
             },
             {
                 id: "image_transform",
@@ -260,20 +267,12 @@ export class ImagePlugin extends Plugin {
             if (this.delegateTo("delete_image_overrides", targetedImg)) {
                 return;
             }
-            const anchorNode = targetedImg.parentElement;
-            let anchorOffset = childNodeIndex(targetedImg);
+            const cursors = this.dependencies.selection.preserveSelection();
+            cursors.update(callbacksForCursorUpdate.remove(targetedImg));
+            const parentEl = closestBlock(targetedImg);
             targetedImg.remove();
-            // When an image is added as the first element of a <p> tag,
-            // the `dom_plugin.insert` method automatically creates a #text node just before the <img>.
-            // After removing the image and setting the selection at the <p> tag (offset 0),
-            // the selection unexpectedly jumps back to the parent node during input.
-            // To address this issue, we handle this specific case separately.
-            if (anchorNode.nodeName === "P" && isEmpty(anchorNode)) {
-                const br = this.document.createElement("br");
-                anchorNode.replaceChildren(br);
-                anchorOffset = 0;
-            }
-            this.dependencies.selection.setSelection({ anchorNode, anchorOffset });
+            cursors.restore();
+            fillEmpty(parentEl);
             this.dependencies.history.addStep();
         }
     }
@@ -350,10 +349,15 @@ export class ImagePlugin extends Plugin {
     }
 
     resetImageTransformation(image) {
-        image.setAttribute(
-            "style",
-            (image.getAttribute("style") || "").replace(/[^;]*transform[\w:]*;?/g, "")
-        );
+        const stylePropertiesToRemove = [
+            "transform",
+            "transform-box",
+            "transform-origin",
+            "transform-style",
+        ];
+        for (const styleProperty of stylePropertiesToRemove) {
+            image.style.removeProperty(styleProperty);
+        }
         this.dependencies.history.addStep();
     }
 

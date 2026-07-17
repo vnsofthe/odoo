@@ -1,7 +1,19 @@
-import { isTextNode, isParagraphRelatedElement, isIconElement } from "../utils/dom_info";
+import {
+    isTextNode,
+    isParagraphRelatedElement,
+    isIconElement,
+    isEmptyBlock,
+} from "../utils/dom_info";
 import { Plugin } from "../plugin";
 import { closestBlock, isBlock } from "../utils/blocks";
-import { unwrapContents, wrapInlinesInBlocks, splitTextNode, setTagName } from "../utils/dom";
+import { fillClipboardData } from "../utils/clipboard";
+import {
+    unwrapContents,
+    wrapInlinesInBlocks,
+    splitTextNode,
+    setTagName,
+    fillEmpty,
+} from "../utils/dom";
 import { ancestors, childNodes, closestElement } from "../utils/dom_traversal";
 import { parseHTML } from "../utils/html";
 import {
@@ -68,6 +80,8 @@ export const CLIPBOARD_WHITELISTS = {
         "img-thumbnail",
         "rounded",
         "rounded-circle",
+        // Odoo tables
+        "o_table",
         "table",
         "table-bordered",
         /^padding-/,
@@ -215,14 +229,7 @@ export class ClipboardPlugin extends Plugin {
                 }
             }
         }
-        const dataHtmlElement = this.document.createElement("data");
-        dataHtmlElement.append(clonedContents);
-        prependOriginToImages(dataHtmlElement, window.location.origin);
-        const odooHtml = dataHtmlElement.innerHTML;
-        const odooText = selection.textContent();
-        ev.clipboardData.setData("text/plain", odooText);
-        ev.clipboardData.setData("text/html", odooHtml);
-        ev.clipboardData.setData("application/vnd.odoo.odoo-editor", odooHtml);
+        fillClipboardData(ev, selection.textContent(), clonedContents);
         if (commonAncestor && commonAncestor.nodeType === Node.ELEMENT_NODE) {
             this.dispatchTo("normalize_handlers", commonAncestor);
         }
@@ -238,16 +245,16 @@ export class ClipboardPlugin extends Plugin {
         }
         ev.preventDefault();
 
-        this.dependencies.history.stageSelection();
-
         this.dispatchTo("before_paste_handlers", selection);
+        this.dependencies.history.stageSelection();
         // refresh selection after potential changes from `before_paste` handlers
         selection = this.dependencies.selection.getEditableSelection();
-
-        this.handlePasteUnsupportedHtml(selection, ev.clipboardData) ||
-            this.handlePasteOdooEditorHtml(ev.clipboardData) ||
-            this.handlePasteHtml(selection, ev.clipboardData) ||
-            this.handlePasteText(selection, ev.clipboardData);
+        if (!this.delegateTo("paste_overrides", selection, ev.clipboardData)) {
+            this.handlePasteUnsupportedHtml(selection, ev.clipboardData) ||
+                this.handlePasteOdooEditorHtml(ev.clipboardData) ||
+                this.handlePasteHtml(selection, ev.clipboardData) ||
+                this.handlePasteText(selection, ev.clipboardData);
+        }
 
         this.dispatchTo("after_paste_handlers", selection);
         this.dependencies.history.addStep();
@@ -536,6 +543,13 @@ export class ClipboardPlugin extends Plugin {
                 node = setTagName(node, "TD");
             }
             if (node.nodeName === "TD") {
+                // Insert base container into empty TD.
+                if (isEmptyBlock(node)) {
+                    const baseContainer = this.dependencies.baseContainer.createBaseContainer();
+                    fillEmpty(baseContainer);
+                    node.replaceChildren(baseContainer);
+                }
+
                 if (node.hasAttribute("bgcolor") && !node.style["background-color"]) {
                     node.style["background-color"] = node.getAttribute("bgcolor");
                 }
@@ -612,7 +626,7 @@ export class ClipboardPlugin extends Plugin {
      * @returns {boolean}
      */
     isWhitelisted(item) {
-        if (item instanceof Attr) {
+        if (item.nodeType === Node.ATTRIBUTE_NODE) {
             return CLIPBOARD_WHITELISTS.attributes.includes(item.name);
         } else if (typeof item === "string") {
             return CLIPBOARD_WHITELISTS.classes.some((okClass) =>
@@ -784,17 +798,4 @@ export function isHtmlContentSupported(node) {
         node,
         '[data-oe-model]:not([data-oe-field="arch"]):not([data-oe-type="html"]),[data-oe-translation-id]'
     );
-}
-
-/**
- * Add origin to relative img src.
- * @param {string} origin
- */
-function prependOriginToImages(doc, origin) {
-    doc.querySelectorAll("img").forEach((img) => {
-        const src = img.getAttribute("src");
-        if (src && !/^(http|\/\/|data:)/.test(src)) {
-            img.src = origin + (src.startsWith("/") ? src : "/" + src);
-        }
-    });
 }

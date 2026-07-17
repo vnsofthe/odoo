@@ -56,8 +56,10 @@ import {
     patchWithCleanup,
     quickCreateKanbanColumn,
     quickCreateKanbanRecord,
+    removeFacet,
     serverState,
     stepAllNetworkCalls,
+    switchView,
     toggleKanbanColumnActions,
     toggleKanbanRecordDropdown,
     toggleMenuItem,
@@ -72,6 +74,7 @@ import { FileInput } from "@web/core/file_input/file_input";
 
 import { currencies } from "@web/core/currency";
 import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
 import { SampleServer } from "@web/model/sample_server";
 import { KanbanCompiler } from "@web/views/kanban/kanban_compiler";
@@ -13588,4 +13591,95 @@ test("hide pager in the kanban view with sample data", async () => {
 
     expect(".o_content").toHaveClass("o_view_sample_data");
     expect(".o_cp_pager").not.toHaveCount();
+});
+
+test.tags("desktop");
+test("limit is reset when restoring a view after ungrouping", async () => {
+    Partner._views["kanban"] = `
+        <kanban sample="1">
+            <templates>
+                <t t-name="card">
+                    <field name="foo"/>
+                </t>
+            </templates>
+        </kanban>`;
+    Partner._views["list"] = '<list><field name="foo"/></list>';
+    Partner._views.search = `
+        <search>
+            <group>
+                <filter name="foo" string="Foo" context="{'group_by': 'foo'}"/>
+            </group>
+        </search>
+    `;
+
+    onRpc("partner", "web_search_read", ({ kwargs }) => {
+        const { domain, limit } = kwargs;
+        if (!domain.length) {
+            expect.step(`limit=${limit}`);
+        }
+    });
+
+    patchWithCleanup(user, {
+        hasGroup: () => true,
+    });
+
+    await mountWithCleanup(WebClient);
+
+    await getService("action").doAction({
+        type: "ir.actions.act_window",
+        id: 450,
+        xml_id: "action_450",
+        name: "Partners",
+        res_model: "partner",
+        views: [
+            [false, "kanban"],
+            [false, "list"],
+            [false, "form"],
+        ],
+        context: { search_default_foo: true },
+    });
+
+    await switchView("list");
+    await removeFacet("Foo");
+    expect.verifySteps(["limit=80"]);
+    await switchView("kanban");
+    expect.verifySteps(["limit=40"]);
+});
+
+test.tags("desktop");
+test("add o-navigable to buttons with dropdown-item class and view buttons", async () => {
+    Partner._records.splice(1, 3); // keep one record only
+
+    await mountView({
+        type: "kanban",
+        resModel: "partner",
+        arch: `
+            <kanban>
+                <templates>
+                    <t t-name="menu">
+                        <a role="menuitem" class="dropdown-item">Item</a>
+                        <a role="menuitem" type="set_cover" class="dropdown-item">Item</a>
+                        <a role="menuitem" type="object" class="dropdown-item">Item</a>
+                    </t>
+                    <t t-name="card">
+                        <div/>
+                    </t>
+                </templates>
+            </kanban>`,
+    });
+
+    expect(".o-dropdown--menu").toHaveCount(0);
+    await toggleKanbanRecordDropdown();
+    expect(".o-dropdown--menu .dropdown-item.o-navigable").toHaveCount(3);
+    expect(".o-dropdown--menu .dropdown-item.o-navigable.focus").toHaveCount(0);
+
+    // Check that navigation is working
+    await hover(".o-dropdown--menu .dropdown-item.o-navigable");
+    expect(".o-dropdown--menu .dropdown-item.o-navigable.focus").toHaveCount(1);
+
+    await press("arrowdown");
+    expect(".o-dropdown--menu .dropdown-item.o-navigable:nth-child(2)").toHaveClass("focus");
+
+    await press("arrowdown");
+    expect(".o-dropdown--menu .dropdown-item.o-navigable:nth-child(3)").toHaveClass("focus");
 });

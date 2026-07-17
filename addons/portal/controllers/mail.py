@@ -78,36 +78,37 @@ class PortalChatter(http.Controller):
     def portal_message_fetch(
             self, thread_model, thread_id, limit=10, after=None, before=None, **kw
     ):
-        # Only search into website_message_ids, so apply the same domain to perform only one search
-        # extract domain from the 'website_message_ids' field
+        # Extract the domain from the `website_message_ids` field to restrict the visible messages according to the model.
         model = request.env[thread_model]
         field = model._fields['website_message_ids']
+        thread = model._get_thread_with_access(thread_id, token=kw.get("token"))
+        if not thread:
+            raise Forbidden()
+        # All users in the portal see only non-internal messages; internal users are supposed to see
+        # the portal as portal users do, so they have the same restriction.
         domain = expression.AND([
             self._setup_portal_message_fetch_extra_domain(kw),
             field.get_domain_list(model),
-            [('res_id', '=', thread_id), '|', ('body', '!=', ''), ('attachment_ids', '!=', False),
-             ("subtype_id", "=", request.env.ref("mail.mt_comment").id)]
+            self._get_non_empty_message_domain(),
+            request.env["mail.message"]._get_search_domain_share(),
+            [("res_id", "=", thread_id)],
         ])
-
-        # Check access
-        Message = request.env['mail.message']
-        if kw.get('token'):
-            access_as_sudo = request.env[thread_model]._get_thread_with_access(
-                thread_id, token=kw.get("token")
-            )
-            if not access_as_sudo:  # if token is not correct, raise Forbidden
-                raise Forbidden()
-            # Non-employee see only messages with not internal subtype (aka, no internal logs)
-            if not request.env.user._is_internal():
-                domain = expression.AND([Message._get_search_domain_share(), domain])
-            Message = request.env["mail.message"].sudo()
-        res = Message._message_fetch(domain, None, before, after, None, limit)
+        # sudo: mail.message - thread access is validated above, and domain is massively restricted to share-only messages
+        res = request.env["mail.message"].sudo()._message_fetch(
+            domain=domain,
+            before=before,
+            after=after,
+            limit=limit,
+        )
         messages = res.pop("messages")
         return {
             **res,
             "data": {"mail.message": messages.portal_message_format(options=kw)},
             "messages": Store.many_ids(messages),
         }
+
+    def _get_non_empty_message_domain(self):
+        return ["|", ("body", "!=", ""), ("attachment_ids", "!=", False)]
 
     def _setup_portal_message_fetch_extra_domain(self, data):
         return []

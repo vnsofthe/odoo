@@ -164,7 +164,13 @@ class StockRule(models.Model):
         bypass_delay_description = self.env.context.get('bypass_delay_description')
         buy_rule = self.filtered(lambda r: r.action == 'buy')
         seller = 'supplierinfo' in values and values['supplierinfo'] or product.with_company(buy_rule.company_id)._select_seller(quantity=None)
-        if not buy_rule or not seller:
+        if not buy_rule:
+            return delays, delay_description
+        if not seller:
+            delays['total_delay'] += 365
+            delays['no_vendor_found_delay'] += 365
+            if not bypass_delay_description:
+                delay_description.append((_('No Vendor Found'), _('+ %s day(s)', 365)))
             return delays, delay_description
         buy_rule.ensure_one()
         if not self.env.context.get('ignore_vendor_lead_time'):
@@ -250,7 +256,7 @@ class StockRule(models.Model):
             date=line.order_id.date_order and line.order_id.date_order.date(),
             uom_id=product_id.uom_po_id)
 
-        price_unit = self.env['account.tax']._fix_tax_included_price_company(seller.price, line.product_id.supplier_taxes_id, line.sudo().taxes_id, company_id) if seller else 0.0
+        price_unit = self.env['account.tax']._fix_tax_included_price_company(seller.price, line.product_id.supplier_taxes_id, line.sudo().taxes_id, company_id) if seller else line.price_unit
         if price_unit and seller and line.order_id.currency_id and seller.currency_id != line.order_id.currency_id:
             price_unit = seller.currency_id._convert(
                 price_unit, line.order_id.currency_id, line.order_id.company_id, fields.Date.today())
@@ -342,4 +348,4 @@ class StockRule(models.Model):
         return res
 
     def _get_partner_id(self, values, rule):
-        return values.get("supplierinfo_name") or (values.get("group_id") and values.get("group_id").partner_id)
+        return values.get("supplierinfo_name") or self.env.context.get('preferred_supplier_name')

@@ -202,7 +202,7 @@ will update the cost of every lot/serial number in stock."),
             "value_svl": value_svl,
             "quantity_svl": quantity_sum,
             "avg_cost": avg_cost,
-            "total_value": avg_cost * self.sudo(False).qty_available
+            "total_value": avg_cost * self.with_context(allowed_company_ids=self.env.company.ids).qty_available if avg_cost else 0
         }
 
     @api.depends('stock_valuation_layer_ids')
@@ -274,7 +274,7 @@ will update the cost of every lot/serial number in stock."),
         # Quantity is negative for out valuation layers.
         quantity = -1 * quantity
         cost = self.standard_price
-        if lot and lot.standard_price:
+        if lot and lot.sudo().stock_valuation_layer_ids:
             cost = lot.standard_price
         vals = {
             'product_id': self.id,
@@ -347,7 +347,7 @@ will update the cost of every lot/serial number in stock."),
             }
             svl_vals_list.append(svl_vals)
         stock_valuation_layers = self.env['stock.valuation.layer'].sudo().create(svl_vals_list)
-        stock_valuation_layers._change_standart_price_accounting_entries(new_price)
+        stock_valuation_layers.sudo(False)._change_standart_price_accounting_entries(new_price)
 
     def _get_fifo_candidates_domain(self, company, lot=False):
         return [
@@ -428,6 +428,24 @@ will update the cost of every lot/serial number in stock."),
                 'unit_cost': last_fifo_price,
             }
         return vals
+
+    def _prepare_fifo_vacuum_valuation_layer_values(self, svl_to_vacuum, corrected_value):
+        self.ensure_one()
+        move = svl_to_vacuum.stock_move_id
+        return {
+            'product_id': self.id,
+            'value': corrected_value,
+            'unit_cost': 0,
+            'quantity': 0,
+            'remaining_qty': 0,
+            'stock_move_id': move.id,
+            'company_id': move.company_id.id,
+            'description': self.env._(
+                'Revaluation of %(name)s (negative inventory)', name=(move.picking_id.name or move.name)
+            ),
+            'stock_valuation_layer_id': svl_to_vacuum.id,
+            'lot_id': svl_to_vacuum.lot_id.id,
+        }
 
     def _run_fifo_vacuum(self, company=None):
         """Compensate layer valued at an estimated price with the price of future receipts
@@ -520,20 +538,8 @@ will update the cost of every lot/serial number in stock."),
 
                 corrected_value = svl_to_vacuum.currency_id.round(corrected_value)
 
-                move = svl_to_vacuum.stock_move_id
                 new_svl_vals = new_svl_vals_real_time if product.valuation == 'real_time' else new_svl_vals_manual
-                new_svl_vals.append({
-                    'product_id': product.id,
-                    'value': corrected_value,
-                    'unit_cost': 0,
-                    'quantity': 0,
-                    'remaining_qty': 0,
-                    'stock_move_id': move.id,
-                    'company_id': move.company_id.id,
-                    'description': 'Revaluation of %s (negative inventory)' % (move.picking_id.name or move.name),
-                    'stock_valuation_layer_id': svl_to_vacuum.id,
-                    'lot_id': svl_to_vacuum.lot_id.id,
-                })
+                new_svl_vals.append(product._prepare_fifo_vacuum_valuation_layer_values(svl_to_vacuum, corrected_value))
                 lot_to_update.append(svl_to_vacuum.lot_id)
                 if product.valuation == 'real_time':
                     current_real_time_svls |= svl_to_vacuum
@@ -730,12 +736,12 @@ will update the cost of every lot/serial number in stock."),
         refill_stock_svl_list = []
         lot_by_product = defaultdict(lambda: defaultdict(float))
         neg_lots = self.env['stock.quant']._read_group([
-            ('product_id', 'in', self.product_variant_ids.ids),
+            ('product_id', 'in', self.product_tmpl_id.product_variant_ids.ids),
             ('lot_id', '!=', False),
             ], ['product_id', 'location_id', 'lot_id'], ['quantity:sum'],
             having=[('quantity:sum', '<', 0)])
         lots = self.env['stock.quant']._read_group([
-            ('product_id', 'in', self.product_variant_ids.ids),
+            ('product_id', 'in', self.product_tmpl_id.product_variant_ids.ids),
             ('lot_id', '!=', False),
             ], ['product_id', 'location_id', 'lot_id'], ['quantity:sum'],
             having=[('quantity:sum', '>', 0)])

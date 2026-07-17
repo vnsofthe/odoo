@@ -94,7 +94,7 @@ class ProductProduct(models.Model):
         config = self.env['pos.config'].browse(data['pos.config']['data'][0]['id'])
         limit_count = config.get_limited_product_count()
         if limit_count:
-            products = config.with_context(display_default_code=False).get_limited_products_loading(fields)
+            products = config.with_context(display_default_code=False, bin_size=True).get_limited_products_loading(fields)
         else:
             domain = self._load_pos_data_domain(data)
             products = self._load_product_with_domain(domain, config.id)
@@ -117,7 +117,7 @@ class ProductProduct(models.Model):
 
     def _load_product_with_domain(self, domain, config_id, load_archived=False):
         fields = self._load_pos_data_fields(config_id)
-        context = {**self.env.context, 'display_default_code': False, 'active_test': not load_archived}
+        context = {**self.env.context, 'display_default_code': False, 'active_test': not load_archived, 'bin_size': True}
         return self.with_context(context).search_read(
             domain,
             fields,
@@ -153,6 +153,7 @@ class ProductProduct(models.Model):
         for product in products:
             if different_currency:
                 product['lst_price'] = self.env.company.currency_id._convert(product['lst_price'], config_id.currency_id, self.env.company, fields.Date.today())
+                product['standard_price'] = self.env.company.currency_id._convert(product['standard_price'], config_id.currency_id, self.env.company, fields.Date.today())
             product['image_128'] = bool(product['image_128'])
 
             if len(taxes_by_company) > 1 and len(product['taxes_id']) > 1:
@@ -325,6 +326,21 @@ class ProductTemplateAttributeValue(models.Model):
         return ['attribute_id', 'attribute_line_id', 'product_attribute_value_id', 'price_extra', 'name', 'is_custom', 'html_color', 'image']
 
 
+class ProductTemplateAttributeExclusion(models.Model):
+    _name = 'product.template.attribute.exclusion'
+    _inherit = ['product.template.attribute.exclusion', 'pos.load.mixin']
+
+    @api.model
+    def _load_pos_data_domain(self, data):
+        loaded_product_tmpl_ids = list({p['product_tmpl_id'] for p in data['product.product']['data']})
+        loaded_ptav_ids = list({ptav['id'] for ptav in data['product.template.attribute.value']['data']})
+        return [('product_tmpl_id', 'in', loaded_product_tmpl_ids), ('product_template_attribute_value_id', 'in', loaded_ptav_ids)]
+
+    @api.model
+    def _load_pos_data_fields(self, config_id):
+        return ['value_ids', 'product_template_attribute_value_id']
+
+
 class ProductPackaging(models.Model):
     _name = 'product.packaging'
     _inherit = ['product.packaging', 'pos.load.mixin']
@@ -365,10 +381,15 @@ class Uom(models.Model):
         return ['id', 'name', 'category_id', 'factor_inv', 'factor', 'is_pos_groupable', 'uom_type', 'rounding']
 
     def _load_pos_data(self, data):
+        # Add custom fields for 'formula' taxes.
+        fields = set(self._load_pos_data_fields(data['pos.config']['data'][0]['id']))
+        taxes = self.env['account.tax'].search(self.env['account.tax']._load_pos_data_domain(data))
+        product_fields = taxes._eval_taxes_computation_prepare_product_uom_fields()
+        fields = list(fields.union(product_fields))
+
         domain = self._load_pos_data_domain(data)
-        fields = self._load_pos_data_fields(data['pos.config']['data'][0]['id'])
         return {
-            'data': self.with_context({**self.env.context}).search_read(domain, fields, load=False),
+            'data': self.with_context({**self.env.context, 'active_test': False}).search_read(domain, fields, load=False),
             'fields': fields,
         }
 

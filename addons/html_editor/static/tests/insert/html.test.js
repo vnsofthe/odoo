@@ -164,6 +164,43 @@ describe("collapsed selection", () => {
         });
     });
 
+    test("should fill last empty list item", async () => {
+        await testEditor({
+            contentBefore: "<p>[]<br></p>",
+            stepFunction: async (editor) => {
+                editor.shared.dom.insert(
+                    parseHTML(editor.document, "<p>abc</p><ul><li></li></ul>")
+                );
+                editor.shared.history.addStep();
+            },
+            contentAfter: "<p>abc</p><ul><li>[]<br></li></ul>",
+        });
+    });
+
+    test("should fill first empty list item", async () => {
+        await testEditor({
+            contentBefore: "<p>[]<br></p>",
+            stepFunction: async (editor) => {
+                editor.shared.dom.insert(
+                    parseHTML(editor.document, "<ul><li></li></ul><p>abc</p>")
+                );
+                editor.shared.history.addStep();
+            },
+            contentAfter: "<ul><li><br></li></ul><p>abc[]</p>",
+        });
+    });
+
+    test("should fill first empty heading element", async () => {
+        await testEditor({
+            contentBefore: "<p>[]<br></p>",
+            stepFunction: async (editor) => {
+                editor.shared.dom.insert(parseHTML(editor.document, "<h1></h1><p>abc</p>"));
+                editor.shared.history.addStep();
+            },
+            contentAfter: "<h1><br></h1><p>abc[]</p>",
+        });
+    });
+
     test("never unwrap tables in breakable paragrap", async () => {
         // P elements' content can only be "phrasing" content
         // Adding a table within p is not possible
@@ -175,7 +212,7 @@ describe("collapsed selection", () => {
             parseHTML(editor.document, "<table><tbody><tr><td/></tr></tbody></table>")
         );
         expect(getContent(editor.editable)).toBe(
-            `<p>cont</p><table><tbody><tr><td></td></tr></tbody></table><p>[]ent</p>`
+            `<p>cont</p><table><tbody><tr><td><br></td></tr></tbody></table><p>[]ent</p>`
         );
     });
 
@@ -190,7 +227,7 @@ describe("collapsed selection", () => {
             parseHTML(editor.document, "<table><tbody><tr><td/></tr></tbody></table>")
         );
         expect(getContent(editor.editable)).toBe(
-            `<p class="oe_unbreakable">content[]</p><table><tbody><tr><td></td></tr></tbody></table>`
+            `<p class="oe_unbreakable">content</p><table><tbody><tr><td>[]<br></td></tr></tbody></table>`
         );
     });
 
@@ -208,7 +245,7 @@ describe("collapsed selection", () => {
             parseHTML(editor.document, "<table><tbody><tr><td/></tr></tbody></table>")
         );
         expect(getContent(editor.editable)).toBe(
-            `<div><p class="oe_unbreakable" contenteditable="true"><b class="oe_unbreakable">content[]</b><table><tbody><tr><td></td></tr></tbody></table></p></div>`
+            `<div><p class="oe_unbreakable" contenteditable="true"><b class="oe_unbreakable">content</b><table><tbody><tr><td>[]<br></td></tr></tbody></table></p></div>`
         );
     });
 
@@ -384,12 +421,10 @@ describe("not collapsed selection", () => {
     test("should delete selection and insert html in its place (3)", async () => {
         await testEditor({
             contentBefore: "<h1>[abc</h1><p>def]</p>",
-            stepFunction: async editor => {
+            stepFunction: async (editor) => {
                 // There's an empty text node after the paragraph:
                 editor.editable.lastChild.after(editor.document.createTextNode(""));
-                editor.shared.dom.insert(
-                    parseHTML(editor.document, "<p>ghi</p><p>jkl</p>")
-                );
+                editor.shared.dom.insert(parseHTML(editor.document, "<p>ghi</p><p>jkl</p>"));
                 editor.shared.history.addStep();
             },
             contentAfter: "<p>ghi</p><p>jkl[]</p>",
@@ -594,5 +629,24 @@ describe("not collapsed selection", () => {
             },
             contentAfter: '<p><a href="#">link</a></p><p><a href="#">link</a>[]</p>',
         });
+    });
+
+    test("should insert content without creating a new line at the start", async () => {
+        const { el, editor } = await setupEditor(
+            `<p>
+                <span>[abc</span>
+                <br>
+                <span>def]</span>
+            </p>`,
+            {}
+        );
+        editor.shared.dom.insert(
+            parseHTML(editor.document, "<div>123</div><div><br></div><div>456</div>")
+        );
+        expect(getContent(el)).toBe(
+            `<div class="o-paragraph">123</div><div class="o-paragraph"><br></div><div class="o-paragraph">456[]</div><p>
+                <span data-oe-zws-empty-inline="">\u200b</span><span data-oe-zws-empty-inline="">\u200b</span>
+            <br></p>`
+        );
     });
 });

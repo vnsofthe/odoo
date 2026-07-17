@@ -141,9 +141,9 @@ class Employee(models.Model):
         for contract in contracts:
             contracts_by_employee[contract.employee_id] += contract
         for employee in self:
-            employee_contracts = contracts_by_employee[employee.id]
+            employee_contracts = contracts_by_employee[employee]
             if employee_contracts:
-                res[employee.id] = contracts[0].resource_calendar_id.sudo(False)
+                res[employee.id] = employee_contracts[0].resource_calendar_id.sudo(False)
         return res
 
     def _get_calendar_periods(self, start, stop):
@@ -204,7 +204,7 @@ class Employee(models.Model):
         if not employee_contracts:
             return super()._get_unusual_days(date_from, date_to)
 
-        selected_contracts = employee_contracts.filtered(lambda c: c.state == 'open')
+        selected_contracts = employee_contracts.filtered(lambda c: c.state in ('open', 'close'))
 
         if not selected_contracts:
             selected_contracts = max(employee_contracts, key=lambda c: (c.create_date, c.id))
@@ -284,6 +284,10 @@ class Employee(models.Model):
             duration_data['days'] += contract_duration_data['days']
             duration_data['hours'] += contract_duration_data['hours']
         return duration_data
+
+    def filter_valid(self, checked_date):
+        valid_contracts = self._get_contracts(checked_date, checked_date, states=['open', 'close'])
+        return valid_contracts.mapped('employee_id')
 
     def write(self, vals):
         res = super().write(vals)

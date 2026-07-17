@@ -10,6 +10,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.http import _request_stack
 from odoo.tests import Form, TransactionCase, new_test_user, tagged, HttpCase, users
 from odoo.tools import mute_logger
+from odoo import Command
 
 
 class TestUsers(TransactionCase):
@@ -192,6 +193,19 @@ class TestUsers(TransactionCase):
         self.assertTrue(portal_user_2.exists(), 'Should have kept the user')
         self.assertTrue(portal_partner_2.exists(), 'Should have kept the partner')
         self.assertEqual(asked_deletion_2.state, 'fail', 'Should have marked the deletion as failed')
+
+    def test_delete_public_user(self):
+        """Test that the public user cannot be deleted."""
+        public_user = self.env.ref('base.public_user')
+        public_partner = public_user.partner_id
+
+        # Attempt to delete the public user
+        with self.assertRaises(UserError, msg="Public user should not be deletable"):
+            public_user.unlink()
+
+        # Ensure the public user still exists and is inactive
+        self.assertTrue(public_user.exists() and not public_user.active, "Public user should still exist and be inactive")
+        self.assertTrue(public_partner.exists() and not public_partner.active, "Public partner should still exist and be inactive")
 
     def test_user_home_action_restriction(self):
         test_user = new_test_user(self.env, 'hello world')
@@ -510,6 +524,54 @@ class TestUsersGroupWarning(TransactionCase):
                 cls.group_field_service_administrator).ids,
         })
 
+    def test_prevent_inherited_views_in_group_assignment(self):
+        """ Groups can only be assigned non-inherited (primary) views.
+
+        Inherited views (mode='extension') must not be linked to groups directly.
+        They inherit access from their parent view. Attempting to assign an
+        inherited view to a group should raise a ValidationError. """
+
+        View = self.env['ir.ui.view']
+        group = self.group_sales_user
+        normal_view = View.create({
+            'name': 'Test Base View',
+            'type': 'form',
+            'model': 'res.partner',
+            'arch': '<form><field name="name"/></form>',
+        })
+        inherited_view = View.create({
+            'name': 'Inherited View',
+            'type': 'form',
+            'model': 'res.partner',
+            'inherit_id': normal_view.id,
+            'mode': 'extension',
+            'arch': '''
+                <xpath expr="//field[@name='name']" position="after">
+                    <field name="email"/>
+                </xpath>
+            ''',
+        })
+
+        # Case 1: inherited view should fail
+        with self.assertRaises(ValidationError):
+            group.write({
+                'view_access': [Command.link(inherited_view.id)],
+            })
+
+        # Case 2: normal view should pass
+        group.write({
+            'view_access': [Command.link(normal_view.id)],
+        })
+        self.assertIn(normal_view, group.view_access)
+
+        # Case 3: both views should fail
+        with self.assertRaises(ValidationError):
+            group.write({
+                'view_access': [
+                    Command.link(normal_view.id),
+                    Command.link(inherited_view.id)
+                ],
+            })
 
     def test_user_group_empty_group_warning(self):
         """ User changes Empty Sales access from 'Sales: Administrator'. The
@@ -608,10 +670,10 @@ class TestUsersIdentitycheck(HttpCase):
         self.env.user.password = "admin@odoo"
 
         # Create a first session that will be used to revoke other sessions
-        session = self.authenticate('admin', 'admin@odoo')
+        session = self.authenticate('admin', 'admin@odoo', session_extra={'_trace_disable': False})
 
         # Create a second session that will be used to check it has been revoked
-        self.authenticate('admin', 'admin@odoo')
+        self.authenticate('admin', 'admin@odoo', session_extra={'_trace_disable': False})
         # Test the session is valid
         # Valid session -> not redirected from /web to /web/login
         self.assertTrue(self.url_open('/web').url.endswith('/web'))

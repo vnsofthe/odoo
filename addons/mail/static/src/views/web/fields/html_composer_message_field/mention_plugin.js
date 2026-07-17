@@ -10,12 +10,14 @@ export class MentionPlugin extends Plugin {
 
     resources = {
         beforeinput_handlers: this.onBeforeInput.bind(this),
+        selectors_for_feff_providers: () =>
+            "a.o_mail_redirect, a.o_channel_redirect, a.o-discuss-mention",
     };
 
     setup() {
         this.mentionList = this.dependencies.overlay.createOverlay(MentionList, {
             hasAutofocus: true,
-            className: "popover",
+            className: "popover o-mail-MentionPlugin-overlay",
         });
     }
 
@@ -45,6 +47,7 @@ export class MentionPlugin extends Plugin {
             this.mentionList.open({
                 props: {
                     onSelect: this.onSelect.bind(this),
+                    thread: this.config.thread,
                     type: ev.data === "@" ? "partner" : "channel",
                     close: () => {
                         this.mentionList.close();

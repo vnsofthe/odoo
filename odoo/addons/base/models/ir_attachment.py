@@ -7,19 +7,24 @@ import hashlib
 import logging
 import mimetypes
 import os
-import psycopg2
 import re
 import uuid
-import werkzeug
-
 from collections import defaultdict
 
-from odoo import api, fields, models, SUPERUSER_ID, tools, _
-from odoo.exceptions import AccessError, ValidationError, UserError
-from odoo.http import Stream, root, request
-from odoo.tools import config, human_size, image, str2bool, consteq
-from odoo.tools.mimetypes import guess_mimetype, fix_filename_extension, _olecf_mimetypes
+import psycopg2
+import werkzeug
+
+from odoo import SUPERUSER_ID, _, api, fields, models, tools
+from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.http import Stream, request, root
 from odoo.osv import expression
+from odoo.tools import config, consteq, human_size, image, str2bool
+from odoo.tools.mimetypes import (
+    MIMETYPE_HEAD_SIZE,
+    _olecf_mimetypes,
+    fix_filename_extension,
+    guess_mimetype,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -131,10 +136,10 @@ class IrAttachment(models.Model):
         fname, full_path = self._get_path(bin_value, checksum)
         if not os.path.exists(full_path):
             try:
-                with open(full_path, 'wb') as fp:
-                    fp.write(bin_value)
                 # add fname to checklist, in case the transaction aborts
                 self._mark_for_gc(fname)
+                with open(full_path, 'wb') as fp:
+                    fp.write(bin_value)
             except IOError:
                 _logger.info("_file_write writing %s", full_path, exc_info=True)
         return fname
@@ -347,7 +352,10 @@ class IrAttachment(models.Model):
                     nw, nh = map(int, max_resolution.split('x'))
                     if w > nw or h > nh:
                         img = img.resize(nw, nh)
-                        quality = int(ICP('base.image_autoresize_quality', 80))
+                        if _subtype == 'jpeg':  # Do not affect PNGs color palette
+                            quality = int(ICP('base.image_autoresize_quality', 80))
+                        else:
+                            quality = 0
                         image_data = img.image_quality(quality=quality)
                         if is_raw:
                             values['raw'] = image_data
@@ -445,6 +453,15 @@ class IrAttachment(models.Model):
                 has_group = self.env.user.has_group
                 if not any(has_group(g) for g in attachment.get_serving_groups()):
                     raise ValidationError(_("Sorry, you are not allowed to write on this document"))
+
+    @api.constrains('res_model', 'res_id')
+    def _check_circular_attachment(self):
+        for record in self.sudo():
+            if record.res_model == 'ir.attachment' and record.id == record.res_id:
+                raise ValidationError(_(
+                    "You cannot attach an attachment to itself.\n"
+                    "Attachment %(record)s cannot have res_id: %(res_id)s",
+                    record=record, res_id=record))
 
     @api.model
     def check(self, mode, values=None):
@@ -766,7 +783,7 @@ class IrAttachment(models.Model):
             mimetype = file.content_type
             filename = file.filename
         elif mimetype == 'GUESS':
-            head = file.read(1024)
+            head = file.read(MIMETYPE_HEAD_SIZE)
             file.seek(-len(head), 1)  # rewind
             mimetype = guess_mimetype(head)
             filename = fix_filename_extension(file.filename, mimetype)
@@ -836,3 +853,9 @@ class IrAttachment(models.Model):
     def _is_remote_source(self):
         self.ensure_one()
         return self.url and not self.file_size and self.url.startswith(('http://', 'https://', 'ftp://'))
+
+    def _migrate_remote_to_local(self):
+        if self.type == 'binary':
+            return
+        if self.type == 'url':
+            raise ValidationError(_("URL attachment (%s) shouldn't be migrated to local.", self.id))

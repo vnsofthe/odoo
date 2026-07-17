@@ -44,10 +44,32 @@ registry.category("web_tour.tours").add("OrderNumberConflictTour", {
             Chrome.clickPlanButton(),
             Chrome.clickMenuOption("Orders"),
             TicketScreen.nthColumnContains(1, 2, "Order"),
-            TicketScreen.nthColumnContains(1, 3, "1"),
             TicketScreen.nthColumnContains(2, 2, "Self-Order"),
             TicketScreen.nthColumnContains(2, 3, "S"),
-            TicketScreen.nthColumnContains(2, 3, "1"),
+        ].flat(),
+});
+
+registry.category("web_tour.tours").add("test_cancel_order_from_ui", {
+    steps: () =>
+        [
+            Chrome.startPoS(),
+            Dialog.confirm("Open Register"),
+            FloorScreen.clickTable("5"),
+            ProductScreen.isShown(),
+            ProductScreen.addOrderline("Coca-Cola", "1", "3"),
+            Chrome.clickPlanButton(),
+            Chrome.isSynced(),
+            FloorScreen.isShown(),
+            FloorScreen.clickTable("5"),
+            ProductScreen.clickReview(),
+            ProductScreen.clickControlButton("Cancel Order"),
+            Dialog.confirm(),
+            FloorScreen.isShown(),
+            Chrome.clickMenuOption("Orders"),
+            TicketScreen.noOrderIsThere(),
+            TicketScreen.selectFilter("Paid"),
+            TicketScreen.noOrderIsThere(),
+            Chrome.storedOrderCount(0),
         ].flat(),
 });
 

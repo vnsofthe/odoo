@@ -9,7 +9,8 @@ import { LOADING_ERROR } from "@spreadsheet/data_sources/data_source";
 import { omit } from "@web/core/utils/objects";
 import { OdooPivotLoader } from "./odoo_pivot_loader";
 
-const { pivotRegistry, supportedPivotPositionalFormulaRegistry } = registries;
+const { pivotRegistry, supportedPivotPositionalFormulaRegistry, pivotNormalizationValueRegistry } =
+    registries;
 const { pivotTimeAdapter, toString, areDomainArgsFieldsValid, toNormalizedPivotValue, deepEquals } =
     helpers;
 
@@ -481,6 +482,17 @@ export class OdooPivot {
         );
     }
 
+    get source() {
+        const data = this.definition;
+        return {
+            resModel: data.model,
+            type: "pivot",
+            fields: data.measures.map((m) => m.fieldName),
+            groupby: [...data.columns, ...data.rows].map((dim) => dim.nameWithGranularity),
+            domain: this.getDomainWithGlobalFilters(),
+        };
+    }
+
     //--------------------------------------------------------------------------
     // Global filters
     //--------------------------------------------------------------------------
@@ -554,6 +566,15 @@ export class OdooPivotRuntimeDefinition extends PivotRuntimeDefinition {
         return this._sortedColumn;
     }
 
+    createPivotDimension(fields, dimension) {
+        const dim = super.createPivotDimension(fields, dimension);
+        const field = fields[dimension.fieldName];
+        if (field?.relation) {
+            dim.relation = field.relation;
+        }
+        return dim;
+    }
+
     get domain() {
         return this._domain;
     }
@@ -620,7 +641,7 @@ pivotRegistry.add("ODOO", {
         ((MEASURES_TYPES.includes(field.type) && field.aggregator) || field.type === "many2one") &&
         field.name !== "id" &&
         field.store,
-    isGroupable: (field) => field.groupable,
+    isGroupable: (field) => field.groupable && pivotNormalizationValueRegistry.contains(field.type),
 });
 
 supportedPivotPositionalFormulaRegistry.add("ODOO", true);

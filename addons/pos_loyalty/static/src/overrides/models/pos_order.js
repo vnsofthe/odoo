@@ -356,7 +356,7 @@ patch(PosOrder.prototype, {
             won += points - this._getPointsCorrection(program);
             if (coupon_id !== 0) {
                 for (const line of this._get_reward_lines()) {
-                    if (line.coupon_id.id === coupon_id) {
+                    if (line.coupon_id?.id === coupon_id) {
                         spent += line.points_cost;
                     }
                 }
@@ -389,6 +389,15 @@ patch(PosOrder.prototype, {
      */
     _getPointsCorrection(program) {
         const rewardLines = this.lines.filter((line) => line.is_reward_line);
+        if (
+            !this._canGenerateRewards(
+                program,
+                this.get_total_with_tax(),
+                this.get_total_without_tax()
+            )
+        ) {
+            return 0;
+        }
         let res = 0;
         for (const rule of program.rule_ids) {
             for (const line of rewardLines) {

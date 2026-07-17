@@ -37,7 +37,7 @@ class SupplierInfo(models.Model):
         'Quantity', default=0.0, required=True, digits="Product Unit of Measure",
         help="The quantity to purchase from this vendor to benefit from the price, expressed in the vendor Product Unit of Measure if not any, in the default unit of measure of the product otherwise.")
     price = fields.Float(
-        'Price', default=0.0, digits='Product Price',
+        'Price', default=0.0, min_display_digits='Product Price',
         required=True, help="The price to purchase a product")
     price_discounted = fields.Float('Discounted Price', compute='_compute_price_discounted')
     company_id = fields.Many2one(
@@ -102,4 +102,4 @@ class SupplierInfo(models.Model):
         return super().write(vals)
 
     def _get_filtered_supplier(self, company_id, product_id, params=False):
-        return self.filtered(lambda s: (not s.company_id or s.company_id.id == company_id.id) and (s.partner_id.active and (not s.product_id or s.product_id == product_id)))
+        return self.filtered(lambda s: (not s.company_id or s.company_id.id == company_id.id) and (s.partner_id.sudo().active and (not s.product_id or s.product_id == product_id)))

@@ -28,6 +28,7 @@ import {
 import { assets } from "@web/core/assets";
 import { browser } from "@web/core/browser/browser";
 import { patch } from "@web/core/utils/patch";
+import { delay } from "@web/core/utils/concurrency";
 import { FormController } from "@web/views/form/form_controller";
 import { Counter, EmbeddedWrapperMixin } from "./_helpers/embedded_component";
 import { moveSelectionOutsideEditor, setSelection } from "./_helpers/selection";
@@ -609,7 +610,36 @@ test("edit a html field with `o-contenteditable-true` or `o-contenteditable-fals
     pasteOdooEditorHtml(htmlEditor, "addon");
     expect(`[name="txt"] .odoo-editor-editable`).toHaveInnerHTML(getTxtValue("addoninside", true));
     await clickSave();
-    expect.verifySteps(["update_value", "web_save"]);
+    expect.verifySteps(["update_value", "update_value", "web_save"]);
+});
+
+test("blurring an inner contenteditable field by clicking outside should trigger update_value", async () => {
+    patchWithCleanup(HtmlField.prototype, {
+        updateValue() {
+            expect.step("update_value");
+            super.updateValue(...arguments);
+        },
+    });
+    Partner._records = [
+        {
+            id: 1,
+            txt: `<div contenteditable="false">outside<div contenteditable="true"><p class="inner">inside</p></div></div>`,
+        },
+    ];
+    await mountView({
+        type: "form",
+        resId: 1,
+        resModel: "partner",
+        arch: `
+            <form>
+                <field name="txt" widget="html"/>
+            </form>`,
+    });
+    setSelection({ anchorNode: queryOne(".inner"), anchorOffset: 0 });
+    await tick();
+    await insertText(htmlEditor, "a");
+    await click(document.body);
+    expect.verifySteps(["update_value"]);
 });
 
 test.tags("focus required");
@@ -909,6 +939,54 @@ test("isDirty should be false when the content is being transformed by the edito
         message: "value should be sanitized by the editor",
     });
     expect(`.o_form_button_save`).not.toBeVisible();
+});
+
+test("isDirty should not be reset to false if onChange fired between getEditorContent and updateValue", async () => {
+    let htmlField;
+    const { promise: firstStep, resolve: resolveFirst } = Promise.withResolvers();
+    const { promise: secondStep, resolve: resolveSecond } = Promise.withResolvers();
+    const { promise: thirdStep, resolve: resolveThird } = Promise.withResolvers();
+    patchWithCleanup(HtmlField.prototype, {
+        setup() {
+            super.setup();
+            htmlField = this;
+        },
+        async getEditorContent() {
+            const el = await super.getEditorContent();
+            resolveFirst();
+            await secondStep;
+            return el;
+        },
+        async updateValue() {
+            const updated = await super.updateValue(...arguments);
+            resolveThird();
+            return updated;
+        },
+    });
+    await mountView({
+        type: "form",
+        resId: 1,
+        resModel: "partner",
+        arch: `
+            <form>
+                <field name="txt" widget="html"/>
+            </form>`,
+    });
+    expect(htmlField.isDirty).toBe(false);
+    expect(`.o_form_button_save`).not.toBeVisible();
+    const p = htmlField.editor.editable.querySelector("p");
+    p.append(htmlField.editor.document.createTextNode("Second"));
+    htmlField.editor.shared.history.addStep();
+    await clickSave();
+    await firstStep;
+    p.append(htmlField.editor.document.createTextNode("Third"));
+    htmlField.editor.shared.history.addStep();
+    resolveSecond();
+    await thirdStep;
+    await animationFrame();
+    expect(htmlField.editor.editable).toHaveInnerHTML(`<p>firstSecondThird</p>`);
+    expect(htmlField.isDirty).toBe(true);
+    expect(`.o_form_button_save`).toBeVisible();
 });
 
 test.tags("desktop");
@@ -2195,6 +2273,68 @@ describe("save image", () => {
         expect(img.getAttribute("src")).toBe("/test_image_url.png?access_token=12345");
         expect(img).not.toHaveClass("o_b64_image_to_save");
         expect.verifySteps(["add_data: partner 1", "generate_access_token: 123"]);
+    });
+
+    test("Ensure a traceback is not raised when hiding an HtmlField with unsaved images", async () => {
+        Partner._records = [
+            {
+                id: 1,
+                txt: "<p class='test_target'><br></p>",
+            },
+        ];
+
+        onRpc("/html_editor/attachment/add_data", async (request) => {
+            const { params } = await request.json();
+            const { res_id, res_model } = params;
+            expect.step(`add_data-start: ${res_model} ${res_id}`);
+            // add a delay to emulate saving a big image.
+            await delay(50);
+            expect.step(`add_data-end: ${res_model} ${res_id}`);
+            return {
+                image_src: "/test_image_url.png",
+                access_token: "1234",
+                public: false,
+            };
+        });
+
+        await mountView({
+            type: "form",
+            resId: 1,
+            resModel: "partner",
+            arch: `
+            <form>
+                <notebook>
+                    <page string="html" name="html">
+                        <field name="txt" widget="html"/>
+                    </page>
+                    <page string="empty" name="empty"/>
+                </notebook>
+            </form>`,
+        });
+        setSelectionInHtmlField(".test_target");
+
+        // Paste image.
+        pasteFile(
+            htmlEditor,
+            createBase64ImageFile(
+                "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII"
+            )
+        );
+        await waitFor("img");
+        const b64img = htmlEditor.editable.querySelector("img");
+        expect(b64img.src.startsWith("data:image/png;base64,")).toBe(true);
+        expect(b64img).toHaveClass("o_b64_image_to_save");
+
+        // Switch tab, this should trigger the image save.
+        await contains(".o_notebook_headers .nav-link:not(.active)").click();
+        await delay(50);
+        // reswitch tab, and check the image was saved properly.
+        await contains(".o_notebook_headers .nav-link:not(.active)").click();
+        const savedImg = htmlEditor.editable.querySelector("img");
+        expect(savedImg.getAttribute("src")).toBe("/test_image_url.png?access_token=1234");
+        expect(savedImg).not.toHaveClass("o_b64_image_to_save");
+
+        expect.verifySteps(["add_data-start: partner 1", "add_data-end: partner 1"]);
     });
 });
 

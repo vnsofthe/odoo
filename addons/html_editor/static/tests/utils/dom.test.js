@@ -335,7 +335,6 @@ describe("wrapInlinesInBlocks", () => {
                 <div>
                     <div contenteditable="false" style="display: inline;">inline</div><span class="a">span</span>[]
                 </div>
-                <div class="o-paragraph"><br></div>
                 <div>
                     text
                     <div contenteditable="false" style="display: inline;">inline</div>
@@ -395,5 +394,14 @@ describe("fillEmpty", () => {
         const div = el.firstChild;
         fillEmpty(div);
         expect(el.innerHTML).toBe('<div data-oe-protected="true" contenteditable="false"></div>');
+    });
+});
+
+describe("crash fixes", () => {
+    test("inserting a br should not crash", async () => {
+        const { el, editor } = await setupEditor("<p>a[]</p>");
+        const br = document.createElement("br");
+        editor.shared.dom.insert(br);
+        expect(getContent(el)).toBe("<p>a[]</p>");
     });
 });

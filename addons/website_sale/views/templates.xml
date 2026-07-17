@@ -197,7 +197,7 @@
                 >
                     <t t-set="image_holder" t-value="product._get_image_holder()"/>
                     <span t-field="image_holder.image_1920"
-                        t-options="{'widget': 'image', 'preview_image': image_type, 'itemprop': 'image', 'class': 'h-100 w-100 position-absolute'}"
+                        t-options="{'widget': 'image', 'preview_image': image_type, 'itemprop': 'image', 'class': 'h-100 w-100 position-absolute object-fit-contain'}"
                         class="oe_product_image_img_wrapper d-flex h-100 justify-content-center align-items-center position-absolute"/>
 
                     <t t-set="bg_color" t-value="td_product['ribbon'].bg_color"/>
@@ -840,11 +840,13 @@
     <!-- Top-Nav Categories -->
     <template id="website_sale.filmstrip_categories" name="Categories Filmstrip">
         <t t-if="category.id">
-            <t t-set="entries" t-value="not search and category.child_id or category.child_id.filtered(lambda c: category.id in search_categories_ids)"/>
+            <t t-set="available_categories" t-value="category.child_id.filtered(lambda c: c.can_access_from_current_website())"/>
+            <t t-set="entries" t-value="not search and available_categories or available_categories.filtered(lambda c: c.id in search_categories_ids)"/>
 
             <t t-if="not entries">
                 <t t-set="parent" t-value="category.parent_id"/>
-                <t t-set="entries" t-value="not search and parent.child_id or parent.child_id.filtered(lambda c: parent.id in search_categories_ids)"/>
+                <t t-set="available_categories" t-value="parent.child_id.filtered(lambda c: c.can_access_from_current_website())"/>
+                <t t-set="entries" t-value="not search and available_categories or available_categories.filtered(lambda c: c.id in search_categories_ids)"/>
             </t>
         </t>
         <t t-else="">
@@ -1534,7 +1536,7 @@
                         <div class="css_non_editable_mode_hidden">
                             <div class="missing_option_warning alert alert-info rounded-0 fade show d-none d-print-none o_default_snippet_text">
                                 Your Dynamic Snippet will be displayed here...
-                                This message is displayed because youy did not provide both a filter and a template to use.
+                                This message is displayed because you did not provide both a filter and a template to use.
                             </div>
                         </div>
                         <div class="dynamic_snippet_template"></div>
@@ -2201,7 +2203,7 @@
             method="post" name="coupon_code">
             <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()" t-nocache="The csrf token must always be up to date."/>
             <div class="input-group w-100 my-2">
-                <input name="promo" class="form-control" type="text" placeholder="Discount code..." t-att-value="website_sale_order.pricelist_id.code or None"/>
+                <input name="promo" class="form-control" type="text" placeholder="Discount code..."/>
                 <a href="#" role="button" class="btn btn-secondary a-submit ps-2">Apply</a>
             </div>
         </form>
@@ -3062,8 +3064,9 @@
             <tr t-if="not hide_promotions">
                 <td colspan="3" class="text-end text-xl-end border-0 p-0">
                 <span>
+                    <!-- force_coupon to be removed in master -->
                     <t t-set="force_coupon" t-value="website_sale_order.pricelist_id.code"/>
-                    <div t-if="not force_coupon" class="coupon_form">
+                    <div class="coupon_form">
                         <t t-call="website_sale.coupon_form"/>
                     </div>
                 </span>

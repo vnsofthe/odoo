@@ -15,9 +15,15 @@ import { animationFrame, tick } from "@odoo/hoot-mock";
 import { markup } from "@odoo/owl";
 import { contains, onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { setupEditor } from "../_helpers/editor";
-import { cleanLinkArtifacts, unformat } from "../_helpers/format";
+import { cleanLinkArtifacts } from "../_helpers/format";
 import { getContent, setContent, setSelection } from "../_helpers/selection";
-import { insertLineBreak, insertText, splitBlock, undo } from "../_helpers/user_actions";
+import {
+    insertLineBreak,
+    insertSpace,
+    insertText,
+    splitBlock,
+    undo,
+} from "../_helpers/user_actions";
 import { execCommand } from "../_helpers/userCommands";
 import { expectElementCount } from "../_helpers/ui_expectations";
 
@@ -249,7 +255,7 @@ describe("Link creation", () => {
         test("typing valid URL + space should convert to link", async () => {
             const { editor, el } = await setupEditor("<p>[]</p>");
             await insertText(editor, "http://google.co.in");
-            await insertText(editor, " ");
+            await insertSpace(editor);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
                 '<p><a href="http://google.co.in">http://google.co.in</a>&nbsp;[]</p>'
             );
@@ -259,6 +265,14 @@ describe("Link creation", () => {
             await insertText(editor, "www.odoo");
             await insertText(editor, " ");
             expect(cleanLinkArtifacts(getContent(el))).toBe("<p>www.odoo []</p>");
+        });
+        test("typing uppercase URL + space should convert to link", async () => {
+            const { editor, el } = await setupEditor("<p>[]</p>");
+            await insertText(editor, "http://ODOO.COM");
+            await insertSpace(editor);
+            expect(cleanLinkArtifacts(getContent(el))).toBe(
+                '<p><a href="http://ODOO.COM">http://ODOO.COM</a>&nbsp;[]</p>'
+            );
         });
     });
     describe("Creation by powerbox", () => {
@@ -527,63 +541,6 @@ describe("Link creation", () => {
                 `<p>[<a href="https://www.test.com">Hello</a> my friend]</p>`
             );
         });
-        test("should wrap selected text with link and preserve styles", async () => {
-            const { el } = await setupEditor(
-                `<p><span style="font-size: 48px;"><strong>s[trong</strong><u>underlin]e</u></span></p>`
-            );
-            await waitFor(".o-we-toolbar");
-            await click(".o-we-toolbar .fa-link");
-            await expectElementCount(".o-we-linkpopover", 1);
-            expect(".o_we_href_input_link").toBeFocused();
-            await fill("http://test.com");
-            await click('select[name="link_type"');
-            await select("primary");
-            await click(".o_we_apply_link");
-            await animationFrame();
-            expect(cleanLinkArtifacts(getContent(el))).toBe(
-                unformat(`
-                    <p>
-                        <span style="font-size: 48px;"><strong>s</strong></span>
-                        <a class="btn btn-fill-primary" href="http://test.com">
-                            <span style="font-size: 48px;"><strong>trong</strong><u>underlin[]</u></span>
-                        </a>
-                        <span style="font-size: 48px;"><u>e</u></span>
-                    </p>
-                `)
-            );
-        });
-        test("should apply link over split text nodes while preserving styles", async () => {
-            const { el } = await setupEditor(`<p><span class="display-1-fs"></span></p>`);
-
-            const fontSizeSpan = queryOne("span.display-1-fs");
-            fontSizeSpan.appendChild(document.createTextNode("te"));
-            fontSizeSpan.appendChild(document.createTextNode("st"));
-            setSelection({
-                anchorNode: fontSizeSpan.firstChild,
-                anchorOffset: 1,
-                focusNode: fontSizeSpan.lastChild,
-                focusOffset: 1,
-            });
-
-            await waitFor(".o-we-toolbar");
-            await click(".o-we-toolbar .fa-link");
-            await expectElementCount(".o-we-linkpopover", 1);
-            expect(".o_we_href_input_link").toBeFocused();
-            await fill("http://test.com");
-            await click(".o_we_apply_link");
-            await animationFrame();
-            expect(cleanLinkArtifacts(getContent(el))).toBe(
-                unformat(`
-                    <p>
-                        <span class="display-1-fs">t</span>
-                        <a href="http://test.com">
-                            <span class="display-1-fs">es[]</span>
-                        </a>
-                        <span class="display-1-fs">t</span>
-                    </p>
-                `)
-            );
-        });
     });
 });
 
@@ -731,6 +688,14 @@ describe("shortcut", () => {
             '<p><a href="http://test.com">li[]nk</a></p>'
         );
     });
+    test("should not create a link via shortcut for partial selection inside contenteditable false", async () => {
+        const { el } = await setupEditor(`<p contenteditable="false">T[e]st</p>`);
+        await press(["ctrl", "k"]);
+        await animationFrame();
+        await click(".o_command_name:first");
+        expect(getContent(el)).toBe('<p contenteditable="false">T[e]st</p>');
+        expect(queryOne(`p[contenteditable="false"]`).childNodes.length).toBe(1);
+    });
 });
 
 describe("link preview", () => {
@@ -739,7 +704,7 @@ describe("link preview", () => {
             description: markup("Test description"),
             link_preview_name: "Task name | Project name",
         }));
-        onRpc("/odoo/project/1/tasks/8", () => "", { pure: true });
+        onRpc("/odoo/project/1/tasks/8", () => "");
         const { editor, el } = await setupEditor(`<p>[]</p>`);
         await insertText(editor, "/link");
         await animationFrame();
@@ -789,7 +754,7 @@ describe("link preview", () => {
                 link_preview_name: "Task name | Project name",
             };
         });
-        onRpc("/odoo/cachetest/8", () => "", { pure: true });
+        onRpc("/odoo/cachetest/8", () => "");
         const { editor } = await setupEditor(`<p>abc[]</p>`);
         await insertText(editor, "/link");
         await animationFrame();
@@ -830,15 +795,11 @@ describe("link preview", () => {
         });
 
         const currentProtocol = window.location.protocol;
-        onRpc(
-            "/odoo/cachetest/8",
-            (request) => {
-                const urlProtocol = new URL(request.url).protocol;
-                expect(urlProtocol).toBe(currentProtocol);
-                return "";
-            },
-            { pure: true }
-        );
+        onRpc("/odoo/cachetest/8", (request) => {
+            const urlProtocol = new URL(request.url).protocol;
+            expect(urlProtocol).toBe(currentProtocol);
+            return "";
+        });
 
         const { editor } = await setupEditor(`<p>abc[]</p>`);
         await insertText(editor, "/link");
@@ -1150,4 +1111,21 @@ describe("upload file via link popover", () => {
             expect(".o_we_href_input_link").toHaveValue("http://test.com/");
         });
     });
+});
+
+test("Should properly show the preview if fetching metadata fails", async () => {
+    const id = Math.random().toString();
+    onRpc("/html_editor/link_preview_internal", () => Promise.reject(new Error(`No data ${id}`)));
+    onRpc("/contactus", () => ({}));
+    const originalConsoleWarn = console.warn.bind(console);
+    patchWithCleanup(console, {
+        warn: (msg, error, ...args) => {
+            if (!error?.message?.includes?.(id)) {
+                originalConsoleWarn(msg, error, ...args);
+            }
+        },
+    });
+    const { el } = await setupEditor('<p><a href="/contactus">a[]b</a></p>');
+    await waitFor(".o-we-linkpopover");
+    expect(cleanLinkArtifacts(getContent(el))).toBe('<p><a href="/contactus">a[]b</a></p>');
 });

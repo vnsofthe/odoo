@@ -9,13 +9,12 @@ import {
     SaleDetailsButton,
     handleSaleDetails,
 } from "@point_of_sale/app/navbar/sale_details_button/sale_details_button";
-import { Component, onMounted, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { ProductScreen } from "@point_of_sale/app/screens/product_screen/product_screen";
 import { Input } from "@point_of_sale/app/generic_components/inputs/input/input";
 import { isBarcodeScannerSupported } from "@web/core/barcode/barcode_video_scanner";
 import { Dropdown } from "@web/core/dropdown/dropdown";
 import { DropdownItem } from "@web/core/dropdown/dropdown_item";
-import { user } from "@web/core/user";
 import { OrderTabs } from "@point_of_sale/app/components/order_tabs/order_tabs";
 import { openCustomerDisplay } from "@point_of_sale/customer_display/utils";
 import { _t } from "@web/core/l10n/translation";
@@ -43,9 +42,6 @@ export class Navbar extends Component {
         this.hardwareProxy = useService("hardware_proxy");
         this.isDisplayStandalone = isDisplayStandalone();
         this.isBarcodeScannerSupported = isBarcodeScannerSupported;
-        onMounted(async () => {
-            this.isSystemUser = await user.hasGroup("base.group_system");
-        });
     }
     onClickScan() {
         if (!this.pos.scanning) {
@@ -114,7 +110,7 @@ export class Navbar extends Component {
     }
 
     get showCreateProductButton() {
-        return this.isSystemUser;
+        return this.pos.hasProductCreationAccess;
     }
 
     async showSaleDetails() {

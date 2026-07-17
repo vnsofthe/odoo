@@ -485,8 +485,24 @@ registry.category("web_tour.tours").add("PosCustomerAllFieldsDisplayed", {
             ProductScreenPartnerList.searchCustomerValueAndClear("United States"),
             ProductScreenPartnerList.searchCustomerValueAndClear("9898989899"),
             ProductScreenPartnerList.searchCustomerValueAndClear("0987654321"),
+            ProductScreenPartnerList.searchCustomerValueAndClear("john@doe.com"),
+            // Test wildcard search ('j%hn d%e' -> john doe)
             ProductScreen.clickPartnerButton(),
-            PartnerList.searchCustomerValue("john@doe.com"),
+            {
+                isActive: ["mobile"],
+                content: `Click search field`,
+                trigger: `.fa-search.undefined`,
+                run: `click`,
+            },
+            {
+                content: `Search customer with "j%hn d%e"`,
+                trigger: `.modal-dialog .input-group input`,
+                run: `edit j%hn d%e`,
+            },
+            {
+                content: `Check "John Doe" is shown`,
+                trigger: `.partner-list .partner-info:nth-child(1):contains("John Doe")`,
+            },
         ].flat(),
 });
 
@@ -496,28 +512,28 @@ registry.category("web_tour.tours").add("PosCategoriesOrder", {
             Chrome.startPoS(),
             Dialog.confirm("Open Register"),
             {
-                trigger: '.category-button:eq(0) > span:contains("AAA")',
+                trigger: '.category-button:eq(0) > div span:contains("AAA")',
             },
             {
-                trigger: '.category-button:eq(1) > span:contains("AAB")',
+                trigger: '.category-button:eq(1) > div span:contains("AAB")',
             },
             {
-                trigger: '.category-button:eq(2) > span:contains("AAC")',
+                trigger: '.category-button:eq(2) > div span:contains("AAC")',
             },
             {
-                trigger: '.category-button:eq(1) > span:contains("AAB")',
+                trigger: '.category-button:eq(1) > div span:contains("AAB")',
                 run: "click",
             },
             ProductScreen.productIsDisplayed("Product in AAB and AAX", 0),
             {
-                trigger: '.category-button:eq(2) > span:contains("AAX")',
+                trigger: '.category-button:eq(2) > div span:contains("AAX")',
             },
             {
-                trigger: '.category-button:eq(2) > span:contains("AAX")',
+                trigger: '.category-button:eq(2) > div span:contains("AAX")',
                 run: "click",
             },
             {
-                trigger: '.category-button:eq(3) > span:contains("AAY")',
+                trigger: '.category-button:eq(3) > div span:contains("AAY")',
             },
         ].flat(),
 });
@@ -748,6 +764,86 @@ registry.category("web_tour.tours").add("test_pos_ui_round_globally", {
             PaymentScreen.clickPaymentMethod("Bank"),
             PaymentScreen.clickValidate(),
             ReceiptScreen.isShown(),
+            Chrome.endTour(),
+        ].flat(),
+});
+
+registry.category("web_tour.tours").add("test_product_ref_displayed", {
+    steps: () =>
+        [
+            Chrome.startPoS(),
+            Dialog.confirm("Open Register"),
+            ProductScreen.clickDisplayedProduct("Test name"),
+            ProductScreen.clickInfoProduct("Test name"),
+            {
+                trigger: ".modal .btn-secondary:contains(Edit)",
+                run: "click",
+            },
+            {
+                trigger: ".modal .btn-primary:contains(Save)",
+                run: "click",
+            },
+            ProductScreen.clickDisplayedProduct("Test name"),
+            ProductScreen.selectedOrderlineHas("Test name", "2.0"),
+
+            Chrome.endTour(),
+        ].flat(),
+});
+
+registry.category("web_tour.tours").add("test_dynamic_product_price", {
+    steps: () =>
+        [
+            Chrome.startPoS(),
+            Dialog.confirm("Open Register"),
+            ProductScreen.clickDisplayedProduct("Dynamic Product"),
+            ProductConfiguratorPopup.pickRadio("Dynamic Value 1"),
+            Chrome.clickBtn("Add"),
+            ProductScreen.selectedOrderlineHas("Dynamic Product (Dynamic Value 1)", "1.0", "10.00"),
+            ProductScreen.clickDisplayedProduct("Dynamic Product"),
+            ProductConfiguratorPopup.pickRadio("Dynamic Value 2"),
+            Chrome.clickBtn("Add"),
+            ProductScreen.selectedOrderlineHas("Dynamic Product (Dynamic Value 2)", "1.0", "20.00"),
+            Chrome.endTour(),
+        ].flat(),
+});
+
+registry.category("web_tour.tours").add("test_orderline_merge_with_higher_price_precision", {
+    steps: () =>
+        [
+            Chrome.startPoS(),
+            Dialog.confirm("Open Register"),
+            ProductScreen.clickDisplayedProduct("High Precision Product"),
+            ProductScreen.selectedOrderlineHas("High Precision Product", "1.0", "8.25"),
+            ProductScreen.clickDisplayedProduct("High Precision Product"),
+            ProductScreen.selectedOrderlineHas("High Precision Product", "2.0", "16.49"), // 8.245 * 2 = 16.49
+            Chrome.endTour(),
+        ].flat(),
+});
+
+registry.category("web_tour.tours").add("test_barcode_scan_preselect_always_variant", {
+    steps: () =>
+        [
+            Chrome.startPoS(),
+            Dialog.confirm("Open Register"),
+
+            scan_barcode("VAR_RED_001"),
+            {
+                content: "Configurator opens after scanning Red variant barcode",
+                trigger: ".modal .section-product-info-title:contains('Variant Barcode Product')",
+            },
+
+            ProductConfiguratorPopup.pickRadio("Large"),
+            Dialog.confirm("Add"),
+            ProductScreen.selectedOrderlineHas("Variant Barcode Product (Red) (Large)", "1.0"),
+
+            scan_barcode("VAR_BLUE_001"),
+            {
+                content: "Configurator opens after scanning Blue variant barcode",
+                trigger: ".modal .section-product-info-title:contains('Variant Barcode Product')",
+            },
+            Dialog.confirm("Add"),
+            ProductScreen.selectedOrderlineHas("Variant Barcode Product (Blue) (Small)", "1.0"),
+
             Chrome.endTour(),
         ].flat(),
 });

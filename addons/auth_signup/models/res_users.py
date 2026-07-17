@@ -80,7 +80,7 @@ class ResUsers(models.Model):
                 values.pop('login', None)
                 values.pop('name', None)
                 partner_user.write(values)
-                if not partner_user.login_date:
+                if not partner_user.login_date and partner_user._is_internal():
                     partner_user._notify_inviter()
                 return (partner_user.login, values.get('password'))
             else:
@@ -94,7 +94,6 @@ class ResUsers(models.Model):
                     values['company_id'] = partner.company_id.id
                     values['company_ids'] = [(6, 0, [partner.company_id.id])]
                 partner_user = self._signup_create_user(values)
-                partner_user._notify_inviter()
         else:
             # no token, sign up an external user
             values['email'] = values.get('email') or values.get('login')
@@ -250,7 +249,7 @@ class ResUsers(models.Model):
         email_template = self.env.ref('auth_signup.mail_template_data_unregistered_users', raise_if_not_found=False)
         if not email_template:
             _logger.warning("Template 'auth_signup.mail_template_data_unregistered_users' was not found. Cannot send reminder notifications.")
-            self.env['ir.cron']._commit_progress(deactivate=True)
+            self.env['ir.cron']._notify_progress(deactivate=True)
             return
         datetime_min = fields.Datetime.today() - relativedelta(days=after_days)
         datetime_max = datetime_min + relativedelta(days=1)
@@ -289,13 +288,14 @@ class ResUsers(models.Model):
                 'email_to': self.email
             }
 
-            body = self.env['mail.render.mixin']._render_template(
+            user_lang = self.lang or self.env.lang or 'en_US'
+            body = self.env['mail.render.mixin'].with_context(lang=user_lang)._render_template(
                     'auth_signup.alert_login_new_device',
                     model='res.users', res_ids=self.ids,
                     engine='qweb_view', options={'post_process': True},
                     add_context=self._prepare_new_device_notice_values())[self.id]
             mail = self.env['mail.mail'].sudo().create({
-                'subject': _('New Connection to your Account'),
+                'subject': self.with_context(lang=user_lang).env._('New Connection to your Account'),
                 'email_from': self.company_id.email_formatted or self.email_formatted,
                 'body_html': body,
                 **email_values,
@@ -356,6 +356,18 @@ class ResUsers(models.Model):
                 except MailDeliveryException:
                     users_with_email.partner_id.with_context(create_user=True).signup_cancel()
         return users
+
+    def write(self, vals):
+        if 'active' in vals and not vals['active']:
+            self.partner_id.sudo().signup_cancel()
+        return super().write(vals)
+
+    @api.ondelete(at_uninstall=False)
+    def _ondelete_signup_cancel(self):
+        # Cancel pending partner signup when the user is deleted.
+        for user in self:
+            if user.partner_id:
+                user.partner_id.signup_cancel()
 
     def copy(self, default=None):
         if not default or not default.get('email'):

@@ -22,6 +22,7 @@ import {
 import { registry } from "@web/core/registry";
 import * as Numpad from "@point_of_sale/../tests/tours/utils/numpad_util";
 import { delay } from "@odoo/hoot-dom";
+import * as TextInputPopup from "@point_of_sale/../tests/tours/utils/text_input_popup_util";
 
 const ProductScreen = { ...ProductScreenPos, ...ProductScreenResto };
 
@@ -336,6 +337,13 @@ registry.category("web_tour.tours").add("OrderChange", {
                     "acknowledge printing error ( because we don't have printer in the test. )",
             },
             ProductScreen.orderlinesHaveNoChange(),
+            ProductScreen.clickControlButton("General Note"),
+            TextInputPopup.inputText("test note"),
+            Dialog.confirm(),
+            negateStep(...ProductScreen.OrderButtonNotContain("Message")),
+            ProductScreen.clickControlButton("General Note"),
+            Dialog.cancel(),
+            ProductScreen.OrderButtonNotContain("Message"),
             ProductScreen.clickPayButton(),
             PaymentScreen.clickPaymentMethod("Cash"),
             PaymentScreen.clickNumpad("+10"),
@@ -745,6 +753,7 @@ registry.category("web_tour.tours").add("test_book_and_release_table", {
             Dialog.confirm("Open Register"),
             FloorScreen.clickTable("5"),
             ProductScreen.bookOrReleaseTable(),
+            FloorScreen.isShown(),
             waitForLoading(),
             {
                 content: "Check if order has a server ID",
@@ -806,5 +815,94 @@ registry.category("web_tour.tours").add("test_reload_order_line_removed", {
             refresh(),
             FloorScreen.clickTable("5"),
             inLeftSide(Order.hasLine({ productName: "Coca-Cola", quantity: 1 })),
+        ].flat(),
+});
+
+registry.category("web_tour.tours").add("test_combo_children_qty_updated_with_note", {
+    steps: () =>
+        [
+            Chrome.startPoS(),
+            Dialog.confirm("Open Register"),
+            FloorScreen.clickTable("5"),
+            ProductScreen.clickDisplayedProduct("Office Combo"),
+            combo.select("Combo Product 2"),
+            combo.select("Combo Product 4"),
+            combo.select("Combo Product 6"),
+            Dialog.confirm(),
+            ProductScreen.clickOrderButton(),
+            ProductScreen.clickNumpad("3"),
+            ProductScreen.clickInternalNoteButton(),
+            TextInputPopup.inputText("test note"),
+            Dialog.confirm(),
+            combo.select("Combo Product 2"),
+            combo.select("Combo Product 4"),
+            combo.select("Combo Product 6"),
+            Dialog.confirm(),
+            Order.doesNotHaveLine({
+                productName: "Office Combo",
+                quantity: 1,
+                internalNote: "test note",
+            }),
+            Order.hasLine({ productName: "Combo Product 2", quantity: 1 }),
+            Order.hasLine({ productName: "Combo Product 4", quantity: 1 }),
+            Order.hasLine({ productName: "Combo Product 6", quantity: 1 }),
+            Order.hasLine({
+                productName: "Office Combo",
+                quantity: 2,
+                internalNote: "test note",
+            }),
+            Order.hasLine({ productName: "Combo Product 2", quantity: 2 }),
+            Order.hasLine({ productName: "Combo Product 4", quantity: 2 }),
+            Order.hasLine({ productName: "Combo Product 6", quantity: 2 }),
+        ].flat(),
+});
+
+registry.category("web_tour.tours").add("test_transfer_order_to_booked_table", {
+    steps: () =>
+        [
+            Chrome.startPoS(),
+            Dialog.confirm("Open Register"),
+
+            //Transfer sent product on table with same product sent
+            FloorScreen.clickTable("5"),
+            ProductScreen.clickDisplayedProduct("Coca-Cola"),
+            ProductScreen.clickOrderButton(),
+            Dialog.confirm(),
+            ProductScreen.orderlinesHaveNoChange("Coca-Cola"),
+            Chrome.clickPlanButton(),
+            FloorScreen.clickTable("4"),
+            ProductScreen.clickBookTable(),
+            FloorScreen.clickTable("5"),
+            ProductScreen.clickControlButton("Transfer"),
+            FloorScreen.clickTable("4"),
+            ProductScreen.orderlinesHaveNoChange("Coca-Cola"),
+            ProductScreen.orderLineHas("Coca-Cola", "1"),
+            ProductScreen.clickPayButton(),
+            PaymentScreen.clickPaymentMethod("Cash"),
+            PaymentScreen.clickValidate(),
+        ].flat(),
+});
+
+registry.category("web_tour.tours").add("test_quantity_correctly_displayed_after_transfer", {
+    steps: () =>
+        [
+            Chrome.startPoS(),
+            Dialog.confirm("Open Register"),
+            FloorScreen.clickTable("5"),
+            ProductScreen.clickDisplayedProduct("Coca-Cola"),
+            ProductScreen.OrderButtonCategoryQty("Drinks", "1"),
+            Chrome.clickPlanButton(),
+            FloorScreen.clickTable("4"),
+            ProductScreen.clickDisplayedProduct("Minute Maid"),
+            ProductScreen.OrderButtonCategoryQty("Drinks", "1"),
+            ProductScreen.clickOrderButton(),
+            Dialog.confirm(),
+            ProductScreen.OrderButtonNotContain("Drinks"),
+            ProductScreen.clickControlButton("Transfer"),
+            FloorScreen.clickTable("5"),
+            ProductScreen.OrderButtonCategoryQty("Drinks", "1"),
+            ProductScreen.clickOrderButton(),
+            Dialog.confirm(),
+            ProductScreen.OrderButtonNotContain("Drinks"),
         ].flat(),
 });

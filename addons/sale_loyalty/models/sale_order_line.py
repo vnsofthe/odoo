@@ -89,13 +89,24 @@ class SaleOrderLine(models.Model):
     def write(self, vals):
         cost_in_vals = 'points_cost' in vals
         if cost_in_vals:
-            previous_cost = {l: l.points_cost for l in self}
+            previous_vals = {line: (line.points_cost, line.coupon_id) for line in self}
         res = super().write(vals)
         if cost_in_vals:
             # Update our coupon points if the order is in a confirmed state
-            for line in self:
-                if previous_cost[line] != line.points_cost and line.state == 'sale':
-                    line.coupon_id.points += (previous_cost[line] - line.points_cost)
+            for line, (previous_cost, previous_coupon) in previous_vals.items():
+                if line.state != 'sale':
+                    continue
+                if line.points_cost != previous_cost or line.coupon_id != previous_coupon:
+                    previous_coupon.points += previous_cost
+                    line.coupon_id.points -= line.points_cost
+                    # Same coupon: apply the delta in a single call to avoid a redundant search.
+                    if line.coupon_id == previous_coupon:
+                        line.order_id._update_loyalty_history(line.coupon_id, line.points_cost - previous_cost)
+                    else:
+                        if previous_coupon:
+                            line.order_id._update_loyalty_history(previous_coupon, -previous_cost)
+                        if line.coupon_id:
+                            line.order_id._update_loyalty_history(line.coupon_id, line.points_cost)
         return res
 
     def unlink(self):

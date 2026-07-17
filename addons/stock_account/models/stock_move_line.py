@@ -31,9 +31,12 @@ class StockMoveLine(models.Model):
             for move_line in self:
                 move_id = vals.get('move_id', move_line.move_id.id)
                 analytic_move_to_recompute.add(move_id)
-        new_lot = False
-        if 'lot_id' in vals:
-            new_lot = vals.get('lot_id')
+        new_lot = vals.get('lot_id')
+        if 'lot_id' in vals and not new_lot:
+            for move_line in self:
+                if move_line.product_id.lot_valuated and move_line.state == "done":
+                    raise UserError(_('Product %(product)s is valuated by lot: an explicit Lot/Serial number is required.',
+                        product=move_line.product_id.display_name))
         if 'quant_id' in vals:
             new_quant = vals.get('quant_id')
             new_lot = self.env['stock.quant'].browse(new_quant).lot_id.id
@@ -87,7 +90,7 @@ class StockMoveLine(models.Model):
 
     def _action_done(self):
         for line in self:
-            if not line.lot_id and not line.lot_name and line.product_id.lot_valuated:
+            if not line.lot_id and not line.lot_name and line.product_id.lot_valuated and line.quantity:
                 raise UserError(_("Lot/Serial number is mandatory for product valuated by lot"))
         return super()._action_done()
 

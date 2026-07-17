@@ -26,6 +26,9 @@ registry.category("web_tour.tours").add('shop_wishlist', {
             run: "click",
         },
         {
+            trigger: ":not(:has(.my_wish_quantity:visible))",
+        },
+        {
             content: "go back to the store",
             trigger: "a[href='/shop']",
             run: "click",
@@ -97,13 +100,19 @@ registry.category("web_tour.tours").add('shop_wishlist', {
             run: "click",
         },
         {
-            content: "check that wishlist contains 1 item",
-            trigger: ".my_wish_quantity:contains(1)",
+            trigger: ":not(:has(tr:contains('Steel')))",
+        },
+        {
+            trigger: ":not(:has(tr:contains('Aluminium')))",
         },
         {
             content: "check B2B wishlist mode",
             trigger: "input#b2b_wish",
             run: "click",
+        },
+        {
+            content: "check that wishlist contains 1 item",
+            trigger: ".my_wish_quantity:contains(1)",
         },
         {
             content: "add item to cart",
@@ -207,6 +216,16 @@ registry.category("web_tour.tours").add('shop_wishlist', {
             trigger: '.oe_product_cart a:contains("Bottle")',
             run: "click",
             expectUnloadPage: true,
+        },
+        {
+            content: "Check wishlist quantity",
+            trigger: `a sup.my_wish_quantity:text(1)`,
+        },
+        {
+            // wait for the button to be correctly disabled because the first
+            // variant was already added to the wishlist from the product page.
+            content: "Check that the button is disabled",
+            trigger: "#product_detail form .o_add_wishlist_dyn.disabled",
         },
         {
             content: "Select Bottle with second variant from /product",

@@ -5,7 +5,11 @@ import { useCashierSelector } from "@pos_hr/app/select_cashier_mixin";
 patch(CashierName.prototype, {
     setup() {
         super.setup(...arguments);
-        this.cashierSelector = useCashierSelector();
+        if (this.pos.config.module_pos_hr) {
+            this.cashierSelector = useCashierSelector({
+                onScan: (employee) => this.pos.set_cashier(employee),
+            });
+        }
     },
     //@Override
     get avatar() {

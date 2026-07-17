@@ -70,6 +70,7 @@ class TestConfigManager(TransactionCase):
             # logging
             'logfile': '',
             'syslog': False,
+            'log_config': '',
             'log_handler': [':INFO'],
             'log_db': False,
             'log_db_level': 'warning',
@@ -114,6 +115,7 @@ class TestConfigManager(TransactionCase):
             # advanced
             'dev_mode': [],
             'shell_interface': None,
+            'skip_auto_install': False,
             'stop_after_init': False,
             'osv_memory_count_limit': 0,
             'transient_age_limit': 1.0,
@@ -191,6 +193,7 @@ class TestConfigManager(TransactionCase):
             # logging
             'logfile': '/tmp/odoo.log',
             'syslog': False,
+            'log_config': '',
             'log_handler': [':DEBUG'],
             'log_db': 'logdb',
             'log_db_level': 'debug',
@@ -235,6 +238,7 @@ class TestConfigManager(TransactionCase):
             # advanced
             'dev_mode': [],  # blacklist for save, ignored from the config file
             'shell_interface': 'ipython',  # blacklist for save, read from the config file
+            'skip_auto_install': False,
             'stop_after_init': True,  # blacklist for save, read from the config file
             'osv_memory_count_limit': 71,
             'transient_age_limit': 4.0,
@@ -313,6 +317,7 @@ class TestConfigManager(TransactionCase):
             'import_partial': '',
             'list_db': True,
             'load_language': None,
+            'log_config': '',
             'log_db': False,
             'log_db_level': 'warning',
             'log_handler': [':INFO'],
@@ -355,6 +360,7 @@ class TestConfigManager(TransactionCase):
             'publisher_warranty_url': 'http://services.odoo.com/publisher-warranty/',
             'save': None,
             'shell_interface': None,
+            'skip_auto_install': False,
             'stop_after_init': False,
             'root_path': f'{ROOT_PATH}/odoo',
             'translate_in': '',
@@ -456,6 +462,7 @@ class TestConfigManager(TransactionCase):
             # logging
             'logfile': '/tmp/odoo.log',
             'syslog': False,
+            'log_config': '',
             'log_handler': [
                 ':INFO',
                 'odoo.tools.config:DEBUG',
@@ -506,6 +513,7 @@ class TestConfigManager(TransactionCase):
             # advanced
             'dev_mode': ['xml', 'reload'],
             'shell_interface': 'ipython',
+            'skip_auto_install': False,
             'stop_after_init': True,
             'osv_memory_count_limit': 71,
             'transient_age_limit': 4.0,

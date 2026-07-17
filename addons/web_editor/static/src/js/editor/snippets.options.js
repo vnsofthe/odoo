@@ -30,6 +30,7 @@ import {
     createDataURL,
     isGif,
     getDataURLBinarySize,
+    isWebGLEnabled,
 } from "@web_editor/js/editor/image_processing";
 import * as OdooEditorLib from "@web_editor/js/editor/odoo-editor/src/OdooEditor";
 import { pick } from "@web/core/utils/objects";
@@ -65,7 +66,7 @@ const clearServiceCache = () => {
 // regex patterns in Python are slightly different from those in JavaScript.
 // See : controllers/main.py
 const CSS_ANIMATION_RULE_REGEX =
-    /(?<declaration>animation(?:-duration)?: .*?)(?<value>(?:\d+(?:\.\d+)?)|(?:\.\d+))(?<unit>ms|s)(?<separator>\s|;|"|$)/gm;
+    /(?<declaration>animation(?:-duration)?:\s*.*?)(?<value>(?:\d+(?:\.\d+)?)|(?:\.\d+))(?<unit>ms|s)(?<separator>\s|;|"|$)/gm;
 const SVG_DUR_TIMECOUNT_VAL_REGEX =
     /(?<attribute_name>\sdur="\s*)(?<value>(?:\d+(?:\.\d+)?)|(?:\.\d+))(?<unit>h|min|ms|s)?\s*"/gm;
 const CSS_ANIMATION_RATIO_REGEX = /(--animation_ratio: (?<ratio>\d*(\.\d+)?));/m;
@@ -563,7 +564,11 @@ const UserValueWidget = publicWidget.Widget.extend({
                 this._triggerWidgetsValues.push(...dataValue.split(/\s*,\s*/g));
             } else if (validMethodNames.includes(key)) {
                 this._methodsNames.push(key);
-                this._methodsParams.optionsPossibleValues[key] = dataValue.split(/\s*\|\s*/g);
+                if (this._methodsParams.noSplit) {
+                    this._methodsParams.optionsPossibleValues[key] = [dataValue];
+                } else {
+                    this._methodsParams.optionsPossibleValues[key] = dataValue.split(/\s*\|\s*/g);
+                }
             } else {
                 this._methodsParams[key] = dataValue;
             }
@@ -1144,6 +1149,10 @@ const SelectUserValueWidget = BaseSelectionUserValueWidget.extend({
      * @param {Event} ev
      */
     _shouldIgnoreClick(ev) {
+        if (this.el.dataset.disabled === "true") {
+            ev.preventDefault();
+            return true;
+        }
         return !!ev.target.closest('[role="button"]');
     },
     /**
@@ -1842,6 +1851,7 @@ const ColorpickerUserValueWidget = SelectUserValueWidget.extend({
         if (wysiwyg) {
             options.document = this.$target[0].ownerDocument;
             options.getTemplate = wysiwyg.getColorpickerTemplate.bind(wysiwyg);
+            options.getEditableCustomColors = wysiwyg.colorPalettesProps?.background?.getEditableCustomColors;
         }
         this.colorPaletteWrapper?.destroy();
         const sidebarDocument = this.colorPaletteEl.ownerDocument;
@@ -2280,7 +2290,7 @@ const ListUserValueWidget = UserValueWidget.extend({
         }
         currentValues.forEach(value => {
             if (typeof value === 'object') {
-                const recordData = value;
+                const recordData = { ...value };
                 const { id, display_name } = recordData;
                 delete recordData.id;
                 delete recordData.display_name;
@@ -6269,6 +6279,7 @@ const ImageHandlerOption = SnippetOptionWidget.extend({
         // loadImageInfo RPC that obtains the file size.
         // This does not update the target.
         await this._applyOptions(false);
+        this._updateFilterAvailability();
     },
 
     //--------------------------------------------------------------------------
@@ -6290,6 +6301,7 @@ const ImageHandlerOption = SnippetOptionWidget.extend({
             this.$weight.removeClass('d-none');
             this._relocateWeightEl();
         }
+        this._updateFilterAvailability();
     },
 
     //--------------------------------------------------------------------------
@@ -6416,6 +6428,31 @@ const ImageHandlerOption = SnippetOptionWidget.extend({
         // TODO: remove in saas-18.4 since XML is static and will be up to date
         const optQuality = uiFragment.querySelector('we-range[data-set-quality]');
         optQuality.setAttribute('data-name', 'quality_range_opt');
+    },
+    /**
+     * Toggle the WebGL filter widget based on browser support, restoring the expected dataset name
+     * when the DOM predates the snippet patch (e.g., legacy custom snippets).
+     *
+     * @private
+     */
+    _updateFilterAvailability() {
+        if (!this.el) {
+            return;
+        }
+        let filterWidgetEl = this.el.querySelector('we-select[data-name="glfilter_select_opt"]');
+        if (!filterWidgetEl) {
+            return;
+        }
+        const tooltipTargetEl = filterWidgetEl.querySelector("we-toggler");
+        if (!isWebGLEnabled()) {
+            filterWidgetEl.dataset.disabled = "true";
+            filterWidgetEl.setAttribute("aria-disabled", "true");
+            tooltipTargetEl.setAttribute("title", _t("WebGL is not enabled on your browser."));
+        } else {
+            delete filterWidgetEl.dataset.disabled;
+            filterWidgetEl.removeAttribute("aria-disabled");
+            tooltipTargetEl.removeAttribute("title");
+        }
     },
     /**
      * Returns a list of valid formats for a given image or an empty list if
@@ -6823,7 +6860,7 @@ registry.ImageTools = ImageHandlerOption.extend({
         // If the shape needs the image to be square (1:1 ratio) and if not
         // already the case, crop the image before applying the shape.
         const isCropRequired = params.unstretch;
-        if ((isCropRequired && img.dataset.aspectRatio !== "1/1" && previewMode !== "reset")
+        if ((isCropRequired && img.dataset.isManualCrop !== "true" && img.dataset.aspectRatio !== "1/1" && previewMode !== "reset")
                 || this.hasCroppedPreview) {
             // Preserve the cursor to be able to replace the image afterwards.
             const restoreCursor = preserveCursor(this.$target[0].ownerDocument);
@@ -9673,7 +9710,14 @@ registry.DynamicSvg = SnippetOptionWidget.extend({
                 return;
         }
         const newURL = new URL(target.src, window.location.origin);
-        newURL.searchParams.set(params.colorName, normalizeColor(widgetValue));
+        let color = widgetValue ? normalizeColor(widgetValue) : '';
+        if (!color) {
+            // Reset uses theme palette colors to keep dynamic SVGs valid.
+            const colorId = params.colorName.slice(1);
+            color = weUtils.getCSSVariableValue(`o-color-${colorId}`)
+                || weUtils.DEFAULT_PALETTE[colorId];
+        }
+        newURL.searchParams.set(params.colorName, color);
         const src = newURL.pathname + newURL.search;
         await loadImage(src);
         target.src = src;

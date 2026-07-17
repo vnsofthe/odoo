@@ -204,6 +204,20 @@ export class WebsiteTranslator extends WebsiteEditorComponent {
             $edited = $edited.add(attrEdit);
         });
         const textEdit = $editable.filter('textarea:contains(data-oe-translation-source-sha)');
+        // Placeholder attributes on non-form elements (i.e. not input, select,
+        // textarea) are intended for content editors, not visible text
+        // for end-users. Example of such a placeholder: a blog post title.
+        const nodesToEditEls = Array.from($editable).filter(
+            (nodeEl) =>
+                nodeEl.matches('[placeholder*="data-oe-translation-source-sha="]') &&
+                !nodeEl.matches(":empty, input, select, textarea")
+        );
+        for (const nodeEl of nodesToEditEls) {
+            const trans = nodeEl.getAttribute("placeholder");
+            const match = trans.match(translationRegex);
+            nodeEl.setAttribute("placeholder", match[2]);
+        }
+
         textEdit.each(function () {
             var $node = $(this);
             var translation = $node.data('translation') || {};
@@ -269,9 +283,9 @@ export class WebsiteTranslator extends WebsiteEditorComponent {
         const toTranslateColor = window.getComputedStyle(document.documentElement).getPropertyValue('--o-we-content-to-translate-color');
         const translatedColor = window.getComputedStyle(document.documentElement).getPropertyValue('--o-we-translated-content-color');
 
-        styleEl.sheet.insertRule(`[data-oe-translation-state].o_dirty {background: ${translatedColor} !important;}`);
-        styleEl.sheet.insertRule(`[data-oe-translation-state="translated"] {background: ${translatedColor} !important;}`);
-        styleEl.sheet.insertRule(`[data-oe-translation-state] {background: ${toTranslateColor} !important;}`);
+        styleEl.sheet.insertRule(`[data-oe-translation-state].o_dirty { background-color: ${translatedColor} !important; }`);
+        styleEl.sheet.insertRule(`[data-oe-translation-state="translated"] { background-color: ${translatedColor} !important; }`);
+        styleEl.sheet.insertRule(`[data-oe-translation-state] { background-color: ${toTranslateColor} !important; }`);
 
         const showNotification = ev => {
             let message = _t('This translation is not editable.');

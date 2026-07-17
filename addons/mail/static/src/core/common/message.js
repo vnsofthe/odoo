@@ -232,7 +232,7 @@ export class Message extends Component {
         if (this.message.author) {
             return this.message.author.name;
         }
-        return this.message.email_from;
+        return this.message.email_from || _t("Unnamed");
     }
 
     get authorAvatarUrl() {
@@ -490,6 +490,10 @@ export class Message extends Component {
 
     async onClickToggleTranslation() {
         toRaw(this.props.message).onClickToggleTranslation();
+    }
+
+    get shouldHideFromMessageListOnDelete() {
+        return false;
     }
 }
 
