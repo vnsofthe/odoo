@@ -74,7 +74,7 @@ class PurchaseOrder(models.Model):
             order.invoice_ids = invoices
             order.invoice_count = len(invoices)
 
-    name = fields.Char('Order Reference', required=True, index='trigram', copy=False, default='New')
+    name = fields.Char('Order Reference', required=True, index='trigram', copy=False, default=lambda self: _('New'))
     priority = fields.Selection(
         [('0', 'Normal'), ('1', 'Urgent')], 'Priority', default='0', index=True)
     origin = fields.Char('Source', copy=False,
@@ -397,7 +397,7 @@ class PurchaseOrder(models.Model):
             company_id = vals.get('company_id', self.default_get(['company_id'])['company_id'])
             # Ensures default picking type and currency are taken from the right company.
             self_comp = self.with_company(company_id)
-            if vals.get('name', 'New') == 'New':
+            if vals.get('name', _('New')) == _('New'):
                 seq_date = None
                 if 'date_order' in vals:
                     seq_date = fields.Datetime.context_timestamp(self, fields.Datetime.to_datetime(vals['date_order']))
@@ -700,7 +700,7 @@ class PurchaseOrder(models.Model):
                 if line.selected_seller_id:
                     supplierinfo['product_name'] = line.selected_seller_id.product_name
                     supplierinfo['product_code'] = line.selected_seller_id.product_code
-                    supplierinfo['product_uom_id'] = line.product_uom.id
+                    supplierinfo['product_uom_id'] = line.product_uom_id.id
                 vals = {
                     'seller_ids': [(0, 0, supplierinfo)],
                 }
@@ -895,7 +895,7 @@ class PurchaseOrder(models.Model):
                 oldest_rfq.message_post(body=oldest_rfq_message)
 
                 rfqs.filtered(lambda r: r.state != 'cancel').button_cancel()
-                oldest_rfq._merge_alternative_po(rfqs)
+                oldest_rfq._merge_po_post_process(rfqs)
 
                 # Keep the oldest RFQ IDs
                 merged_rfq_ids.append(oldest_rfq.id)
@@ -913,6 +913,9 @@ class PurchaseOrder(models.Model):
             action['domain'] = [('id', 'in', merged_rfq_ids)]
         return action
 
+    def _merge_po_post_process(self, rfqs):
+        pass
+
     def _merge_alternative_po(self, rfqs):
         pass
 
@@ -925,15 +928,14 @@ class PurchaseOrder(models.Model):
         self.ensure_one()
         move_type = self.env.context.get('default_move_type', 'in_invoice')
 
-        partner_invoice = self.env['res.partner'].browse(self.partner_id.address_get(['invoice'])['invoice'])
         partner_bank_id = self.partner_id.commercial_partner_id.bank_ids.filtered_domain(['|', ('company_id', '=', False), ('company_id', '=', self.company_id.id)])[:1]
 
         invoice_vals = {
             'move_type': move_type,
             'narration': self.note,
             'currency_id': self.currency_id.id,
-            'partner_id': partner_invoice.id,
-            'fiscal_position_id': (self.fiscal_position_id or self.fiscal_position_id._get_fiscal_position(partner_invoice)).id,
+            'partner_id': self.partner_id.id,
+            'fiscal_position_id': (self.fiscal_position_id or self.fiscal_position_id._get_fiscal_position(self.partner_id)).id,
             'partner_bank_id': partner_bank_id.id,
             'invoice_origin': self.name,
             'invoice_payment_term_id': self.payment_term_id.id,
@@ -1206,7 +1208,7 @@ class PurchaseOrder(models.Model):
         seller = product._select_seller(
             partner_id=self.partner_id,
             quantity=None,
-            date=self.date_order and self.date_order.date(),
+            date=fields.Date.context_today(self, timestamp=self.date_order),
             uom_id=product.uom_id,
             ordered_by='min_qty',
             params=params
@@ -1330,7 +1332,7 @@ class PurchaseOrder(models.Model):
                 price = seller.price
                 if seller.currency_id != self.currency_id:
                     price = seller.currency_id._convert(price, self.currency_id)
-                pol.price_unit = pol.technical_price_unit = price
+                pol._reset_price_unit(price)
                 pol.discount = seller.discount
         return pol.price_unit_discounted
 

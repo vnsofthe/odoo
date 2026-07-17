@@ -24,6 +24,9 @@ class ProductProduct(models.Model):
         string="Base Unit Count",
         help="Display base unit price on your eCommerce pages. Set to 0 to hide it for this"
              " product.",
+        # Force NUMERIC with unlimited precision, as for `uom.uom.relative_factor`,
+        # to support very small ratios, e.g. one unit in a box of 10000.
+        digits=0,
         required=True,
         default=1,
     )
@@ -195,6 +198,8 @@ class ProductProduct(models.Model):
                 'ratingValue': self.sudo().rating_avg,
                 'reviewCount': self.rating_count,
             }
+        if self.barcode:
+            markup_data['gtin'] = self.barcode
         return markup_data
 
     def _get_image_1920_url(self):

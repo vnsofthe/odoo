@@ -210,7 +210,7 @@ class StockLot(models.Model):
     @api.depends('quant_ids', 'quant_ids.quantity')
     @api.depends_context('owner_id', 'package_id', 'to_date', 'location', 'warehouse_id', 'allowed_company_ids')
     def _product_qty(self):
-        domain_quant_loc, domain_move_in_loc, domain_move_out_loc = self.env['product.product']._get_domain_locations()
+        domain_quant_loc, domain_move_in_loc, domain_move_out_loc = self.env['product.product'].with_context(skip_in_progress=True)._get_domain_locations()
         owner_id = self.env.context.get('owner_id')
         package_id = self.env.context.get('package_id')
         to_date = fields.Datetime.to_datetime(self.env.context.get('to_date'))
@@ -422,10 +422,10 @@ class StockLot(models.Model):
         while lots_to_propagate:
             lot_id = lots_to_propagate.pop()
 
-            parent_ids = parent_map[lot_id]
-            for parent_id in parent_ids:
-                if not delivery_by_lot[lot_id].issubset(delivery_by_lot[parent_id]):
-                    delivery_by_lot[parent_id].update(delivery_by_lot[lot_id])
+            for parent_id in parent_map.get(lot_id, []):
+                new_deliveries = delivery_by_lot[lot_id] - delivery_by_lot[parent_id]
+                if new_deliveries:
+                    delivery_by_lot[parent_id].update(new_deliveries)
                     lots_to_propagate.add(parent_id)
 
         return {lot_id: list(delivery_by_lot[lot_id]) for lot_id in delivery_by_lot}

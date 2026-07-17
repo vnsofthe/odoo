@@ -408,7 +408,7 @@ class AccountJournal(models.Model):
             dashboard_data[journal.id] = {
                 'currency_id': journal.currency_id.id or journal.company_id.sudo().currency_id.id,
                 'show_company': len(self.env.companies) > 1 or journal.company_id.id != self.env.company.id,
-                'company_name': journal.company_id.name,
+                'company_name': journal.company_id.sudo().name,
             }
         self._fill_bank_cash_dashboard_data(dashboard_data)
         self._fill_sale_purchase_dashboard_data(dashboard_data)
@@ -732,7 +732,7 @@ class AccountJournal(models.Model):
             *self.env['account.move']._check_company_domain(self.env.companies),
             ('journal_id', 'in', self.ids),
             ('payment_state', 'in', ('not_paid', 'partial')),
-            ('move_type', 'in', ('out_invoice', 'out_refund') if journal_type == 'sale' else ('in_invoice', 'in_refund')),
+            ('move_type', 'in', ('out_invoice', 'out_refund', 'out_receipt') if journal_type == 'sale' else ('in_invoice', 'in_refund', 'in_receipt')),
             ('state', '=', 'posted'),
         ], bypass_access=True)
         selects = [

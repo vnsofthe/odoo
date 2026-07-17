@@ -324,10 +324,10 @@
 
 <template id="custom_code_layout" name="Custom Code Layout" inherit_id="website.layout" priority="55">
     <xpath expr="//head" position="inside">
-        <t t-out="website.custom_code_head"/>
+        <t t-out="website._control_third_party_trackers_in_html(website.custom_code_head)"/>
     </xpath>
     <xpath expr="//body" position="inside">
-        <t t-out="website.custom_code_footer"/>
+        <t t-out="website._control_third_party_trackers_in_html(website.custom_code_footer)"/>
     </xpath>
 </template>
 
@@ -2453,7 +2453,7 @@
     </xpath>
 </template>
 
-<template id="footer_copyright_company_name" inherit_id="website.layout">
+<template id="footer_copyright_company_name" inherit_id="website.layout" priority="15">
     <xpath expr="//footer//span[hasclass('o_footer_copyright_name')]" position="replace">
         <span class="o_footer_copyright_name me-2 small">Copyright &amp;copy; Company name</span>
     </xpath>
@@ -2504,9 +2504,9 @@
                                     </div>
                                     <div class="col-lg-4 text-end pt16 pb16">
                                         <a href="#" id="cookies-consent-essential" role="button"
-                                           class="js_close_popup btn btn-outline-primary rounded-circle btn-sm px-2">Only essentials</a>
+                                           class="js_close_popup btn btn-outline-primary rounded-circle btn-sm px-2 mb-2">Only essentials</a>
                                         <a href="#" id="cookies-consent-all" role="button"
-                                           class="js_close_popup btn btn-outline-primary rounded-circle btn-sm">I agree</a>
+                                           class="js_close_popup btn btn-outline-primary rounded-circle btn-sm mb-2">I agree</a>
                                     </div>
                                 </div>
                             </div>
@@ -2542,6 +2542,7 @@
     </xpath>
     <xpath expr="//*[contains(@t-attf-class, 'js_change_lang')]/span" position="before">
         <t t-if="flags">
+            <t t-if="no_text and not codes" t-set="flag_lang_alt" t-value="lg.name.split('/').pop()"/>
             <t t-call="website.lang_flag"
                 flag_image_url="lg.flag_image_url"/>
         </t>

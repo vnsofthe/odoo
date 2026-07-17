@@ -2060,10 +2060,12 @@ test("failure on loading more messages should display error and prompt retry but
 });
 
 test("Retry loading more messages on failed load more messages should load more messages", async () => {
-    // first call needs to be successful as it is the initial loading of messages
-    // second call comes from load more and needs to fail in order to show the error alert
-    // any later call should work so that retry button and load more clicks would now work
-    let messageFetchShouldFail = false;
+    // The initial load and the retry/success loads use the real handler; only the
+    // "load more" that must fail goes through messageFetchDeferred. It is rejected
+    // only once the fetch is in flight (waitForSteps), so that while it is pending a
+    // duplicate IntersectionObserver fire no-ops on status "loading" and cannot leave
+    // an orphaned fetch racing the retry click.
+    let messageFetchDeferred;
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({
         channel_type: "channel",
@@ -2083,6 +2085,49 @@ test("Retry loading more messages on failed load more messages should load more 
     pyEnv["discuss.channel.member"].write([selfMember.id], {
         new_message_separator: messageIds.at(-1) + 1,
     });
+    onRpcBefore("/discuss/channel/messages", async () => {
+        if (messageFetchDeferred) {
+            asyncStep("load more messages");
+            await messageFetchDeferred;
+        }
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-mail-Message", { count: 30 });
+    messageFetchDeferred = new Deferred();
+    await contains(".o-mail-Thread", { scroll: "bottom" });
+    await scroll(".o-mail-Thread", 0);
+    await waitForSteps(["load more messages"]);
+    messageFetchDeferred.reject(new Error("Simulated load more failure"));
+    await contains("button", { text: "Click here to retry" });
+    messageFetchDeferred = undefined;
+    await click("button", { text: "Click here to retry" });
+    await contains(".o-mail-Message", { count: 60 });
+    await scroll(".o-mail-Thread", 0);
+    await contains(".o-mail-Message", { count: 90 });
+});
+
+test("Retry on failed initial load should load messages", async () => {
+    let messageFetchShouldFail = true;
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({
+        channel_type: "channel",
+        name: "General",
+    });
+    const messageIds = pyEnv["mail.message"].create(
+        [...Array(60).keys()].map(() => ({
+            body: "coucou",
+            model: "discuss.channel",
+            res_id: channelId,
+        }))
+    );
+    const [selfMember] = pyEnv["discuss.channel.member"].search_read([
+        ["partner_id", "=", serverState.partnerId],
+        ["channel_id", "=", channelId],
+    ]);
+    pyEnv["discuss.channel.member"].write([selfMember.id], {
+        new_message_separator: messageIds[29],
+    });
     onRpcBefore("/discuss/channel/messages", () => {
         if (messageFetchShouldFail) {
             return Promise.reject();
@@ -2090,16 +2135,11 @@ test("Retry loading more messages on failed load more messages should load more 
     });
     await start();
     await openDiscuss(channelId);
-    await contains(".o-mail-Message", { count: 30 });
-    messageFetchShouldFail = true;
-    await contains(".o-mail-Thread", { scroll: "bottom" });
-    await scroll(".o-mail-Thread", 0);
     await contains("button", { text: "Click here to retry" });
     messageFetchShouldFail = false;
     await click("button", { text: "Click here to retry" });
     await contains(".o-mail-Message", { count: 60 });
-    await scroll(".o-mail-Thread", 0);
-    await contains(".o-mail-Message", { count: 90 });
+    await contains(".o-mail-Thread-newMessage");
 });
 
 test("composer state: attachments save and restore", async () => {
@@ -2433,7 +2473,7 @@ test("Newly created chat is at the top of the DM list", async () => {
     await start();
     await openDiscuss();
     await click("input[placeholder='Search conversations']");
-    await contains(".o_command_name", { count: 6 });
+    await contains(".o_command_name", { count: 5 });
     await insertText("input[placeholder='Search a conversation']", "Jer");
     await contains(".o_command_name", { count: 3 });
     await click(".o_command_name", { text: "Jerry Golay" });

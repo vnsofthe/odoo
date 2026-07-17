@@ -5,13 +5,7 @@ import { isSyncStatusConnected } from "@point_of_sale/../tests/pos/tours/utils/c
 export function nbOrdersIs(nb) {
     return [
         {
-            trigger: `.ticket-screen`,
-            run: () => {
-                const orders = document.querySelectorAll(".ticket-screen .order-row");
-                if (orders.length !== nb) {
-                    throw new Error(`Expected ${nb} orders, but found ${orders.length}`);
-                }
-            },
+            trigger: `.ticket-screen .order-row:count(${nb})`,
         },
     ];
 }
@@ -264,6 +258,15 @@ export function isShown() {
         {
             content: "ticket screen is shown",
             trigger: ".pos .ticket-screen",
+        },
+    ];
+}
+
+export function checkCustomerAddress(addressText) {
+    return [
+        {
+            isActive: ["desktop"],
+            trigger: `.ticket-screen tbody tr > td:contains("${addressText}")`,
         },
     ];
 }

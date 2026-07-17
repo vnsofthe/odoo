@@ -28,7 +28,7 @@
                         <filter name="create_date_last_365_days" string="Last 365 Days" domain="[('date_last_stage_update', '&gt;=', 'today -365d +1d')]"/>
                     </filter>
                     <separator/>
-                    <filter string="Templates" context="{'render_task_templates': True}" name="templates" domain="[('has_template_ancestor', '=', True)]"/>
+                    <filter string="Templates" context="{'render_task_templates': True}" name="templates" domain="['|', ('has_template_ancestor', '=', True), ('project_id.is_template', '=', True)]"/>
                     <group>
                         <filter string="Stage" name="stage" context="{'group_by': 'stage_id'}"/>
                         <filter string="Milestone" name="milestone" context="{'group_by': 'milestone_id'}" groups="project.group_project_milestone" invisible="not context.get('allow_milestones', True)"/>
@@ -214,6 +214,7 @@
                 'default_project_id': active_id,
                 'show_project_update': True,
                 'search_default_open_tasks': 1,
+                'display_milestone_deadline': True,
             }</field>
             <field name="search_view_id" ref="view_task_search_form"/>
             <field name="help" type="html">
@@ -374,7 +375,7 @@
                         <button name="action_recurring_tasks" type="object" invisible="not active or not recurrence_id or not allow_recurring_tasks" class="oe_stat_button" icon="fa-repeat" groups="project.group_project_recurring_tasks">
                             <field name="recurring_count" widget="statinfo" string="Recurring Tasks"/>
                         </button>
-                        <button name="%(project_task_action_sub_task)d" type="action" class="oe_stat_button" icon="fa-check"
+                        <button name="action_open_subtasks" type="object" class="oe_stat_button" icon="fa-check"
                             invisible="not id or subtask_count == 0"
                             context="{
                                 'default_project_id': project_id,
@@ -427,7 +428,8 @@
                                 invisible="not project_id or not allow_milestones"/>
                             <field name="user_ids"
                                 class="o_task_user_field"
-                                options="{'no_open': True}"
+                                options="{'no_open': True, 'no_quick_create': True}"
+                                required="not project_id"
                                 widget="many2many_avatar_user"/>
                             <field name="role_ids" invisible="not has_project_template or is_template" widget="many2many_tags" options="{'color_field': 'color', 'no_create_edit': True}" placeholder="Assign at project creation"/>
                         </group>
@@ -1046,7 +1048,7 @@
                 'default_user_ids': [(4, uid)],
             }</field>
             <field name="search_view_id" ref="view_task_search_form"/>
-            <field name="domain">[('user_ids', 'in', uid), ('has_template_ancestor', '=', False)]</field>
+            <field name="domain">[('user_ids', 'in', uid), ('has_template_ancestor', '=', False), ('has_project_template', '=', False)]</field>
             <field name="help" type="html">
                 <p class="o_view_nocontent_smiling_face">
                     No tasks found. Let's create one!
@@ -1096,7 +1098,7 @@
             <field name="res_model">project.task</field>
             <field name="path">all-tasks</field>
             <field name="view_mode">list,kanban,form,calendar,activity,pivot,graph</field>
-            <field name="domain">[('has_template_ancestor', '=', False)]</field>
+            <field name="domain">[('has_template_ancestor', '=', False), ('has_project_template', '=', False)]</field>
             <field name="context">{'search_default_open_tasks': 1, 'default_user_ids': [(4, uid)]}</field>
             <field name="search_view_id" ref="view_task_search_form"/>
             <field name="help" type="html">
@@ -1197,7 +1199,7 @@
             <field name="res_model">project.task</field>
             <field name="view_mode">list,kanban,form,calendar,pivot,graph,activity</field>
             <field name="search_view_id" ref="view_task_search_form"/>
-            <field name="domain">[('has_template_ancestor', '=', False)]</field>
+            <field name="domain">[('has_template_ancestor', '=', False), ('has_project_template', '=', False)]</field>
             <field name="help" type="html">
                 <p class="o_view_nocontent_smiling_face">
                     No tasks found. Let's create one!
@@ -1237,7 +1239,7 @@
             <field name="name">Overpassed Tasks</field>
             <field name="res_model">project.task</field>
             <field name="view_mode">list,form,calendar,graph,kanban</field>
-            <field name="domain">[('is_closed', '=', False), ('date_deadline', '&lt;', 'today'), ('project_id', '!=', False), ('has_template_ancestor', '=', False)]</field>
+            <field name="domain">[('is_closed', '=', False), ('date_deadline', '&lt;', 'today'), ('project_id', '!=', False), ('has_template_ancestor', '=', False), ('has_project_template', '=', False)]</field>
             <field name="filter" eval="True"/>
             <field name="search_view_id" ref="view_task_search_form"/>
         </record>

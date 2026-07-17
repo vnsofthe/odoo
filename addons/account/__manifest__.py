@@ -87,6 +87,7 @@ You could use this simplified accounting in case you work with an (external) acc
         'views/account_lock_exception_views.xml',
         'views/report_templates.xml',
         'wizard/account_merge_wizard_views.xml',
+        'data/ir_config_parameter_data.xml',
     ],
     'demo': [
         'demo/account_demo.xml',
@@ -109,6 +110,7 @@ You could use this simplified accounting in case you work with an (external) acc
             'account/static/src/scss/account_reconcile_model.scss',
             'account/static/src/scss/account_multi_ledger.scss',
             'account/static/src/scss/account_move_send_wizard.scss',
+            'account/static/src/scss/account_type_selection.scss',
             'account/static/src/components/**/*',
             'account/static/src/services/*.js',
             'account/static/src/views/**/*',
@@ -138,4 +140,7 @@ You could use this simplified accounting in case you work with an (external) acc
     },
     'author': 'Odoo S.A.',
     'license': 'LGPL-3',
+    'kpi_providers': [
+        'models.kpi_provider:get_kpi_summary',
+    ],
 }

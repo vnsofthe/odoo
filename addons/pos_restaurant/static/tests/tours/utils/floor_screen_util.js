@@ -1,8 +1,11 @@
 import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
 import { negate } from "@point_of_sale/../tests/generic_helpers/utils";
 
-export function table({ name, withClass = "", withoutClass, run = () => {}, numOfSeats }) {
+export function table({ name, withClass = "", withoutClass, run = () => {}, waitForSync = true }) {
     let trigger = `.floor-map .table${withClass}`;
+    if (waitForSync) {
+        trigger += `:not(.syncing)`;
+    }
     if (withoutClass) {
         trigger += `:not(${withoutClass})`;
     }
@@ -217,4 +220,12 @@ export function addFloor(floorName) {
         },
         ...selectedFloorIs(floorName),
     ];
+}
+
+export function clickAddFloor() {
+    return {
+        content: "click add floor",
+        trigger: `.floor-selector button i[aria-label="Add Floor"]`,
+        run: "click",
+    };
 }

@@ -70,7 +70,7 @@ class PortalAccount(CustomerPortal):
             'date': {'label': _('Date'), 'order': 'invoice_date desc'},
             'duedate': {'label': _('Due Date'), 'order': 'invoice_date_due desc'},
             'name': {'label': _('Reference'), 'order': 'name desc'},
-            'state': {'label': _('Status'), 'order': 'state'},
+            'state': {'label': _('Status'), 'order': 'payment_state'},
         }
 
     def _get_account_searchbar_filters(self):
@@ -172,6 +172,10 @@ class PortalAccount(CustomerPortal):
         elif report_type in ('html', 'pdf', 'text'):
             has_generated_invoice = bool(invoice_sudo.invoice_pdf_report_id)
             request.update_context(proforma_invoice=not has_generated_invoice)
+            # If the partner's language is RTL, set the context language to match, ensuring the report shows the correct text direction.
+            partner_lang = invoice_sudo.partner_id.lang
+            if partner_lang and request.env['res.lang']._get_data(code=partner_lang).direction == 'rtl':
+                request.update_context(lang=partner_lang)
             # Use the template set on the related partner if there is.
             # This is not perfect as the invoice can still have been computed with another template, but it's a slight fix/imp for stable.
             pdf_report_name = invoice_sudo.partner_id.invoice_template_pdf_report_id.report_name or 'account.account_invoices'

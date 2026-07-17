@@ -316,10 +316,10 @@ export class ImagePlugin extends Plugin {
             }
             const cursors = this.dependencies.selection.preserveSelection();
             cursors.update(callbacksForCursorUpdate.remove(targetedImg));
-            const parentEl = closestBlock(targetedImg);
+            const blockEl = closestBlock(targetedImg.parentElement);
             targetedImg.remove();
             cursors.restore();
-            fillEmpty(parentEl);
+            fillEmpty(blockEl);
             this.dependencies.history.addStep();
         }
     }
@@ -381,12 +381,17 @@ export class ImagePlugin extends Plugin {
     }
 
     resetImageTransformation(image) {
-        image.setAttribute(
-            "style",
-            (image.getAttribute("style") || "").replace(/[^;]*transform[\w:]*;?/g, "")
-        );
-        image.style.removeProperty("width");
-        image.style.removeProperty("height");
+        const stylePropertiesToRemove = [
+            "transform",
+            "transform-box",
+            "transform-origin",
+            "transform-style",
+            "width",
+            "height",
+        ];
+        for (const styleProperty of stylePropertiesToRemove) {
+            image.style.removeProperty(styleProperty);
+        }
         this.dependencies.history.addStep();
     }
 

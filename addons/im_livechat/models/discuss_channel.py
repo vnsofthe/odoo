@@ -162,7 +162,7 @@ class DiscussChannel(models.Model):
     )
 
     chatbot_current_step_id = fields.Many2one('chatbot.script.step', string='Chatbot Current Step')
-    chatbot_message_ids = fields.One2many('chatbot.message', 'discuss_channel_id', string='Chatbot Messages')
+    chatbot_message_ids = fields.One2many('chatbot.message', 'discuss_channel_id', string='Chatbot Messages', groups='im_livechat.im_livechat_group_manager')
     country_id = fields.Many2one('res.country', string="Country", help="Country of the visitor of the channel")
     livechat_failure = fields.Selection(
         selection=[
@@ -627,12 +627,14 @@ class DiscussChannel(models.Model):
         self.ensure_one()
         parts = []
         previous_message_author = None
+        # sudo - mail.message: visitors can access messages on chats they have access to
+        messages = self.sudo().chatbot_message_ids.mail_message_id or self.message_ids
         # sudo - mail.message: getting empty/notification messages to exclude them is allowed.
-        messages = (
-            self.message_ids.sudo().filtered(lambda m: m.message_type != "notification")
-            - self.message_ids.sudo()._filter_empty()
+        filtered_messages = (
+            messages.sudo().filtered(lambda m: m.message_type != "notification")
+            - messages.sudo()._filter_empty()
         )
-        for message in messages.sorted("id"):
+        for message in filtered_messages.sorted("id"):
             # sudo - res.partner: accessing livechat username or name is allowed to visitor
             message_author = message.author_id.sudo() or message.author_guest_id
             if previous_message_author != message_author:
@@ -673,9 +675,9 @@ class DiscussChannel(models.Model):
             to fill, like : {'question_email': 'email_from', 'question_phone': 'mobile'}
         """
         values = {}
-        filtered_message_ids = self.chatbot_message_ids.filtered(
-            # sudo: chatbot.script.step - getting the type of the current step
-            lambda m: m.script_step_id.sudo().step_type in step_type_to_field
+        # sudo: chatbot.script.step - getting the type of the current step
+        filtered_message_ids = self.sudo().chatbot_message_ids.filtered(
+            lambda m: m.script_step_id.step_type in step_type_to_field
         )
         for message_id in filtered_message_ids:
             field_name = step_type_to_field[message_id.script_step_id.step_type]

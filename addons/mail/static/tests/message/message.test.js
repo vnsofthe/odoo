@@ -276,6 +276,51 @@ test("Editing message keeps the mentioned roles", async () => {
     await contains(".o-discuss-mention", { text: "@admin" });
 });
 
+test("Reply to inbox message with full composer shows a notification", async () => {
+    const pyEnv = await startServer();
+    const messageId = pyEnv["mail.message"].create({
+        body: "Hello World!",
+        message_type: "comment",
+        model: "res.partner",
+        res_id: serverState.partnerId,
+    });
+    pyEnv["mail.notification"].create({
+        mail_message_id: messageId,
+        notification_type: "inbox",
+        is_read: true,
+        res_partner_id: serverState.partnerId,
+    });
+    mockService("action", {
+        doAction(action) {
+            if (action.res_model === "mail.compose.message") {
+                action.context.default_res_ids = JSON.stringify(action.context.default_res_ids);
+            }
+            return super.doAction(...arguments);
+        },
+    });
+    mockService("notification", {
+        add() {
+            expect.step("notification");
+            return super.add(...arguments);
+        },
+    });
+    await start();
+    await openDiscuss("mail.box_history");
+    await click(".o-mail-Message [title='Expand']");
+    await click(".o-dropdown-item:contains('Reply')");
+    await click(".o-mail-Composer button[title='More Actions']");
+    await click(".dropdown-item:contains('Open Full Composer')");
+    await click(".modal button:contains('Discard')"); // test no notification from discard (see waitForSteps)
+    await click(".o-mail-Message [title='Expand']");
+    await click(".o-dropdown-item:contains('Reply')");
+    await click(".o-mail-Composer button[title='More Actions']");
+    await click(".dropdown-item:contains('Open Full Composer')");
+    await contains(".o_notification", { count: 0 }); // none from 'Discard'
+    await click(".modal button:contains('Send')");
+    await contains(`.o_notification:has(:text('Message posted on "Mitchell Admin"'))`); // one from 'Send'
+    await expect.waitForSteps(["notification"]); // only notif from 'Send', not 'Discard'
+});
+
 test("Can edit message comment in chatter", async () => {
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({ name: "TestPartner" });
@@ -814,6 +859,26 @@ test("Can add a reaction", async () => {
     await contains(".o-mail-MessageReaction", { text: "😅1" });
 });
 
+test("Can add a reaction (small but desktop)", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({
+        channel_type: "channel",
+        name: "channel1",
+    });
+    pyEnv["mail.message"].create({
+        body: "Hello world",
+        res_id: channelId,
+        message_type: "comment",
+        model: "discuss.channel",
+    });
+    patchUiSize({ size: SIZES.SM });
+    await start();
+    await openDiscuss(channelId);
+    await click("[title='Add a Reaction']");
+    await click(".o-Emoji", { text: "😅" });
+    await contains(".o-mail-MessageReaction", { text: "😅1" });
+});
+
 test("Can remove a reaction", async () => {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({
@@ -1322,7 +1387,7 @@ test('Quick edit (edit from Composer with ArrowUp) ignores empty ("deleted") mes
     await contains(".o-mail-Message .o-mail-Composer-input", { value: "not empty" });
 });
 
-test("Editing a message to clear its composer opens message delete dialog.", async () => {
+test("Can delete a message", async () => {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({
         name: "general",
@@ -1332,6 +1397,7 @@ test("Editing a message to clear its composer opens message delete dialog.", asy
         author_id: serverState.partnerId,
         body: "not empty",
         model: "discuss.channel",
+        subject: "Hello, wanderer",
         res_id: channelId,
         message_type: "comment",
     });
@@ -1344,6 +1410,8 @@ test("Editing a message to clear its composer opens message delete dialog.", asy
     await contains(".modal-body p", {
         text: "Are you sure you want to bid farewell to this message forever?",
     });
+    await click("button:text('Delete')");
+    await contains(".o-mail-Message:has(:text('This message has been removed'))");
 });
 
 test("Clear message body should not open message delete dialog if it has attachments", async () => {
@@ -1706,7 +1774,7 @@ test("Partner's avatar card should be opened after clicking on their mention", a
     });
     pyEnv["res.users"].create({ partner_id: partnerId });
     await start();
-    await openFormView("res.partner", partnerId);
+    await openFormView("res.partner", serverState.partnerId);
     await click("button", { text: "Send message" });
     await insertText(".o-mail-Composer-input", "@Te");
     await click(".o-mail-Composer-suggestion strong", { text: "Test Partner" });
@@ -1714,6 +1782,10 @@ test("Partner's avatar card should be opened after clicking on their mention", a
     await click(".o-mail-Composer-send:enabled");
     await click(".o_mail_redirect");
     await contains(".o_avatar_card:contains('Test Partner')");
+    // Ensure clicking the button closes the popover
+    await click(".o_avatar_card_buttons button:text('View Profile')");
+    await contains(".o_last_breadcrumb_item:text('Test Partner')");
+    await contains(".o_avatar_card", { count: 0 });
 });
 
 test("Channel should be opened after clicking on its mention", async () => {
@@ -2228,7 +2300,7 @@ test("display the notification message's posting date and time", async () => {
     });
 });
 
-test("Pause GIF when thread is not focused", async () => {
+test("Pause GIF attachment when thread is not focused", async () => {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });
     const attachmentId = pyEnv["ir.attachment"].create({
@@ -2327,4 +2399,43 @@ test("should delete link preview along with message", async () => {
     await click(".o-dropdown-item:contains('Delete')");
     await click(".modal button", { text: "Delete" });
     await contains(".o-mail-LinkPreviewCard", { count: 0 });
+});
+
+test("Prevent adding reactions on messages without a mail thread", async () => {
+    const pyEnv = await startServer();
+    const fakeId = pyEnv["res.fake"].create({ name: "Fake" });
+    const messageIds = pyEnv["mail.message"].create([
+        {
+            body: "Hello",
+            message_type: "user_notification",
+            model: "res.partner",
+            res_id: serverState.partnerId,
+        },
+        {
+            body: "Hello",
+            message_type: "user_notification",
+            model: "res.fake",
+            res_id: fakeId,
+        },
+    ]);
+    pyEnv["mail.notification"].create([
+        {
+            mail_message_id: messageIds[0],
+            notification_type: "inbox",
+            is_read: true,
+            res_partner_id: serverState.partnerId,
+        },
+        {
+            mail_message_id: messageIds[1],
+            notification_type: "inbox",
+            is_read: true,
+            res_partner_id: serverState.partnerId,
+        },
+    ]);
+    await start();
+    await openDiscuss("mail.box_history");
+    await contains(".o-mail-Message", { count: 2 });
+    await contains("[title='Add a Reaction']");
+    await contains(".o-mail-Message:eq(0) [title='Add a Reaction']");
+    await contains(".o-mail-Message:eq(1):not(:has([title='Add a Reaction']))");
 });

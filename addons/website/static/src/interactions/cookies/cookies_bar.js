@@ -44,20 +44,7 @@ export class CookiesBar extends Popup {
 
     start() {
         super.start();
-
-        // Add a link to the cookie policy page in the copyright footer.
-        // TODO: In master, add this link via XML.
-        const copyrightFooterContainerEl = document.querySelector(
-            ".o_footer_copyright_name"
-        )?.parentElement;
-        if (copyrightFooterContainerEl) {
-            const cookiePolicyLinkEl = cloneContentEls(`
-                <p><a href="/cookie-policy" class="o_cookie_policy_link">${_t(
-                    "Cookie Policy"
-                )}</a></p>
-            `).firstElementChild;
-            this.insert(cookiePolicyLinkEl, copyrightFooterContainerEl);
-        }
+        this.insertCookiePolicyLink();
 
         // Since cookie preferences can be changed, update the gtag script that
         // toggles the gtag consent. So, when the user modifies their cookie
@@ -104,6 +91,22 @@ export class CookiesBar extends Popup {
         }
     }
 
+    insertCookiePolicyLink() {
+        // Add a link to the cookie policy page in the copyright footer.
+        // TODO: In master, add this link via XML.
+        const copyrightFooterContainerEl = document.querySelector(
+            ".o_footer_copyright_name"
+        )?.parentElement;
+        if (copyrightFooterContainerEl) {
+            const cookiePolicyLinkEl = cloneContentEls(`
+                <p><a href="/cookie-policy" class="o_cookie_policy_link">${_t(
+                    "Cookie Policy"
+                )}</a></p>
+            `).firstElementChild;
+            this.insert(cookiePolicyLinkEl, copyrightFooterContainerEl);
+        }
+    }
+
     showPopup() {
         super.showPopup();
         if (this.toggleEl) {
@@ -124,7 +127,6 @@ export class CookiesBar extends Popup {
     }
 
     onToggleCookiesBar() {
-        this.cookieValue = cookie.get(this.el.id);
         this.bsModal.toggle();
         // As we're using Bootstrap's events, the Popup class prevents the modal
         // from being shown after hiding it: override that behavior.
@@ -147,6 +149,12 @@ export class CookiesBar extends Popup {
     }
 
     onHideModal() {
+        // cookieValue starts as true in Popup.setup() and is only replaced
+        // after explicit consent. If it is still true here, the modal was
+        // closed without a user choice, so nothing should be persisted.
+        if (this.cookieValue === true) {
+            return;
+        }
         super.onHideModal();
         const params = new URLSearchParams(window.location.search);
         const trackingFields = {

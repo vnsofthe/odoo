@@ -89,7 +89,7 @@ class StockMove(models.Model):
                 po_line_vals['price_unit'] = 0
             purchase_order_lines_vals.append(po_line_vals)
         if purchase_order_lines_vals:
-            self.env['purchase.order.line'].create(purchase_order_lines_vals)
+            self.env['purchase.order.line'].with_context(bypass_move_update=True).create(purchase_order_lines_vals)
         return super()._action_synch_order()
 
     def _should_ignore_pol_price(self):
@@ -128,7 +128,11 @@ class StockMove(models.Model):
 
     def _is_purchase_return(self):
         self.ensure_one()
-        return self.location_dest_id.usage == "supplier" or (self.origin_returned_move_id and self.location_dest_id == self.env.ref('stock.stock_location_inter_company', raise_if_not_found=False))
+        return self.location_dest_id.usage == "supplier"\
+            or self.origin_returned_move_id and (
+                self.location_dest_id == self.env.ref('stock.stock_location_inter_company', raise_if_not_found=False) or
+                self.origin_returned_move_id.location_usage == "supplier"
+            )
 
     def _get_all_related_sm(self, product):
         return super()._get_all_related_sm(product) | self.filtered(lambda m: m.purchase_line_id.product_id == product)

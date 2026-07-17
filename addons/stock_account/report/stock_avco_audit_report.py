@@ -45,7 +45,7 @@ SELECT
     sm.company_id,
     sm.reference,
     CASE WHEN sm.is_in THEN sm.value ELSE -sm.value END AS value,
-    CASE WHEN sm.is_in THEN sm.quantity ELSE -sm.quantity END AS quantity,
+    CASE WHEN sm.is_in THEN sm.quantity * (um.factor / up.factor) ELSE -sm.quantity * (um.factor / up.factor) END AS quantity,
     'stock.move' AS res_model_name,
     'Operation' AS description
 FROM
@@ -60,6 +60,10 @@ LEFT JOIN
     product_category pc ON pt.categ_id = pc.id
 LEFT JOIN
     res_company company ON sm.company_id = company.id
+LEFT JOIN
+    uom_uom um ON um.id = sm.product_uom
+LEFT JOIN
+    uom_uom up ON up.id = pt.uom_id
 WHERE
     sm.state = 'done'
     AND (sm.is_in = TRUE OR sm.is_out = TRUE)
@@ -100,25 +104,26 @@ WHERE
             total_quantity = 0.0
             avco = 0.0
             for record in total_records:
-                in_qty = record.quantity
-                in_value = record.value
+                qty = record.quantity
                 if record.res_model_name == 'stock.move':
                     previous_qty = total_quantity
-                    total_quantity += in_qty
-
-                    # Regular case, value from accumulation
-                    if previous_qty > 0:
-                        total_value += in_value
-                        avco = total_value / total_quantity if not float_is_zero(total_quantity, precision_digits=self.env['decimal.precision'].precision_get('Product Unit')) else avco
-                    # From negative quantity case, value from last_in
-                    elif previous_qty <= 0:
-                        avco = in_value / in_qty if in_qty else avco
-                        total_value = avco * total_quantity
-
-                    added_value = avco * in_qty
+                    total_quantity += qty
+                    if qty > 0:
+                        added_value = record.value
+                        # Regular case, value from accumulation
+                        if previous_qty > 0:
+                            total_value += added_value
+                            avco = total_value / total_quantity if not float_is_zero(total_quantity, precision_digits=self.env['decimal.precision'].precision_get('Product Unit')) else avco
+                        # From negative quantity case, value from last_in
+                        elif previous_qty <= 0:
+                            avco = added_value / qty if qty else avco
+                            total_value = avco * total_quantity
+                    else:
+                        added_value = avco * qty
+                        total_value += added_value
 
                 elif record.res_model_name == 'product.value':
-                    avco = in_value
+                    avco = record.value
                     added_value = (avco * total_quantity) - total_value
                     total_value = avco * total_quantity
 

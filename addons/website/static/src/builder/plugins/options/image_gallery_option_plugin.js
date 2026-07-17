@@ -5,11 +5,13 @@ import { ImageGalleryComponent } from "./image_gallery_option";
 import { renderToElement } from "@web/core/utils/render";
 import { updateCarouselIndicators } from "../carousel_option_plugin";
 import { BuilderAction } from "@html_builder/core/builder_action";
+import { hasMediaOnly, isMediaElement } from "@html_editor/utils/dom_info";
+import { selectElements } from "@html_editor/utils/dom_traversal";
 import { withSequence } from "@html_editor/utils/resource";
 import { SNIPPET_SPECIFIC, SNIPPET_SPECIFIC_END } from "@html_builder/utils/option_sequence";
-import { uniqueId } from "@web/core/utils/functions";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { forwardToThumbnail } from "@html_builder/utils/utils_css";
+import { uuid } from "@web/core/utils/strings";
 
 /**
  * @typedef { Object } ImageGalleryOptionShared
@@ -73,6 +75,16 @@ class ImageGalleryOption extends Plugin {
             const carousels = cloneEl.querySelectorAll(".s_image_gallery .carousel");
             this.addUniqueIds(carousels);
         },
+        // Make sure s_image_gallery elements are not editable, while keeping
+        // the media they contain editable (+ compatibility with older
+        // versions).
+        content_editable_providers: this.getContentEditableEls.bind(this),
+        content_not_editable_providers: this.getContentNotEditableEls.bind(this),
+        dropzone_selector: {
+            selector: ".s_image_gallery .row > div",
+            dropNear: ".s_image_gallery .row > div",
+            dropLockWithin: ".s_image_gallery",
+        },
     };
 
     setup() {
@@ -82,7 +94,7 @@ class ImageGalleryOption extends Plugin {
 
     addUniqueIds(carousels) {
         for (const carousel of carousels) {
-            const id = uniqueId("slideshow_");
+            const id = `slideshow_${uuid()}`;
             carousel.id = id;
             const controllerButtons = carousel.querySelectorAll(".o_carousel_controllers button");
             for (const button of controllerButtons) {
@@ -467,6 +479,21 @@ class ImageGalleryOption extends Plugin {
 
     getImageElement(el) {
         return el.tagName === "IMG" ? el : el.querySelector("img");
+    }
+
+    getContentEditableEls(rootEl) {
+        return [...selectElements(rootEl, ".s_image_gallery *")].filter(
+            (el) => isMediaElement(el) || el.tagName === "IMG"
+        );
+    }
+
+    getContentNotEditableEls(rootEl) {
+        return [
+            ...selectElements(
+                rootEl,
+                ".s_image_gallery .row > *, .s_image_gallery .carousel-inner > *"
+            ),
+        ].filter((el) => hasMediaOnly(el, !!el.closest(".o_grid, .o_nomode, .o_slideshow")));
     }
 }
 

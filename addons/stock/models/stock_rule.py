@@ -340,12 +340,13 @@ class StockRule(models.Model):
         move_dest_ids = values.get('move_dest_ids') and [(4, x.id) for x in values['move_dest_ids']] or []
 
         # when create chained moves for inter-warehouse transfers, set the warehouses as partners
-        if not partner and move_dest_ids:
+        if move_dest_ids:
             move_dest = values['move_dest_ids']
             if location_dest_id == company_id.internal_transit_location_id:
-                partners = move_dest.location_dest_id.warehouse_id.partner_id
-                if len(partners) == 1:
-                    partner = partners.id
+                if not partner:
+                    partners = move_dest.location_dest_id.warehouse_id.partner_id
+                    if len(partners) == 1:
+                        partner = partners.id
                 move_dest.partner_id = self.location_src_id.warehouse_id.partner_id or self.company_id.partner_id
 
         # If the quantity is negative the move should be considered as a refund
@@ -696,10 +697,11 @@ class StockRule(models.Model):
         orderpoints = self.env['stock.warehouse.orderpoint'].search(domain)
         orderpoints.sudo()._compute_qty_to_order_computed()
         orderpoints.sudo()._compute_deadline_date()
-        orderpoints.sudo()._procure_orderpoint_confirm(use_new_cursor=use_new_cursor, company_id=company_id, raise_user_error=False)
 
         if use_new_cursor:
             self.env['ir.cron']._commit_progress(1)
+
+        orderpoints.sudo()._procure_orderpoint_confirm(use_new_cursor=use_new_cursor, company_id=company_id, raise_user_error=False)
 
         # Search all confirmed stock_moves and try to assign them
         domain = self._get_moves_to_assign_domain(company_id)

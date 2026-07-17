@@ -42,6 +42,13 @@ test("should open the Powerbox on type `/`", async () => {
     await expectElementCount(".o-we-powerbox", 1);
 });
 
+test("should not open powerbox inside code block", async () => {
+    const { editor } = await setupEditor(`<pre>abc[]</pre>`);
+    await insertText(editor, "/");
+    await animationFrame();
+    expect(".o-we-powerbox").toHaveCount(0);
+});
+
 test.tags("iframe", "desktop");
 test("in iframe, desktop: should open the Powerbox on type `/`", async () => {
     const { el, editor } = await setupEditor("<p>ab[]</p>", { props: { iframe: true } });
@@ -106,6 +113,23 @@ describe("search", () => {
         expect(["Heading 1", "Heading 2", "Heading 3"].every((h) => commands.includes(h))).toBe(
             true
         );
+    });
+
+    test("should filter Separator commands with term 'divider' and 'line'", async () => {
+        const { el, editor } = await setupEditor("<p>ab[]</p>");
+        await insertText(editor, "/");
+        await animationFrame();
+        expect(commandNames(el).length).toBe(27);
+        await insertText(editor, "line");
+        await animationFrame();
+        expect(commandNames(el).includes("Separator")).toBe(true);
+        // Replace "line" by "divider"
+        for (let i = 0; i < 4; i++) {
+            press("backspace");
+        }
+        await insertText(editor, "/divider");
+        await animationFrame();
+        expect(commandNames(el).includes("Separator")).toBe(true);
     });
 
     test("should hide categories when you have a search term", async () => {

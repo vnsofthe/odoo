@@ -54,7 +54,7 @@ class StockWarehouse(models.Model):
     def _compute_buy_to_resupply(self):
         for warehouse in self:
             buy_route = warehouse.buy_pull_id.route_id
-            warehouse.buy_to_resupply = bool(buy_route.product_selectable or buy_route.warehouse_ids.filtered(lambda w: w.id == warehouse.id))
+            warehouse.buy_to_resupply = warehouse.id in buy_route.warehouse_ids.ids
 
     def _inverse_buy_to_resupply(self):
         for warehouse in self:
@@ -261,7 +261,7 @@ class StockWarehouseOrderpoint(models.Model):
     def _get_default_supplier(self):
         self.ensure_one()
         if self.show_supplier and self.product_id:
-            return self._get_default_rule()._get_matching_supplier(
+            return self.env['stock.rule']._get_matching_supplier(
                 self.product_id, self.qty_to_order, self.product_uom, self.company_id, {}
             )
         else:

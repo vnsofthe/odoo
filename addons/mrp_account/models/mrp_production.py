@@ -12,7 +12,7 @@ class MrpProduction(models.Model):
 
     extra_cost = fields.Float(copy=False, string='Extra Unit Cost')
     show_valuation = fields.Boolean(compute='_compute_show_valuation')
-    wip_move_ids = fields.Many2many('account.move', 'wip_move_production_rel', 'production_id', 'move_id')
+    wip_move_ids = fields.Many2many('account.move', 'wip_move_production_rel', 'production_id', 'move_id', copy=False)
     wip_move_count = fields.Integer("WIP Journal Entry Count", compute='_compute_wip_move_count')
 
     def _compute_show_valuation(self):
@@ -26,7 +26,7 @@ class MrpProduction(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
-        for production in self:
+        for production in self.sudo():
             if vals.get('name'):
                 production.move_raw_ids.analytic_account_line_ids.ref = production.display_name
                 for workorder in production.workorder_ids:
@@ -94,6 +94,9 @@ class MrpProduction(models.Model):
         for mo in self:
             production_location = self.product_id.with_company(self.company_id).property_stock_production
             if mo.with_company(mo.company_id).product_id.valuation != 'real_time' or not production_location.valuation_account_id:
+                continue
+
+            if mo.workorder_ids.time_ids.account_move_line_id:
                 continue
 
             product_accounts = mo.product_id.product_tmpl_id.get_product_accounts()

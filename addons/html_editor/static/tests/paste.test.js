@@ -75,7 +75,7 @@ describe("Html Paste cleaning - whitelist", () => {
                 );
             },
             contentAfter:
-                '<p>123a</p><table class="table table-bordered o_table"><tbody><tr><th>h</th></tr><tr><td>b</td></tr></tbody></table><p>d[]</p>',
+                '<p>123a</p><table class="table table-bordered o_table"><tbody><tr><th class="o_table_header">h</th></tr><tr><td>b</td></tr></tbody></table><p>d[]</p>',
         });
     });
 
@@ -3201,6 +3201,7 @@ describe("link", () => {
                 contentAfter: "<pre>http://www.xyz.com[]</pre>",
             });
         });
+
         test("should not merge consecutive pastes of the same URL into a single anchor", async () => {
             await testEditor({
                 contentBefore: "<p>[]</p>",
@@ -3210,6 +3211,16 @@ describe("link", () => {
                 },
                 contentAfter:
                     '<p><a href="http://www.xyz.com">http://www.xyz.com</a><a href="http://www.xyz.com">http://www.xyz.com</a>[]</p>',
+            });
+        });
+
+        test("should paste and transform an URL between backticks", async () => {
+            await testEditor({
+                contentBefore: "<p>ab[]cd</p>",
+                stepFunction: async (editor) => {
+                    pasteText(editor, "`http://www.xyz.com`");
+                },
+                contentAfter: '<p>ab`<a href="http://www.xyz.com">http://www.xyz.com</a>`[]cd</p>',
             });
         });
     });
@@ -4482,8 +4493,8 @@ ${"        "}
                         <table class="table table-bordered o_table">
                             <tbody>
                                 <tr>
-                                    <th>1</th>
-                                    <th>2</th>
+                                    <th class="o_table_header">1</th>
+                                    <th class="o_table_header">2</th>
                                 </tr>
                                 <tr>
                                     <td>1</td>
@@ -4520,8 +4531,8 @@ ${"        "}
                         <table class="table table-bordered o_table">
                             <tbody>
                                 <tr>
-                                    <th>1</th>
-                                    <th>2[]</th>
+                                    <th class="o_table_header">1</th>
+                                    <th class="o_table_header">2[]</th>
                                 </tr>
                             </tbody>
                         </table>

@@ -63,6 +63,7 @@ export class ColorPicker extends Component {
         noTransparency: { type: Boolean, optional: true },
         close: { type: Function, optional: true },
         className: { type: String, optional: true },
+        useDefaultThemeColors: { type: Boolean, optional: true },
     };
     static defaultProps = {
         close: () => {},
@@ -70,6 +71,7 @@ export class ColorPicker extends Component {
         enabledTabs: ["solid", "custom"],
         cssVarColorPrefix: "",
         setOnCloseCallback: () => {},
+        useDefaultThemeColors: true,
     };
 
     setup() {
@@ -81,7 +83,9 @@ export class ColorPicker extends Component {
 
         this.DEFAULT_COLORS = DEFAULT_COLORS;
         this.grayscales = Object.assign({}, DEFAULT_GRAYSCALES, this.props.grayscales);
-        this.DEFAULT_THEME_COLOR_VARS = DEFAULT_THEME_COLOR_VARS;
+        this.DEFAULT_THEME_COLOR_VARS = this.props.useDefaultThemeColors
+            ? DEFAULT_THEME_COLOR_VARS
+            : [];
         this.defaultColorSet = this.getDefaultColorSet();
         this.defaultColor = this.props.state.selectedColor;
         this.focusedBtn = null;
@@ -328,7 +332,12 @@ export function useColorPicker(refName, props, options = {}) {
     const root = useRef(refName);
 
     function onClick() {
-        colorPicker.isOpen ? colorPicker.close() : colorPicker.open(root.el, props);
+        if (colorPicker.isOpen) {
+            colorPicker.close();
+        } else {
+            colorPicker.open(root.el, props);
+            options.onOpen?.();
+        }
     }
 
     useEffect(

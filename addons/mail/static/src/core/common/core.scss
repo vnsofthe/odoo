@@ -97,7 +97,7 @@ $o-discuss-talkingColor: lighten($success, 10%);
 }
 
 .o-discuss-text-body {
-    color: $gray-700;
+    color: $gray-700 !important;
 }
 
 .o-discuss-badge, .o-discuss-badgeShape {
@@ -415,11 +415,6 @@ a.o-discuss-mention {
     .o-opacity-hoverable {
         opacity: 100 !important;
     }
-}
-
-.o-mail-Discuss-threadActionPopover {
-    width: Min(95vw, 400px);
-    max-height: Min(50vh, 530px);
 }
 
 .o-mail-starred {

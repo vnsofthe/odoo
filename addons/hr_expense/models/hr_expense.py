@@ -7,7 +7,8 @@ import logging
 import werkzeug
 
 from odoo import api, fields, Command, models, _
-from odoo.exceptions import RedirectWarning, UserError, ValidationError
+from odoo.exceptions import AccessError, RedirectWarning, UserError, ValidationError
+from odoo.fields import Domain
 from odoo.tools import clean_context, email_normalize, float_repr, float_round, format_date, is_html_empty, parse_version
 
 
@@ -44,6 +45,7 @@ class HrExpense(models.Model):
     _description = "Expense"
     _order = "date desc, id desc"
     _check_company_auto = True
+    _mail_post_access = 'read'
 
     @api.model
     def _default_employee_id(self):
@@ -331,14 +333,15 @@ class HrExpense(models.Model):
                 ).ids
             )
         for expense in self:
-            if not expense.company_id:
-                # This would be happening when emptying the required company_id field, triggering the "onchange"s.
-                # This would lead to fields being set as editable, instead of using the env company,
-                # recomputing the interface just to be blocked when trying to save we choose not to recompute anything
-                # and wait for a proper company to be inputted.
-                continue
-            if expense.state not in {'draft', 'submitted', 'approved'} and not self.env.su:
-                # Not editable
+            if (
+                not expense.company_id
+                or (expense.state not in {'draft', 'submitted', 'approved'} and not self.env.su)
+            ):
+                # When emptying the required company_id field, onchanges are triggered.
+                # To avoid recomputing the interface without a company (which could
+                # temporarily make fields editable), we do not recompute anything and wait
+                # for a proper company to be set. The interface is also made not editable
+                # when the state is not draft/submitted/approved and the user is not a superuser.
                 expense.is_editable = False
                 continue
 
@@ -821,7 +824,8 @@ class HrExpense(models.Model):
         res = super().write(vals)
 
         if vals.get('state') == 'approved' or vals.get('approval_state') == 'approved':
-            self._check_can_approve()
+            # filter out auto approved expenses
+            self.filtered(lambda expense: expense.manager_id - expense.employee_id.user_id or expense.employee_id.expense_manager_id)._check_can_approve()
         elif vals.get('state') == 'refused' or vals.get('approval_state') == 'refused':
             self._check_can_refuse()
 
@@ -1081,12 +1085,8 @@ class HrExpense(models.Model):
 
         expense_description = msg_dict.get('subject', '')
 
-        if employee.user_id:
-            company = employee.user_id.company_id
-            currencies = company.currency_id | employee.user_id.company_ids.mapped('currency_id')
-        else:
-            company = employee.company_id
-            currencies = company.currency_id
+        company = employee.company_id
+        currencies = company.currency_id
 
         if not company:  # ultimate fallback, since company_id is required on expense
             company = self.env.company
@@ -1138,7 +1138,7 @@ class HrExpense(models.Model):
         expenses_autovalidated = self.filtered(lambda expense: expense._can_be_autovalidated())
         (self - expenses_autovalidated).approval_state = 'submitted'
         if expenses_autovalidated:  # Note, this will and should bypass the duplicate check. May be changed later
-            expenses_autovalidated._do_approve(check=False)
+            expenses_autovalidated.with_context(validate_analytic=True)._do_approve()
         self.sudo().update_activities_and_mails()
 
     def _can_be_autovalidated(self):
@@ -1149,20 +1149,12 @@ class HrExpense(models.Model):
     def action_approve(self):
         """ Approve an expense, pops a wizard if a duplicated expense is found to confirm they are all valid expenses """
         self._check_can_approve()
-        for expense in self:
-            expense._validate_distribution(
-                account=expense.account_id.id,
-                product=expense.product_id.id,
-                business_domain='expense',
-                company_id=expense.company_id.id,
-            )
-
         duplicates = self.duplicate_expense_ids.filtered(lambda exp: exp.state in {'submitted', 'approved', 'posted', 'paid', 'in_payment'})
         if duplicates:
             action = self.env["ir.actions.act_window"]._for_xml_id('hr_expense.hr_expense_approve_duplicate_action')
             action['context'] = {'default_expense_ids': duplicates.ids}
             return action
-        self._do_approve(False)
+        self._do_approve()
 
     def action_refuse(self):
         """ Refuse an expense with a reason """
@@ -1182,6 +1174,19 @@ class HrExpense(models.Model):
         employee_expenses = self - company_expenses
         if len(employee_expenses.company_id) > 1:
             raise UserError(_("You can't post simultaneously employee-paid expenses belonging to different companies"))
+
+        # For company-paid expenses using SEPA Credit Transfer, the vendor must be set
+        # because SEPA XML generation requires a creditor name (partner).
+        expenses_missing_vendor = company_expenses.filtered(
+            lambda exp: exp.payment_method_line_id.code == 'sepa_ct' and not exp.vendor_id
+        )
+        if expenses_missing_vendor:
+            expense_names = ', '.join(expenses_missing_vendor.mapped('name'))
+            raise UserError(_(
+                "The vendor is required for expenses using SEPA Credit Transfer as the payment method."
+                "\nPlease set a vendor on the following expenses: %s",
+                expense_names
+            ))
 
         if company_expenses:
             company_expenses._create_company_paid_moves()
@@ -1213,7 +1218,18 @@ class HrExpense(models.Model):
 
     def attach_document(self, **kwargs):
         """When an attachment is uploaded as a receipt, set it as the main attachment."""
-        self._message_set_main_attachment_id(self.env["ir.attachment"].browse(kwargs['attachment_ids'][-1:]), force=True)
+        if not self.has_access('write') and self.employee_id.user_id != self.env.user:
+            raise AccessError(self.env._("You don't have the access rights to modify this expense."))
+        attachment_ids = [attachment_id for attachment_id in kwargs.get('attachment_ids', []) if attachment_id]  # Filter out falsy values
+        if not attachment_ids:
+            # If uploading the document fails due to the checks in the create method of ir.attachment, the
+            # attachment_ids will contains [None], so we need to check here to raise the UserError.
+            raise UserError(self.env._("You can't add an attachment to an expense once it has been approved."))
+
+        attachment = self.env['ir.attachment'].browse(attachment_ids[-1:])
+        user_expenses = self.filtered(lambda expense: expense.employee_id.user_id == self.env.user)
+        user_expenses.sudo()._message_set_main_attachment_id(attachment, force=True)
+        (self - user_expenses)._message_set_main_attachment_id(attachment, force=True)
 
     @api.model
     def _get_untitled_expense_name(self, *args):
@@ -1287,12 +1303,15 @@ class HrExpense(models.Model):
         # - To Submit: contains the expenses paid either by the employee or by the company, and that are draft or reported
         # - Waiting approval: contains expenses paid by the employee or paid by the company, and that have been submitted but still need to be approved/refused
         # - To be reimbursed: contains ONLY expenses paid by the employee that are approved, the payment has not yet been made
-        fetched_expenses = self._read_group(
-            [
-                ('employee_id', 'in', self.env.user.employee_ids.ids),
-                '|', ('state', 'in', ('draft', 'submitted')),
-                     '&', ('payment_mode', '=', 'own_account'), ('state', '=', 'approved')
-            ], ['state'], ['total_amount:sum'])
+        base_domain = [
+            ('employee_id', 'child_of', self.env.user.employee_ids.ids),
+            '|', ('state', 'in', ('draft', 'submitted')),
+            '&', ('payment_mode', '=', 'own_account'), ('state', '=', 'approved')
+        ]
+        if domain := self.env.context.get('domain'):
+            base_domain = Domain.AND([base_domain, domain])
+
+        fetched_expenses = self._read_group(base_domain, ['state'], ['total_amount:sum'])
         for state, total_amount_sum in fetched_expenses:
             expense_state[state]['amount'] += total_amount_sum
         return expense_state
@@ -1428,10 +1447,14 @@ class HrExpense(models.Model):
             raise UserError(_("Please specify if the expenses were paid by the company, or the employee."))
 
     def _do_approve(self, check=True):
-        if check:
-            self._check_can_approve()
         expenses_to_approve = self.filtered(lambda s: s.state in {'submitted', 'draft'})
         for expense in expenses_to_approve:
+            expense._validate_distribution(
+                account=expense.account_id.id,
+                product=expense.product_id.id,
+                business_domain='expense',
+                company_id=expense.company_id.id,
+            )
             expense.write({
                 'approval_state': 'approved',
                 'manager_id': self.env.user.id,
@@ -1524,7 +1547,7 @@ class HrExpense(models.Model):
             'res_model': 'hr.expense.post.wizard',
             'res_id': self.env['hr.expense.post.wizard'].create({}).id,
             'target': 'new',
-            'context': self.with_context(active_ids=self.ids).env.context,
+            'context': self.with_context(active_ids=self.ids, validate_analytic=True).env.context,
         }
 
     def _post_without_wizard(self):
@@ -1584,14 +1607,12 @@ class HrExpense(models.Model):
         return moves_sudo.sudo(self.env.su)
 
     def _prepare_receipts_vals(self):
-        attachments_data = []
-        for attachment in self.attachment_ids:
-            attachments_data.append(
-                Command.create(attachment.copy_data({'res_model': 'account.move', 'res_id': False, 'raw': attachment.raw})[0])
-            )
-
         return_vals = []
         for employee_sudo, expenses_sudo in self.sudo().grouped('employee_id').items():
+            attachments_data = [
+                Command.create(attachment.copy_data({'res_model': 'account.move', 'res_id': False, 'raw': attachment.raw})[0])
+                for attachment in expenses_sudo.attachment_ids
+            ]
             multiple_expenses_name = _("Expenses of %(employee)s", employee=employee_sudo.name)
             move_ref = expenses_sudo.name if len(expenses_sudo) == 1 else multiple_expenses_name
             return_vals.append({
@@ -1601,6 +1622,7 @@ class HrExpense(models.Model):
                 'partner_id': employee_sudo.work_contact_id.id,
                 'commercial_partner_id': employee_sudo.user_partner_id.id,
                 'currency_id': expenses_sudo.company_currency_id.id,
+                'company_id': expenses_sudo.company_id.id,
                 'line_ids': [Command.create(expense_sudo._prepare_move_lines_vals()) for expense_sudo in expenses_sudo],
                 'partner_bank_id': employee_sudo.primary_bank_account_id.id,
                 'attachment_ids': attachments_data,
@@ -1683,6 +1705,7 @@ class HrExpense(models.Model):
             'journal_id': journal.id,
             'partner_id': self.vendor_id.id,
             'currency_id': self.currency_id.id,
+            'company_id': self.company_id.id,
             'line_ids': [Command.create(line) for line in move_lines],
             'attachment_ids': [
                 Command.create(attachment.copy_data({'res_model': 'account.move', 'res_id': False, 'raw': attachment.raw})[0])

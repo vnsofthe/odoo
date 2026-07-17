@@ -19,6 +19,7 @@ import {
     waitFor,
     hover,
     manuallyDispatchProgrammaticEvent,
+    advanceTime,
 } from "@odoo/hoot-dom";
 import { Deferred, animationFrame, mockSendBeacon, tick } from "@odoo/hoot-mock";
 import { onWillDestroy, xml } from "@odoo/owl";
@@ -42,7 +43,13 @@ import { delay } from "@web/core/utils/concurrency";
 import { FormController } from "@web/views/form/form_controller";
 import { Counter, EmbeddedWrapperMixin } from "./_helpers/embedded_component";
 import { moveSelectionOutsideEditor, setSelection } from "./_helpers/selection";
-import { insertText, pasteOdooEditorHtml, pasteText, undo } from "./_helpers/user_actions";
+import {
+    insertText,
+    pasteHtml,
+    pasteOdooEditorHtml,
+    pasteText,
+    undo,
+} from "./_helpers/user_actions";
 import { unformat } from "./_helpers/format";
 import { expandToolbar } from "./_helpers/toolbar";
 import { expectElementCount } from "./_helpers/ui_expectations";
@@ -311,16 +318,16 @@ test("html field in readonly with embedded components and editable descendants",
     READONLY_MAIN_EMBEDDINGS.pop();
 });
 
-test("links should open on a new tab in readonly", async () => {
+test("only external links should always open on a new tab in readonly", async () => {
     Partner._records = [
         {
             id: 1,
             txt: `
             <body>
                 <p>first</p>
-                <a href="/contactus">Relative link</a>
-                <a href="${browser.location.origin}/contactus">Internal link</a>
-                <a href="https://google.com">External link</a>
+                <a class="internal" href="/contactus">Relative link</a>
+                <a class="internal" href="${browser.location.origin}/contactus">Internal link</a>
+                <a class="external" href="https://google.com">External link</a>
             </body>`,
         },
         {
@@ -328,9 +335,9 @@ test("links should open on a new tab in readonly", async () => {
             txt: `
             <body>
                 <p>second</p>
-                <a href="/contactus2">Relative link</a>
-                <a href="${browser.location.origin}/contactus2">Internal link</a>
-                <a href="https://google2.com">External link</a>
+                <a class="internal" href="/contactus2">Relative link</a>
+                <a class="internal" href="${browser.location.origin}/contactus2">Internal link</a>
+                <a class="external" href="https://google2.com">External link</a>
             </body>`,
         },
     ];
@@ -346,16 +353,24 @@ test("links should open on a new tab in readonly", async () => {
     });
 
     expect("[name='txt'] p").toHaveText("first");
-    for (const link of queryAll("a")) {
+    for (const link of queryAll("a.external")) {
         expect(link.getAttribute("target")).toBe("_blank");
         expect(link.getAttribute("rel")).toBe("noreferrer");
+    }
+    for (const link of queryAll("a.internal")) {
+        expect(link.getAttribute("target")).toBe(null);
+        expect(link.getAttribute("rel")).toBe(null);
     }
 
     await contains(`.o_pager_next`).click();
     expect("[name='txt'] p").toHaveText("second");
-    for (const link of queryAll("a")) {
+    for (const link of queryAll("a.external")) {
         expect(link.getAttribute("target")).toBe("_blank");
         expect(link.getAttribute("rel")).toBe("noreferrer");
+    }
+    for (const link of queryAll("a.internal")) {
+        expect(link.getAttribute("target")).toBe(null);
+        expect(link.getAttribute("rel")).toBe(null);
     }
 });
 
@@ -654,7 +669,36 @@ test("edit a html field with `o-contenteditable-true` or `o-contenteditable-fals
             '<div class="o-paragraph" data-selection-placeholder=""><br></div>'
     );
     await clickSave();
-    expect.verifySteps(["update_value", "web_save"]);
+    expect.verifySteps(["update_value", "update_value", "web_save"]);
+});
+
+test("blurring an inner contenteditable field by clicking outside should trigger update_value", async () => {
+    patchWithCleanup(HtmlField.prototype, {
+        updateValue() {
+            expect.step("update_value");
+            super.updateValue(...arguments);
+        },
+    });
+    Partner._records = [
+        {
+            id: 1,
+            txt: `<div contenteditable="false">outside<div contenteditable="true"><p class="inner">inside</p></div></div>`,
+        },
+    ];
+    await mountView({
+        type: "form",
+        resId: 1,
+        resModel: "partner",
+        arch: `
+            <form>
+                <field name="txt" widget="html"/>
+            </form>`,
+    });
+    setSelection({ anchorNode: queryOne(".inner"), anchorOffset: 0 });
+    await tick();
+    await insertText(htmlEditor, "a");
+    await click(document.body);
+    expect.verifySteps(["update_value"]);
 });
 
 test.tags("focus required");
@@ -928,10 +972,14 @@ test("Embed video by pasting video URL", async () => {
 
     // Press Enter to select first option in the powerbox ("Embed Youtube Video").
     await press("Enter");
-    await animationFrame();
+    // Insertion triggers selectionchange & addStep creates selection
+    // placeholder.fixSelectionInsideEditableRoot moves selection into it,
+    // trigger another selectionchange that removes selection placeholder.
+    // So we must wait for the o-we-hint.
+    await waitFor(".o-we-hint");
     const videoIframe = queryOne("div[data-embedded='video']");
     expect(videoIframe.nextElementSibling).toHaveOuterHTML(
-        '<div class="o-paragraph" data-selection-placeholder=""><br></div>'
+        `<div class="o-paragraph o-we-hint" o-we-hint-text="Type &quot;/&quot; for commands"><br></div>`
     );
     expect(
         `div[data-embedded='video'] iframe[data-src="https://www.youtube.com/embed/${videoId}"]`
@@ -997,6 +1045,54 @@ test("isDirty should be false when the content is being transformed by the edito
         message: "value should be sanitized by the editor",
     });
     expect(`.o_form_button_save`).not.toBeVisible();
+});
+
+test("isDirty should not be reset to false if onChange fired between getEditorContent and updateValue", async () => {
+    let htmlField;
+    const { promise: firstStep, resolve: resolveFirst } = Promise.withResolvers();
+    const { promise: secondStep, resolve: resolveSecond } = Promise.withResolvers();
+    const { promise: thirdStep, resolve: resolveThird } = Promise.withResolvers();
+    patchWithCleanup(HtmlField.prototype, {
+        setup() {
+            super.setup();
+            htmlField = this;
+        },
+        async getEditorContent() {
+            const el = await super.getEditorContent();
+            resolveFirst();
+            await secondStep;
+            return el;
+        },
+        async updateValue() {
+            const updated = await super.updateValue(...arguments);
+            resolveThird();
+            return updated;
+        },
+    });
+    await mountView({
+        type: "form",
+        resId: 1,
+        resModel: "partner",
+        arch: `
+            <form>
+                <field name="txt" widget="html"/>
+            </form>`,
+    });
+    expect(htmlField.isDirty).toBe(false);
+    expect(`.o_form_button_save`).not.toBeVisible();
+    const p = htmlField.editor.editable.querySelector("p");
+    p.append(htmlField.editor.document.createTextNode("Second"));
+    htmlField.editor.shared.history.addStep();
+    await clickSave();
+    await firstStep;
+    p.append(htmlField.editor.document.createTextNode("Third"));
+    htmlField.editor.shared.history.addStep();
+    resolveSecond();
+    await thirdStep;
+    await animationFrame();
+    expect(htmlField.editor.editable).toHaveInnerHTML(`<p>firstSecondThird</p>`);
+    expect(htmlField.isDirty).toBe(true);
+    expect(`.o_form_button_save`).toBeVisible();
 });
 
 test.tags("desktop");
@@ -1659,6 +1755,60 @@ test("'checklist' toolbar option is not available when 'allowChecklist' = false"
     await contains(".o-we-toolbar button[name='list_selector']").click();
     await waitFor(".o-we-toolbar-dropdown");
     expect("button[name='checklist']").toHaveCount(0);
+});
+
+test("typing '[] ' does not create a checklist when 'allowChecklist' is false", async () => {
+    Partner._records = [
+        {
+            id: 1,
+            txt: "<p><br></p>",
+        },
+    ];
+    await mountView({
+        type: "form",
+        resId: 1,
+        resModel: "partner",
+        arch: `
+            <form>
+                <field name="txt" widget="html" options="{'allowChecklist': false}"/>
+            </form>`,
+    });
+    setSelectionInHtmlField();
+    await insertText(htmlEditor, "[] ");
+    expect(queryOne(".odoo-editor-editable")).toHaveInnerHTML("<p>[] </p>");
+});
+
+test("should not paste checklist when allowchecklist is false", async () => {
+    Partner._records = [
+        {
+            id: 1,
+            txt: "<p><br></p>",
+        },
+    ];
+    await mountView({
+        type: "form",
+        resId: 1,
+        resModel: "partner",
+        arch: `
+            <form>
+                <field name="txt" widget="html" options="{'allowChecklist': false}"/>
+            </form>`,
+    });
+    setSelectionInHtmlField();
+    pasteOdooEditorHtml(
+        htmlEditor,
+        `<ul class="o_checklist"><li><div class="o-paragraph">1</div><ul class="o_checklist"><li><div class="o-paragraph">2</div><ul class="o_checklist"><li>3</li></ul></li></ul></li></ul>`
+    );
+    expect(queryOne(".odoo-editor-editable")).toHaveInnerHTML(
+        `<div class="o-paragraph">1</div><div class="o-paragraph">2</div><div class="o-paragraph">3</div>`
+    );
+    pasteHtml(
+        htmlEditor,
+        `<ul class="o_checklist"><li><div class="o-paragraph">1</div><ul class="o_checklist"><li><div class="o-paragraph">2</div><ul class="o_checklist"><li>3</li></ul></li></ul></li></ul>`
+    );
+    expect(queryOne(".odoo-editor-editable")).toHaveInnerHTML(
+        `<div class="o-paragraph">1</div><div class="o-paragraph">2</div><div class="o-paragraph">31</div><div class="o-paragraph">2</div><div class="o-paragraph">3</div>`
+    );
 });
 
 describe("sandbox", () => {
@@ -2570,10 +2720,12 @@ describe("save image", () => {
         expect(b64img).toHaveClass("o_b64_image_to_save");
 
         // Switch tab, this should trigger the image save.
-        await contains(".o_notebook_headers .nav-link:not(.active)").click();
-        await delay(50);
-        // reswitch tab, and check the image was saved properly.
-        await contains(".o_notebook_headers .nav-link:not(.active)").click();
+        await contains(".o_notebook_headers .nav-link:not(.active)[name='empty']").click();
+        await waitFor(".o_notebook_headers .nav-link.active[name='empty']");
+        // Reswitch tab, and check the image was saved properly.
+        await contains(".o_notebook_headers .nav-link:not(.active)[name='html']").click();
+        await waitFor(".o_notebook_headers .nav-link.active[name='html']");
+        await waitFor(".odoo-editor-editable", { timeout: 1500 });
         const savedImg = htmlEditor.editable.querySelector("img");
         expect(savedImg.getAttribute("src")).toBe("/test_image_url.png?access_token=1234");
         expect(savedImg).not.toHaveClass("o_b64_image_to_save");
@@ -2679,4 +2831,32 @@ test("should always have a block before a Table of Contents", async () => {
     expect(firstChild).toHaveOuterHTML(
         '<div class="o-paragraph" data-selection-placeholder="" style="margin: 8px 0px -9px;"><br></div>'
     );
+});
+
+test.tags("desktop");
+test("should not open icon toolbar when creating table of contents inside a list", async () => {
+    Partner._records = [
+        {
+            id: 1,
+            txt: `<ol><li><br></li></ol>`,
+        },
+    ];
+    await mountView({
+        type: "form",
+        resId: 1,
+        resModel: "partner",
+        arch: `
+            <form>
+                <field name="txt" widget="html"/>
+            </form>`,
+    });
+    setSelectionInHtmlField("li");
+    await insertText(htmlEditor, "/tableofcontents");
+    await waitFor(".o-we-powerbox");
+    expect(queryAllTexts(".o-we-command-name")[0]).toBe("Table of Contents");
+    await press("Enter");
+    await animationFrame();
+    setSelectionInHtmlField("li");
+    await advanceTime(200);
+    await expectElementCount(".o-we-toolbar", 0);
 });

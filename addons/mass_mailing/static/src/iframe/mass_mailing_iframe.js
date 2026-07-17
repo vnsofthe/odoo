@@ -22,6 +22,7 @@ import { _t } from "@web/core/l10n/translation";
 import { localization } from "@web/core/l10n/localization";
 import { isBrowserSafari } from "@web/core/browser/feature_detection";
 import { loadIframe } from "@mail/convert_inline/iframe_utils";
+import { isBlock } from "@html_editor/utils/blocks";
 
 const IFRAME_VALUE_SELECTOR = ".o_mass_mailing_value";
 
@@ -58,7 +59,7 @@ export class MassMailingIframe extends Component {
         iframeRef: { type: Function },
         iframeWrapperRef: { type: Function },
         showThemeSelector: { type: Boolean, optional: true },
-        onIframeLoad: { type: Function, optional: true },
+        onIframeLoad: { type: Function, optional: true }, // deprecated
         showCodeView: { type: Boolean, optional: true },
         toggleCodeView: { type: Function, optional: true },
         readonly: { type: Boolean, optional: true },
@@ -207,6 +208,9 @@ export class MassMailingIframe extends Component {
             },
             () => [this.state.isMobile]
         );
+        onWillDestroy(() => {
+            this.iframeLoaded.resolve(false);
+        });
     }
 
     get isBrowserSafari() {
@@ -280,12 +284,9 @@ export class MassMailingIframe extends Component {
         const checkAllInline = function (el) {
             return [...el.children].every((child) => {
                 if (child.tagName === "T") {
-                    return this.checkAllInline(child);
+                    return checkAllInline(child);
                 } else {
-                    return (
-                        child.nodeType !== Node.ELEMENT_NODE ||
-                        iframe.contentWindow.getComputedStyle(child).display === "inline"
-                    );
+                    return !isBlock(child);
                 }
             });
         };
@@ -366,7 +367,9 @@ export class MassMailingIframe extends Component {
         return {
             overlayRef: this.overlayRef,
             // TODO EGGMAIL: iframeInfo is deprecated (should resolve to iframe directly)
-            iframeLoaded: this.iframeLoaded.then((iframeInfo) => iframeInfo.iframe),
+            iframeLoaded: this.iframeLoaded.then((iframeInfo) =>
+                iframeInfo ? iframeInfo.iframe : false
+            ),
             snippetsName: "mass_mailing.email_designer_snippets",
             config: this.props.config,
             isMobile: this.state.isMobile,

@@ -290,7 +290,7 @@ class HrLeaveType(models.Model):
         target_date = self.env.context.get('leave_date_from') or self.env.context.get('default_date_from')
         data_days = self.get_allocation_data(employee, target_date)[employee]
         for holiday_status in self:
-            result = [item for item in data_days if item[0] == holiday_status.name]
+            result = [item for item in data_days if item[3] == holiday_status.id]
             leave_type_tuple = result[0] if result else ('', {})
             holiday_status.max_leaves = leave_type_tuple[1].get('max_leaves', 0)
             holiday_status.leaves_taken = leave_type_tuple[1].get('leaves_taken', 0)
@@ -675,8 +675,8 @@ class HrLeaveType(models.Model):
     def _get_carried_over_days_expiration_data(self, allocations, target_date):
         fake_allocations = self.env['hr.leave.allocation']
         for allocation in allocations:
-            fake_allocations |= self.env['hr.leave.allocation'].with_context(default_date_from=target_date).new(origin=allocation)
-        fake_allocations.sudo().with_context(default_date_from=target_date)._process_accrual_plans(target_date, log=False)
+            fake_allocations |= self.env['hr.leave.allocation'].new(origin=allocation)
+        fake_allocations.sudo()._process_accrual_plans(target_date, log=False)
         carried_over_days_expiration_data = {
             fake_allocation._origin:
             {
