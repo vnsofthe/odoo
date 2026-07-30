@@ -152,6 +152,15 @@ class StockMove(models.Model):
                 'company_id': move.company_id.id,
             })
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        moves = super().create(vals_list)
+        # a move added to a done picking is created done: `_action_done` won't value it
+        if done_moves := moves.filtered(lambda m: m.state == 'done'):
+            done_moves.filtered(lambda m: m._is_out())._set_value()
+            done_moves._create_account_move()
+        return moves
+
     def action_adjust_valuation(self):
         if len(self) != 1:
             raise UserError(_("You can only adjust valuation for one move at a time."))
@@ -441,9 +450,9 @@ class StockMove(models.Model):
 
     def _get_valued_qty(self, lot=None):
         self.ensure_one()
-        if self._is_in():
+        if (self.state == 'done' and self.is_in) or (self.state != 'done' and self._is_in()):
             return sum(self._get_in_move_lines(lot).mapped('quantity_product_uom'))
-        if self._is_out():
+        if (self.state == 'done' and self.is_out) or (self.state != 'done' and self._is_out()):
             return sum(self._get_out_move_lines(lot).mapped('quantity_product_uom'))
         if self.is_dropship:
             if lot:

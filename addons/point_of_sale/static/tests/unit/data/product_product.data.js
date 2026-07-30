@@ -20,6 +20,10 @@ export class ProductProduct extends models.ServerModel {
         ];
     }
 
+    has_access(operation) {
+        return true;
+    }
+
     _records = [
         {
             id: 1,
@@ -260,6 +264,18 @@ export class ProductProduct extends models.ServerModel {
             default_code: false,
             product_template_attribute_value_ids: [],
             product_template_variant_value_ids: [6],
+        },
+        {
+            id: 53,
+            product_tmpl_id: 52,
+            lst_price: 5,
+            standard_price: 0,
+            display_name: "Ice Cream",
+            product_tag_ids: [],
+            barcode: false,
+            default_code: false,
+            product_template_attribute_value_ids: [],
+            product_template_variant_value_ids: [],
         },
         {
             id: 60,

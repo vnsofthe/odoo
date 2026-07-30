@@ -270,7 +270,10 @@ export class SelfOrder extends Reactive {
         if (!this.kioskMode) {
             return product.isConfigurable();
         }
-        return product.attribute_line_ids.some((a) => a.product_template_value_ids.length > 1);
+        return product.attribute_line_ids.some(
+            (a) =>
+                a.product_template_value_ids.length > 1 || a.attribute_id.display_type === "multi"
+        );
     }
 
     async addToCart(
@@ -315,7 +318,9 @@ export class SelfOrder extends Reactive {
             orderAccessToken: access_token || this.currentOrder.access_token,
             screenMode: screen_mode,
         });
-        this.printKioskChanges(access_token);
+        if (this.kioskMode) {
+            this.printKioskChanges(access_token);
+        }
         this.resetCategorySelection();
     }
 
@@ -535,10 +540,6 @@ export class SelfOrder extends Reactive {
     }
 
     async printKioskChanges(access_token = "") {
-        if (!this.kioskMode) {
-            return;
-        }
-
         const d = new Date();
         let hours = "" + d.getHours();
         hours = hours.length < 2 ? "0" + hours : hours;
