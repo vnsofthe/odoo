@@ -94,10 +94,10 @@ patch(PosOrder.prototype, {
         return super.setPartner(...arguments);
     },
     removeOrderline(line, deep = true) {
-        const courseId = line.course_id;
+        const course = line.course_id;
         const result = super.removeOrderline(...arguments);
-        if (courseId && !this.lines.some((l) => l.course_id === courseId)) {
-            courseId.delete();
+        if (course?.isEmpty()) {
+            course.delete();
         }
         return result;
     },
@@ -128,6 +128,9 @@ patch(PosOrder.prototype, {
             })
             .map((course, newIndex) => {
                 course.index = newIndex + 1;
+                if (!this.config.use_course_allocation && !course.course_id) {
+                    course.name = _t("Course ") + course.index;
+                }
                 return course;
             });
         removedCourses.forEach((course) => course.delete());

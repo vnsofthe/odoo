@@ -1,0 +1,280 @@
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
+
+from datetime import date, datetime
+
+from dateutil.relativedelta import relativedelta
+from freezegun import freeze_time
+
+from odoo import Command
+from odoo.exceptions import UserError, ValidationError
+
+from odoo.addons.hr.tests.common import TestHrCommon
+from odoo.addons.mail.tests.common import MailCase
+from odoo.tests import Form
+
+
+class TestDeparture(MailCase, TestHrCommon):
+
+    @classmethod
+    @freeze_time('2025-01-01')
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.emp_boss = cls.env['hr.employee'].create({
+            'name': "Nice boss",
+            'contract_date_start': date.today(),
+        })
+
+        cls.emp_A, cls.emp_B, cls.emp_C, cls.emp_D = cls.env['hr.employee'].create([
+            {
+                'name': f'Employee {code}',
+                'parent_id': cls.emp_boss.id,
+                'user_id': False,
+                'work_email': f'employee_{code}@example.com',
+                'contract_date_start': date(2025, 2, 1),
+                'contract_date_end': False,
+            } for code in ['A', 'B', 'C', 'D']
+        ])
+
+        cls.user_A = cls.env['res.users'].create({
+            'name': 'Employee A',
+            'login': 'empA',
+            'password': 'longPasswordForEmployeeA',
+            'email': 'empA@empa.com',
+            'employee_ids': cls.emp_A.ids,
+        })
+
+    @freeze_time('2025-06-01')
+    def test_immediate_departure(self):
+        departure = self.env['hr.employee.departure'].create([{
+            'employee_id': self.emp_A.id,
+            'dismissal_date': date.today() + relativedelta(days=-1),
+            'departure_reason_id': self.env.ref('hr.departure_fired').id,
+            'departure_description': "Didn't bring coffee",
+        }])
+        self.assertTrue(departure.apply_immediately)
+        departure.action_register()
+        self.assertEqual(departure.apply_date, date.today(), "The departure should have been applied.")
+
+    @freeze_time('2025-06-02')
+    def test_departure_actions_to_true(self):
+        dep_date = date(2025, 6, 1)
+        departure = self.env['hr.employee.departure'].create([{
+            'employee_id': self.emp_A.id,
+            'dismissal_date': dep_date,
+        }])
+        departure.action_register()
+        self.assertFalse(self.emp_A.active, "Employee A should be archived.")
+        self.assertFalse(self.user_A.active, "Employee A's user should be archived.")
+        self.assertEqual(self.emp_A.contract_date_end, dep_date, "Employee A's contract dates should end at the departure date.")
+
+    def test_wrong_departure_date(self):
+        # the departure should be blocked if not after the first version date
+        with self.assertRaises(ValidationError):
+            self.env['hr.employee.departure'].create([{
+                'employee_id': self.emp_A.id,
+                'dismissal_date': date(2025, 1, 1),
+            }])
+
+        # the departure should be blocked if not after the first contract date
+        with self.assertRaises(ValidationError):
+            self.env['hr.employee.departure'].create([{
+                'employee_id': self.emp_A.id,
+                'dismissal_date': date(2025, 2, 1),
+            }])
+
+    def test_future_departure(self):
+        with freeze_time('2025-04-01'):
+            departure = self.env['hr.employee.departure'].create([{
+                'employee_id': self.emp_A.id,
+                'dismissal_date': date(2025, 6, 1),
+                'departure_reason_id': self.env.ref('hr.departure_fired').id,
+                'departure_description': "Didn't bring coffee",
+            }])
+
+            self.assertFalse(departure.apply_immediately)
+            with self.assertRaises(ValidationError):
+                departure.action_register()
+            self.assertFalse(departure.apply_date, "The departure shouldn't be applied yet.")
+
+        with freeze_time('2025-06-02'):
+            departure.action_register()
+            self.assertEqual(departure.apply_date, date.today(), "The departure should have been applied.")
+            self.assertFalse(self.emp_A.active, "The employee should have been archived.")
+            self.assertEqual(
+                self.emp_A.contract_date_end,
+                date(2025, 6, 1),
+                "The employee should have a contract date end.")
+
+    def test_employee_departure_empty_dismissal_date(self):
+        departure_form = Form(self.env['hr.employee.departure'])
+        departure_form.dismissal_date = False
+        self.assertEqual(departure_form.departure_date, False)
+
+    @freeze_time('2025-06-01')
+    def test_departure_dismissal_with_multiple_versions(self):
+        """
+        Checks that the departure is set on the correct version when the dismissal date and the departure date are
+        different and occur during different versions.
+        """
+        self.employee.version_ids[0].write({
+            'contract_date_start': date(2025, 1, 1),
+            'contract_date_end': date(2025, 5, 28)
+        })
+        self.employee.version_ids = [Command.create({
+            'name': 'employee second version',
+            'company_id': self.employee.company_id.id,
+            'contract_date_start': date(2025, 5, 29),
+            'date_version': date(2025, 5, 29),
+        })]
+        departure = self.env['hr.employee.departure'].create([{
+            'employee_id': self.employee.id,
+            'dismissal_date': date(2025, 5, 25),
+            'departure_date': date(2025, 5, 30),
+        }])
+        self.assertEqual(self.employee.version_ids[1].departure_id, departure)
+
+    def test_departure_notice_contract_date(self):
+        self.emp_D.write({
+            'employee_type_id': self.env.ref('hr.contract_type_employee').id,
+        })
+
+        departure = self.env['hr.employee.departure'].create({
+            'employee_id': self.emp_D.id,
+            'dismissal_date': date(2025, 5, 25),
+            'departure_date': date(2025, 5, 30),
+            'departure_reason_id': self.env.ref('hr.departure_fired').id,
+            'departure_description': 'PFI fired',
+        })
+
+        self.assertEqual(self.emp_D.contract_date_end, departure.departure_date)
+
+    @freeze_time('2025-11-17')
+    def test_departure_of_an_ended_contract(self):
+        # The end date was set on the contract to bound the last payslip, before ending the collaboration
+        employee = self.env['hr.employee'].create({
+            'name': 'Ended Contract Employee',
+            'date_version': date(2025, 2, 1),
+            'contract_date_start': date(2025, 2, 1),
+            'contract_date_end': date(2025, 10, 31),
+        })
+        self.assertFalse(employee.is_in_contract)
+        action = employee.action_new_departure()
+        self.assertEqual(action['context']['default_dismissal_date'], date(2025, 10, 31))
+        departure = self.env['hr.employee.departure'].with_context(**action['context']).create({
+            'departure_reason_id': self.env.ref('hr.departure_fired').id,
+        })
+        self.assertEqual(departure.departure_date, date(2025, 10, 31))
+        self.assertEqual(employee.contract_date_end, date(2025, 10, 31))
+
+        # Without any contract, the employee is archived instead
+        employee_without_contract = self.env['hr.employee'].create({'name': 'No Contract Employee'})
+        with self.assertRaises(UserError):
+            employee_without_contract.action_new_departure()
+
+    @freeze_time('2025-06-01')
+    def test_cancel_departure_restores_contract_end_date(self):
+        initial_end_date = date(2025, 12, 31)
+        self.emp_D.contract_date_end = initial_end_date
+
+        self.env['hr.employee.departure'].create([{
+            'employee_id': self.emp_D.id,
+            'dismissal_date': date(2025, 5, 1),
+            'departure_reason_id': self.env.ref('hr.departure_fired').id,
+        }])
+
+        self.emp_D.action_cancel_departure()
+
+        self.assertEqual(
+            self.emp_D.contract_date_end,
+            initial_end_date,
+            "The employee's contract end date should be restored to its original date after cancelling the departure."
+        )
+
+    @freeze_time('2025-06-01')
+    def test_cancel_departure_resets_empty_contract_end_date(self):
+        self.emp_D.contract_date_end = False
+
+        self.env['hr.employee.departure'].create([{
+            'employee_id': self.emp_D.id,
+            'dismissal_date': date(2025, 5, 1),
+            'departure_reason_id': self.env.ref('hr.departure_fired').id,
+        }])
+
+        self.emp_D.action_cancel_departure()
+
+        self.assertFalse(
+            self.emp_D.contract_date_end,
+            "The employee's contract end date should revert to False after cancelling the departure."
+        )
+
+    def assertDepartureTracked(self, title, changes):
+        """ Check the departure fields are tracked in the employee chatter under the
+        given title. With hr_payroll, the payroll restricted fields are logged in a
+        separate message, so each field is looked up in the message holding it.
+
+        :param str title: title of the departure tracking messages
+        :param dict changes: expected (old value, new value) by field name, dates
+            given as a datetime at midnight, as stored in tracking values
+        """
+        # tracked dates are formatted in the user language
+        self.env = self.env(context={**self.env.context, 'lang': 'en_US'})
+        messages = self.emp_D.message_ids.filtered(lambda m: title in m.body)
+        for fname, (old_value, new_value) in changes.items():
+            field = self.emp_D._fields[fname]
+            message = messages.filtered(lambda m: field.string in m.body)
+            self.assertEqual(len(message), 1, f"{field.string} should be tracked once under {title!r}")
+            self.assertTracking(message, [(fname, field.type, old_value, new_value)])
+
+    @freeze_time('2025-06-01')
+    def test_departure_tracked_in_employee_chatter(self):
+        """ Planning and cancelling an End of Collaboration logs the departure
+        fields in the employee chatter. """
+        fired = self.env.ref('hr.departure_fired')
+        self.env['hr.employee.departure'].create({
+            'employee_id': self.emp_D.id,
+            'dismissal_date': date(2025, 7, 1),
+            'departure_reason_id': fired.id,
+        })
+        self.flush_tracking()
+
+        self.assertDepartureTracked("End of Collaboration planned", {
+            'departure_reason_id': (False, fired),
+            'dismissal_date': (False, datetime(2025, 7, 1)),
+            'departure_date': (False, datetime(2025, 7, 1)),
+        })
+
+        self.emp_D.action_cancel_departure()
+        self.flush_tracking()
+
+        self.assertDepartureTracked("End of Collaboration cancelled", {
+            'departure_reason_id': (fired, False),
+            'dismissal_date': (datetime(2025, 7, 1), False),
+            'departure_date': (datetime(2025, 7, 1), False),
+        })
+
+    @freeze_time('2025-06-01')
+    def test_departure_in_next_contract_tracked_in_employee_chatter(self):
+        """ A departure planned during a contract that starts after today is
+        logged in the employee chatter too. """
+        fired = self.env.ref('hr.departure_fired')
+        self.emp_D.contract_date_end = date(2025, 6, 30)
+        self.emp_D.create_version({
+            'date_version': date(2025, 7, 1),
+            'contract_date_start': date(2025, 7, 1),
+            'contract_date_end': False,
+        })
+        # log the setup changes, so they don't mix with the departure tracking
+        self.flush_tracking()
+        self.env['hr.employee.departure'].create({
+            'employee_id': self.emp_D.id,
+            'dismissal_date': date(2025, 8, 1),
+            'departure_reason_id': fired.id,
+        })
+        self.assertEqual(self.emp_D.version_ids.filtered('departure_id').date_version, date(2025, 7, 1))
+        self.flush_tracking()
+
+        self.assertDepartureTracked("End of Collaboration planned", {
+            'departure_reason_id': (False, fired),
+            'dismissal_date': (False, datetime(2025, 8, 1)),
+            'departure_date': (False, datetime(2025, 8, 1)),
+        })

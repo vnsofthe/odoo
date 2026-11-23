@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 20.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-18 17:38+0000\n"
-"PO-Revision-Date: 2026-09-18 17:38+0000\n"
+"POT-Creation-Date: 2026-11-20 17:36+0000\n"
+"PO-Revision-Date: 2026-11-20 17:36+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -410,11 +410,32 @@ msgid ""
 msgstr ""
 
 #. module: stock
+#: model:mail.template,body_html:stock.mail_template_data_stock_picking_recall
+msgid ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"                    Dear <t t-out=\"object.partner_id.display_name or ''\">Marc Demo</t><br><br>\n"
+"                    We would like to issue a product recall regarding the following items from your delivery\n"
+"                    <strong><t t-out=\"object.name\">WH/OUT/EXAMPLE</t></strong>:<br><br>\n"
+"\n"
+"                    <strong>Product(s):</strong><br>\n"
+"                    <t t-out=\"ctx.get('recalled_products_dict', {}).get(str(object.id))\">[EXAMPLE] Drawer</t><br><br>\n"
+"                    <strong>Lot / Serial Number(s):</strong><br>\n"
+"                    <t t-out=\"ctx.get('recalled_lots_dict', {}).get(str(object.id))\">0000000000029</t><br><br>\n"
+"\n"
+"                    We apologize for the inconvenience caused.<br><br>\n"
+"                    Best wishes,\n"
+"                </p>\n"
+"            </div>\n"
+"        "
+msgstr ""
+
+#. module: stock
 #: model:mail.template,body_html:stock.mail_template_data_delivery_confirmation
 msgid ""
 "<div style=\"margin: 0px; padding: 0px;\">\n"
 "    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
-"        Hello <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t>,<br/><br/>\n"
+"        Hello <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t>,<br><br>\n"
 "        <t t-if=\"hasattr(object, 'delivery_type') and object.delivery_type == 'in_store'\">\n"
 "            Your order has been collected.\n"
 "        </t>\n"
@@ -425,27 +446,27 @@ msgid ""
 "            Your tracking reference is\n"
 "            <strong>\n"
 "            <t t-if=\"object.carrier_tracking_url\">\n"
-"                <t t-set=\"multiple_carrier_tracking\" t-value=\"object.get_multiple_carrier_tracking()\"/>\n"
+"                <t t-set=\"multiple_carrier_tracking\" t-value=\"object.get_multiple_carrier_tracking()\"></t>\n"
 "                <t t-if=\"multiple_carrier_tracking\">\n"
 "                    <t t-foreach=\"multiple_carrier_tracking\" t-as=\"line\">\n"
-"                        <br/><a t-att-href=\"line[1]\" target=\"_blank\" t-out=\"line[0] or ''\"/>\n"
+"                        <br><a t-att-href=\"line[1]\" target=\"_blank\" t-out=\"line[0] or ''\"></a>\n"
 "                    </t>\n"
 "                </t>\n"
 "                <t t-else=\"\">\n"
-"                    <a t-attf-href=\"{{ object.carrier_tracking_url }}\" target=\"_blank\" t-out=\"object.carrier_tracking_ref or ''\"/>.\n"
+"                    <a t-attf-href=\"{{ object.carrier_tracking_url }}\" target=\"_blank\" t-out=\"object.carrier_tracking_ref or ''\"></a>.\n"
 "                </t>\n"
 "            </t>\n"
 "            <t t-else=\"\">\n"
-"                <t t-out=\"object.carrier_tracking_ref or ''\"/>.\n"
+"                <t t-out=\"object.carrier_tracking_ref or ''\"></t>.\n"
 "            </t>\n"
 "            </strong>\n"
 "        </t>\n"
-"        <br/><br/>\n"
-"        Please find your delivery order attached for more details.<br/><br/>\n"
+"        <br><br>\n"
+"        Please find your delivery order attached for more details.<br><br>\n"
 "        Thank you,\n"
 "        <t t-if=\"user.signature\">\n"
-"            <br/>\n"
-"            <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t t-out=\"user.signature or ''\">Mitchell Admin</t></div>\n"
+"            <br>\n"
+"            <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"><t t-out=\"user.signature or ''\">Mitchell Admin</t></div>\n"
 "        </t>\n"
 "    </p>\n"
 "</div>\n"
@@ -1923,6 +1944,16 @@ msgid ""
 msgstr ""
 
 #. module: stock
+#: model:ir.model,name:stock.model_report_stock_fleet_report_cmr_batch
+msgid "CMR Batch Report"
+msgstr ""
+
+#. module: stock
+#: model:ir.model,name:stock.model_report_stock_fleet_report_cmr
+msgid "CMR Report"
+msgstr ""
+
+#. module: stock
 #. odoo-python
 #: code:addons/stock/models/stock_warehouse.py:0
 msgid "COPY"
@@ -1993,14 +2024,6 @@ msgstr ""
 #. odoo-python
 #: code:addons/stock/models/stock_package.py:0
 msgid "Cannot remove the location of a non empty package"
-msgstr ""
-
-#. module: stock
-#. odoo-python
-#: code:addons/stock/models/stock_move_line.py:0
-msgid ""
-"Cannot reset move to draft.\n"
-"Quantity not enough, product might have been used in some transfer."
 msgstr ""
 
 #. module: stock
@@ -3334,6 +3357,8 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_product_removal__display_name
 #: model:ir.model.fields,field_description:stock.field_product_replenish__display_name
 #: model:ir.model.fields,field_description:stock.field_product_template__display_name
+#: model:ir.model.fields,field_description:stock.field_report_stock_fleet_report_cmr__display_name
+#: model:ir.model.fields,field_description:stock.field_report_stock_fleet_report_cmr_batch__display_name
 #: model:ir.model.fields,field_description:stock.field_report_stock_quantity__display_name
 #: model:ir.model.fields,field_description:stock.field_report_stock_report_stock_rule__display_name
 #: model:ir.model.fields,field_description:stock.field_res_company__display_name
@@ -4098,6 +4123,8 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_product_removal__id
 #: model:ir.model.fields,field_description:stock.field_product_replenish__id
 #: model:ir.model.fields,field_description:stock.field_product_template__id
+#: model:ir.model.fields,field_description:stock.field_report_stock_fleet_report_cmr__id
+#: model:ir.model.fields,field_description:stock.field_report_stock_fleet_report_cmr_batch__id
 #: model:ir.model.fields,field_description:stock.field_report_stock_quantity__id
 #: model:ir.model.fields,field_description:stock.field_report_stock_report_stock_rule__id
 #: model:ir.model.fields,field_description:stock.field_res_company__id
@@ -7425,6 +7452,16 @@ msgid "Product barcode"
 msgstr ""
 
 #. module: stock
+#: model:mail.template,subject:stock.mail_template_data_stock_picking_recall
+msgid "Product recall for Delivery {{ object.name }}"
+msgstr ""
+
+#. module: stock
+#: model:mail.template,description:stock.mail_template_data_stock_picking_recall
+msgid "Product recall from lot/serial number"
+msgstr ""
+
+#. module: stock
 #: model_terms:ir.ui.view,arch_db:stock.view_production_lot_form
 msgid ""
 "Product this lot/serial number contains. You cannot change it anymore if it "
@@ -10569,6 +10606,11 @@ msgstr ""
 #. module: stock
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_move_operations
 msgid "Transfer:"
+msgstr ""
+
+#. module: stock
+#: model:mail.template,name:stock.mail_template_data_stock_picking_recall
+msgid "Transfer: Product Recall"
 msgstr ""
 
 #. module: stock

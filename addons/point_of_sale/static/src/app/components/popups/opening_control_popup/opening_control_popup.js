@@ -3,11 +3,11 @@ import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { MoneyDetailsPopup } from "@point_of_sale/app/components/popups/money_details_popup/money_details_popup";
 import { Component, proxy, onMounted, useProps, t } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { parseFloat } from "@web/views/fields/parsers";
 import { Dialog } from "@web/core/dialog/dialog";
-import { RPCError } from "@web/core/network/rpc";
+import { ConnectionLostError } from "@web/core/network/rpc";
 import { CashInput } from "@point_of_sale/app/components/inputs/input/cash_input/cash_input";
 import { useTrackedAsync } from "@point_of_sale/app/hooks/hooks";
+import { AlertDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 
 class CustomDialog extends Dialog {
     onEscape() {}
@@ -51,23 +51,29 @@ export class OpeningControlPopup extends Component {
         return this.state.ordersByPreset.reduce((total, preset) => total + preset.count, 0);
     }
     async confirm() {
+        // queue only when known offline, so the reconnect loop is sure to replay it
+        const queue = this.pos.data.network.offline;
         try {
-            await this.pos.data.call(
+            await this.pos.data.callRelated(
                 "pos.session",
                 "set_opening_control",
-                [this.pos.session.id, parseFloat(this.state.openingCash), this.state.notes],
+                [
+                    this.pos.session.id,
+                    this.pos.parseCurrency(this.state.openingCash),
+                    this.state.notes,
+                ],
                 {},
-                true
+                queue
             );
         } catch (error) {
-            if (
-                error instanceof RPCError &&
-                error.data.name === "odoo.exceptions.MissingError" &&
-                (await this.pos.isSessionDeleted())
-            ) {
-                return window.location.reload();
+            if (error instanceof ConnectionLostError) {
+                this.dialog.add(AlertDialog, {
+                    title: _t("Connection Lost"),
+                    body: _t("The register cannot be opened while offline. Please try again."),
+                });
+                return;
             }
-            throw error;
+            return this.pos.reloadIfSessionDeleted(error);
         }
         this.pos.session.state = "opened";
         this.props.close();
@@ -104,7 +110,7 @@ export class OpeningControlPopup extends Component {
         this.state.notes = "";
     }
     handleInputBlur() {
-        const parsed = parseFloat(this.state.openingCash);
+        const parsed = this.pos.parseCurrency(this.state.openingCash);
         this.state.openingCash = this.pos.formatCurrency(parsed, this.pos.config.currency_id.id, {
             noSymbol: true,
         });

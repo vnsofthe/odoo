@@ -22,8 +22,23 @@ export const unpatchSelf = patch(PosDataPlugin.prototype, {
     get databaseName() {
         return `pos-self-order-${odoo.access_token}`;
     },
+    onRpcResponse() {
+        return false;
+    },
+    scheduleHeartbeat() {
+        return false;
+    },
+    goOffline() {
+        return false;
+    },
+    heartbeat() {
+        return false;
+    },
     async initializeDeviceIdentifier() {
         return false;
+    },
+    requestPersistentStorage() {
+        // Nothing critical in indexedDB here; don't prompt customers' devices.
     },
     initIndexedDB() {
         return session.data.self_ordering_mode === "mobile"

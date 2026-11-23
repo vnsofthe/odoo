@@ -19,7 +19,7 @@ class PurchaseOrderLine(models.Model):
     ]
     _description = 'Purchase Order Line'
     _order = 'order_id, sequence, id'
-    _rec_names_search = ['name', 'order_id.name']
+    _rec_names_search = ('name', 'order_id.name')
 
     name = fields.Text(
         string='Description', compute='_compute_price_unit_and_date_planned_and_name', store=True, readonly=False)
@@ -34,7 +34,7 @@ class PurchaseOrderLine(models.Model):
     discount = fields.Float(
         string="Discount (%)",
         compute='_compute_price_unit_and_date_planned_and_name',
-        digits='Discount', aggregator='avg',
+        min_display_digits='Discount', aggregator='avg',
         store=True, readonly=False)
     tax_ids = fields.Many2many(
         comodel_name='account.tax',
@@ -240,7 +240,7 @@ class PurchaseOrderLine(models.Model):
     @api.depends('price_subtotal', 'product_qty', 'qty_to_invoice')
     def _compute_price_subtotal_to_invoice(self):
         for line in self:
-            line.price_subtotal_to_invoice = line.price_subtotal / line.product_qty * line.qty_to_invoice
+            line.price_subtotal_to_invoice = line.price_subtotal / line.product_qty * line.qty_to_invoice if line.product_qty else 0
 
     @api.depends('product_qty', 'qty_invoiced')
     def _compute_qty_to_invoice_raw(self):
@@ -265,9 +265,9 @@ class PurchaseOrderLine(models.Model):
             for inv_line in line._get_invoice_lines():
                 if inv_line.move_id.state not in ['cancel'] or inv_line.move_id.payment_state == 'invoicing_legacy':
                     if inv_line.move_id.move_type == 'in_invoice':
-                        invoiced_qties[line] += inv_line.product_uom_id._compute_quantity(inv_line.quantity, line.uom_id)
+                        invoiced_qties[line] += inv_line.product_uom_id._compute_quantity(inv_line.quantity, line.uom_id, round=False)
                     elif inv_line.move_id.move_type == 'in_refund':
-                        invoiced_qties[line] -= inv_line.product_uom_id._compute_quantity(inv_line.quantity, line.uom_id)
+                        invoiced_qties[line] -= inv_line.product_uom_id._compute_quantity(inv_line.quantity, line.uom_id, round=False)
         return invoiced_qties
 
     def _get_invoice_lines(self):
@@ -360,13 +360,20 @@ class PurchaseOrderLine(models.Model):
         ones currently out of sync, or that were out of sync as of `date` but have since been
         settled (nothing left to accrue today). Extended by `purchase_stock`, which can also
         detect a receipt-side mismatch via stock moves.
+        Lines with an accrual entry still active as of `date` are left out, their mismatch was
+        already accounted for.
         """
         domain = Domain([
             ('state', '=', 'purchase'),
             ('display_type', '=', False),
             ('is_downpayment', '=', False),
-            ('accrual_move_ids', 'not any', [('state', '=', 'posted'), ('reversal_move_ids', '=', False)]),
         ])
+        accrual_entry_date = date or fields.Date.to_date(self.env.context.get('accrual_entry_date')) or fields.Date.context_today(self)
+        domain &= Domain(
+            'accrual_move_ids',
+            'any' if self.env.context.get('already_accrued') else 'not any',
+            self.env['account.move']._get_active_accrual_domain(accrual_entry_date),
+        )
         if date:
             domain &= Domain.OR([
                 [('qty_to_invoice', '!=', 0)],
@@ -396,8 +403,11 @@ class PurchaseOrderLine(models.Model):
         (received ahead of invoicing). Reused by the `prepaid_expense`/`bill_to_receive` filters
         and by `res.company._get_accrual_candidate_lines`.
         """
+        if not date:
+            date = fields.Date.to_date(self.env.context.get('accrual_entry_date'))
         accrual_entry_date = date or fields.Date.context_today(self)
-        domain = self._get_accrual_domain(accrual_entry_date)
+        # The date is also put in the context for the stock overrides using no date in _get_accrual_domain
+        domain = self.with_context(accrual_entry_date=fields.Date.to_string(accrual_entry_date))._get_accrual_domain(accrual_entry_date)
         if extra_domain:
             domain &= extra_domain
         order_lines = self.env['purchase.order.line'].search(domain)
@@ -417,7 +427,10 @@ class PurchaseOrderLine(models.Model):
                 values.update(product_id=False, price_unit=0, product_uom_qty=0, uom_id=False, date_planned=False)
             else:
                 values.update(self._prepare_add_missing_fields(values))
-            if values.get('price_unit') and not values.get('technical_price_unit'):
+            # keeping technical_price_unit apart flags an imported price as
+            # manually set, so a later recompute does not replace it
+            if values.get('price_unit') and not values.get('technical_price_unit') \
+                    and not self.env.context.get('import_file'):
                 values['technical_price_unit'] = values['price_unit']
 
         lines = super().create(vals_list)
@@ -503,7 +516,7 @@ class PurchaseOrderLine(models.Model):
     @api.onchange('product_id')
     def onchange_product_id(self):
         # TODO: Remove when onchanges are replaced with computes
-        if not self.product_id:
+        if not self.product_id or self.env.context.get("first_onchange_call"):
             return
         if self.env.context.get('origin_po_id') and self.product_qty:
             self._compute_tax_id()
@@ -553,6 +566,7 @@ class PurchaseOrderLine(models.Model):
                 product_ctx = {'lang': get_lang(line.env, line.partner_id.lang).code}
                 line.name = line._get_product_purchase_description(line.product_id.with_context(product_ctx))
 
+            supplier_taxes = line.product_id.supplier_taxes_id._filter_taxes_by_company(line.company_id)
             # If no seller, use the standard price. It needs a proper currency conversion.
             if not seller_info:
                 if line.price_unit and line.uom_id == line._origin.uom_id and line.partner_id == line._origin.partner_id \
@@ -564,7 +578,7 @@ class PurchaseOrderLine(models.Model):
                 po_line_uom = line.uom_id or line.product_id.uom_id
                 price_unit = line.env['account.tax']._fix_tax_included_price_company(
                     line.product_id.uom_id._compute_price(line.product_id.standard_price, po_line_uom),
-                    line.product_id.supplier_taxes_id,
+                    supplier_taxes,
                     line.tax_ids,
                     line.company_id,
                     document_tax_mode=line.document_tax_mode,
@@ -578,18 +592,18 @@ class PurchaseOrderLine(models.Model):
                 )
                 line._reset_price_unit(line.product_id._adapt_price_unit_to_document_tax_mode(
                     price_unit,
-                    line.product_id.supplier_taxes_id,
+                    supplier_taxes,
                     line.uom_id,
                     line.document_tax_mode,
                     ),
                 )
 
             else:
-                price_unit = line.env['account.tax']._fix_tax_included_price_company(seller_info['price'], line.product_id.supplier_taxes_id, line.tax_ids, line.company_id, document_tax_mode=line.document_tax_mode)
+                price_unit = line.env['account.tax']._fix_tax_included_price_company(seller_info['price'], supplier_taxes, line.tax_ids, line.company_id, document_tax_mode=line.document_tax_mode)
                 price_unit = seller_info['currency_id']._convert(price_unit, line.currency_id, line.company_id, line.date_order or fields.Date.context_today(line), False)
                 line.price_unit = line.technical_price_unit = line.product_id._adapt_price_unit_to_document_tax_mode(
                     seller_info['uom_id']._compute_price(price_unit, line.uom_id),
-                    line.product_id.supplier_taxes_id,
+                    supplier_taxes,
                     line.uom_id,
                     line.document_tax_mode,
                 )

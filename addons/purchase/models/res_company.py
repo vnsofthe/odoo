@@ -47,6 +47,6 @@ class ResCompany(models.Model):
             ('product_id.valuation', '=', 'real_time'),
         ])
         order_lines = self.env['purchase.order.line']._get_accrual_line_ids(date=date, extra_domain=extra_domain)
-        candidates['bills_to_receive'] = order_lines.filtered(lambda l: l.amount_to_invoice_at_date > 0)
+        candidates['bill_to_receive'] = order_lines.filtered(lambda l: l.amount_to_invoice_at_date > 0)
         candidates['billed_not_received'] = order_lines.filtered(lambda l: l.amount_to_invoice_at_date < 0)
         return candidates

@@ -2,7 +2,7 @@ import { Builder } from "@html_builder/builder";
 import { CORE_PLUGINS, MAIN_PLUGINS } from "@html_builder/core/core_plugins";
 import { removePlugins } from "@html_builder/utils/utils";
 import { closestElement } from "@html_editor/utils/dom_traversal";
-import { Component, onMounted, onWillStart, onWillUnmount, useProps, t } from "@odoo/owl";
+import { Component, onMounted, onWillStart, useProps, t } from "@odoo/owl";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
@@ -18,7 +18,6 @@ import {
     localStorageNoDialogKey,
     TranslatorInfoDialog,
 } from "./translation_components/translatorInfoDialog";
-import { router } from "@web/core/browser/router";
 
 // Other Plugins depend on those 2 plugins, but they are not used in translation
 // mode.
@@ -48,34 +47,17 @@ export class WebsiteBuilder extends Component {
             beforeLeave: () => this.onBeforeLeave(),
         });
         onWillStart(async () => {
-            this.translatedElements = this.props.translation
-                ? await rpc("/website/get_translated_elements")
-                : [];
+            [this.translatedElements, this.allowedRootAttrs] = await Promise.all([
+                this.props.translation ? rpc("/website/get_translated_elements") : [],
+                rpc("/website/get_allowed_root_attrs", {}, { cache: true }),
+            ]);
         });
         onMounted(() => {
             if (this.props.translation && !browser.localStorage.getItem(localStorageNoDialogKey)) {
                 this.dialog.add(TranslatorInfoDialog);
             }
             this.websiteEditService?.clearRpcCache();
-            this.isGuardActive = true;
-            this.pendingHistoryCleanup = false;
             this.pushHistoryState();
-        });
-        onWillUnmount(() => {
-            // If the guard entry is still on top (e.g. save path).
-            if (this.isGuardActive) {
-                this.pendingHistoryCleanup = true;
-                Promise.resolve().then(() => {
-                    if (!this.pendingHistoryCleanup) {
-                        return;
-                    }
-                    this.pendingHistoryCleanup = false;
-                    if (history.state?.skipRouteChange) {
-                        router.skipLoad = true;
-                        history.back();
-                    }
-                });
-            }
         });
     }
 
@@ -136,14 +118,12 @@ export class WebsiteBuilder extends Component {
                 });
             });
             if (shouldCloseEditor) {
-                this.isGuardActive = false;
                 this.props.builderProps.closeEditor();
             } else {
                 this.pushHistoryState();
             }
             return false;
         }
-        this.isGuardActive = false;
         return true;
     }
 
@@ -249,6 +229,7 @@ export class WebsiteBuilder extends Component {
         };
         builderProps.config.translatedElements = this.translatedElements;
         builderProps.config.allowVideoFile = true;
+        builderProps.config.allowedRootAttrs = this.allowedRootAttrs;
         builderProps.getThemeTab = () => this.websiteService.isDesigner && ThemeTab;
         builderProps.animateThemeTabSwitch = true;
         const installSnippetModule = builderProps.installSnippetModule;

@@ -50,8 +50,8 @@ else:
         raise ImportError("pypdf implementation not found") from errors[0]
     del errors
 
-PageObject, PdfReaderBase, PdfWriter, filters, generic, errors, create_string_object =\
-    pypdf.PageObject, pypdf.PdfReader, pypdf.PdfWriter, pypdf.filters, pypdf.generic, pypdf.errors, pypdf.create_string_object
+PageObject, PdfReaderBase, PdfWriter, filters, generic, errors, create_string_object, Fit, Link =\
+    pypdf.PageObject, pypdf.PdfReader, pypdf.PdfWriter, pypdf.filters, pypdf.generic, pypdf.errors, pypdf.create_string_object, pypdf.Fit, pypdf.Link
 # because they got re-exported
 (ArrayObject, BooleanObject, ByteStringObject, DecodedStreamObject, DictionaryObject,
  IndirectObject, NameObject, NumberObject, PdfObject, NullObject, RectangleObject, TextStringObject) =\
@@ -175,7 +175,7 @@ def rotate_pdf(pdf):
     writer = PdfFileWriter()
     reader = PdfFileReader(io.BytesIO(pdf), strict=False)
     for page in reader.pages:
-        page.rotate_clockwise(90)
+        page.rotate(90)
         writer.add_page(page)
     with io.BytesIO() as _buffer:
         writer.write(_buffer)
@@ -312,6 +312,11 @@ def reshape_text(text):
     if first_letter_is_rtl and no_letter_is_ltr:
         text = reshape(text)
         text = text[::-1]
+        # Numbers are written left-to-right even inside right-to-left text,
+        # so restore the original order of their digits after the flip.
+        text = re.sub(r'\d+(?:[.,:/\u00A0\u060C\u066B\u066C\u202F]\d+)*', lambda match: match[0][::-1], text)
+        # Brackets are mirrored in right-to-left text.
+        text = text.translate(str.maketrans('()[]{}<>«»', ')(][}{><»«'))
 
     return text
 
@@ -535,7 +540,7 @@ class OdooPdfFileWriter(PdfFileWriter):
             # First browse through all the pages of the pdf file, to get a reference to all the fonts used in the PDF.
             for page in pages:
                 for font in page.get_object()['/Resources']['/Font'].values():
-                    for descendant in font.get_object()['/DescendantFonts']:
+                    for descendant in font.get_object().get('/DescendantFonts', []):
                         fonts[descendant.idnum] = descendant.get_object()
 
             # Then for each font, rewrite the width array with the information taken directly from the font file.
@@ -594,8 +599,9 @@ class OdooPdfFileWriter(PdfFileWriter):
 
                 annot[NameObject('/F')] = NumberObject(flags)
 
-        outlines = self._root_object['/Outlines'].get_object()
-        outlines[NameObject('/Count')] = NumberObject(1)
+        if '/Outlines' in self._root_object:
+            outlines = self._root_object['/Outlines'].get_object()
+            outlines[NameObject('/Count')] = NumberObject(1)
 
         # [6.7.2.2-1] include a MarkInfo dictionary containing "Marked" with true value
         mark_info = DictionaryObject({NameObject("/Marked"): BooleanObject(True)})
@@ -606,7 +612,7 @@ class OdooPdfFileWriter(PdfFileWriter):
         self._root_object[NameObject("/StructTreeRoot")] = struct_tree_root
 
         # Set odoo as producer
-        self.addMetadata({
+        self.add_metadata({
             '/Creator': "Odoo",
             '/Producer': "Odoo",
         })

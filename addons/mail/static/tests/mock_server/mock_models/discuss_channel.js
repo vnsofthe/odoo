@@ -37,12 +37,12 @@ export class DiscussChannel extends models.ServerModel {
         relation: "discuss.channel.member",
         compute: "_compute_channel_name_member_ids",
     });
-    channel_type = fields.Generic({ default: "channel" });
+    channel_type = fields.Selection({ default: "channel" });
     discuss_category_id = fields.Many2one({
         relation: "discuss.category",
         string: "Discuss Category",
     });
-    group_public_id = fields.Generic({
+    group_public_id = fields.Many2one({
         default: () => serverState.groupId,
     });
     invited_member_ids = fields.One2many({
@@ -55,7 +55,7 @@ export class DiscussChannel extends models.ServerModel {
         relation: "discuss.channel.member",
         compute: "_compute_self_member_id",
     });
-    uuid = fields.Generic({
+    uuid = fields.Char({
         default: () => uniqueId("discuss.channel_uuid-"),
     });
     last_interest_dt = fields.Datetime({ string: "Last Interest" });
@@ -702,6 +702,7 @@ export class DiscussChannel extends models.ServerModel {
                 channel_type: "channel",
                 group_public_id: self.group_public_id,
                 from_message_id: message?.id,
+                last_interest_dt: serializeDateTime(DateTime.now().minus({ seconds: 1 })),
                 name: message
                     ? convertBrToLineBreak(markup(message.body)).substring(0, 30)
                     : name || "New Thread",
@@ -710,6 +711,24 @@ export class DiscussChannel extends models.ServerModel {
         );
         const store = new Store().add(subChannels, "_store_channel_fields");
         BusBus._sendone(partner, "mail.record/insert", store.as_dict());
+        if (message) {
+            BusBus._sendone(
+                self,
+                "mail.record/insert",
+                new Store()
+                    .add(MailMessage.browse(message.id), (res) =>
+                        res.one(
+                            "linkedSubChannel",
+                            (r) => {
+                                r.extend(["last_interest_dt", "name"]);
+                                r.one("parent_channel_id", []);
+                            },
+                            { value: subChannels }
+                        )
+                    )
+                    .as_dict()
+            );
+        }
         this.message_post(
             self.id,
             makeKwArgs({

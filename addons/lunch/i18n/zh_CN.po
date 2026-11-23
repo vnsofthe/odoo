@@ -10,15 +10,16 @@
 # Jeffery CHEN <jeffery9@gmail.com>, 2022
 # "Tiffany Chang (tic)" <tic@odoo.com>, 2025.
 # "Chloe Wang (chwa)" <chwa@odoo.com>, 2026.
+# 张飞虎 <feihu.zhang@live.com>, 2026.
 msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 16.0beta\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-11 17:42+0000\n"
-"PO-Revision-Date: 2026-08-31 15:13+0000\n"
-"Last-Translator: Anonymous <noreply@weblate.org>\n"
+"POT-Creation-Date: 2026-11-06 17:38+0000\n"
+"PO-Revision-Date: 2026-10-11 06:34+0000\n"
+"Last-Translator: 张飞虎 <feihu.zhang@live.com>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.odoo.com/"
-"projects/odoo-s19-4/lunch/zh_Hans/>\n"
+"projects/odoo-20/lunch/zh_Hans/>\n"
 "Language: zh_CN\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -49,6 +50,13 @@ msgid ""
 "If you want to save your employees' time and avoid them to always have coins "
 "in their pockets, this module is essential.\n"
 msgstr ""
+"\n"
+"管理午餐的基础模块。\n"
+"================================\n"
+"\n"
+"许多公司会从常用供应商处订购三明治、披萨等，为员工提供更多便利。\n"
+"\n"
+"然而，公司内部的午餐管理需要妥善的行政安排，尤其当员工或供应商数量较多时。\n"
 
 #. module: lunch
 #: model_terms:lunch.product,description:lunch.product_temaki
@@ -154,10 +162,10 @@ msgstr ""
 #: model:mail.template,body_html:lunch.lunch_order_mail_supplier
 msgid ""
 "<t>\n"
-"<t t-set=\"lines\" t-value=\"ctx.get('lines', [])\"/>\n"
-"<t t-set=\"order\" t-value=\"ctx.get('order', {})\"/>\n"
+"<t t-set=\"lines\" t-value=\"ctx.get('lines', [])\"></t>\n"
+"<t t-set=\"order\" t-value=\"ctx.get('order', {})\"></t>\n"
 "<t t-set=\"currency\" t-"
-"value=\"user.env['res.currency'].browse(order.get('currency_id'))\"/>\n"
+"value=\"user.env['res.currency'].browse(order.get('currency_id'))\"></t>\n"
 "<p>\n"
 "Dear <t t-out=\"order.get('supplier_name', '')\">Laurie Poiret</t>,\n"
 "</p><p>\n"
@@ -166,13 +174,13 @@ msgid ""
 "</p>\n"
 "\n"
 "<t t-if=\"sites\">\n"
-"    <br/>\n"
+"    <br>\n"
 "    <p>Location</p>\n"
 "    <p t-foreach=\"site\" t-as=\"site\">\n"
-"        <t t-out=\"site['name'] or ''\"/> : <t t-out=\"site['address'] or "
-"''\"/>\n"
+"        <t t-out=\"site['name'] or ''\"></t> : <t t-out=\"site['address'] or "
+"''\"></t>\n"
 "    </p>\n"
-"    <br/>\n"
+"    <br>\n"
 "</t>\n"
 "\n"
 "<table>\n"
@@ -216,10 +224,10 @@ msgid ""
 "1.00</td>\n"
 "        </tr>\n"
 "        <tr>\n"
-"            <td/>\n"
-"            <td/>\n"
-"            <td/>\n"
-"            <td/>\n"
+"            <td></td>\n"
+"            <td></td>\n"
+"            <td></td>\n"
+"            <td></td>\n"
 "            <td style=\"width: 100%; font-size: 13px; border-top: 1px solid "
 "black;\"><strong>Total</strong></td>\n"
 "            <td style=\"width: 100%; font-size: 13px; border-top: 1px solid "
@@ -233,85 +241,6 @@ msgid ""
 "<p>Do not hesitate to contact us if you have any questions.</p>\n"
 "        </t>"
 msgstr ""
-"<t>\n"
-"<t t-set=\"lines\" t-value=\"ctx.get('lines', [])\"/>\n"
-"<t t-set=\"order\" t-value=\"ctx.get('order', {})\"/>\n"
-"<t t-set=\"currency\" t-"
-"value=\"user.env['res.currency'].browse(order.get('currency_id'))\"/>\n"
-"<p>\n"
-"亲爱的 <t t-out=\"order.get('supplier_name', '')\">Laurie Poiret</t>，\n"
-"</p><p>\n"
-"以下是今日 <t t-out=\"order.get('company_name', '')\">LunchCompany</t>的订单"
-"明细：\n"
-"</p>\n"
-"\n"
-"<t t-if=\"sites\">\n"
-"    <br/>\n"
-"    <p>配送地点</p>\n"
-"    <p t-foreach=\"site\" t-as=\"site\">\n"
-"        <t t-out=\"site['name'] or ''\"/>：<t t-out=\"site['address'] or "
-"''\"/>\n"
-"    </p>\n"
-"    <br/>\n"
-"</t>\n"
-"\n"
-"<table>\n"
-"    <thead>\n"
-"        <tr style=\"background-color:rgb(233,232,233);\">\n"
-"            <th style=\"width: 100%; min-width: 96px; font-size: 13px;"
-"\"><strong>产品</strong></th>\n"
-"            <th style=\"width: 100%; min-width: 96px; font-size: 13px;"
-"\"><strong>备注</strong></th>\n"
-"            <th style=\"width: 100%; min-width: 96px; font-size: 13px;"
-"\"><strong>下单人</strong></th>\n"
-"            <th style=\"width: 100%; min-width: 96px; font-size: 13px;"
-"\"><strong>站点</strong></th>\n"
-"            <th style=\"width: 100%; min-width: 96px; font-size: 13px;\" "
-"align=\"center\"><strong>数量</strong></th>\n"
-"            <th style=\"width: 100%; min-width: 96px; font-size: 13px;\" "
-"align=\"center\"><strong>价格</strong></th>\n"
-"        </tr>\n"
-"    </thead>\n"
-"    <tbody>\n"
-"        <tr t-foreach=\"lines\" t-as=\"line\">\n"
-"            <td style=\"width: 100%; font-size: 13px;\" valign=\"top\" t-"
-"out=\"line['product'] or ''\">三文鱼寿司</td>\n"
-"            <td style=\"width: 100%; font-size: 13px;\" valign=\"top\">\n"
-"            <t t-if=\"line['toppings']\">\n"
-"                <t t-out=\"line['toppings'] or ''\">酱油</t>\n"
-"            </t>\n"
-"            <t t-if=\"line['note']\">\n"
-"                <div style=\"color: rgb(173,181,189);\" t-out=\"line['note'] "
-"or ''\">配芥末。</div>\n"
-"            </t>\n"
-"            </td>\n"
-"            <td style=\"width: 100%; font-size: 13px;\" valign=\"top\" t-"
-"out=\"line['username'] or ''\">lap</td>\n"
-"            <td style=\"width: 100%; font-size: 13px;\" valign=\"top\" t-"
-"out=\"line['site'] or ''\">办公室 1</td>\n"
-"            <td style=\"width: 100%; font-size: 13px;\" valign=\"top\" "
-"align=\"right\" t-out=\"line['quantity'] or ''\">10</td>\n"
-"            <td style=\"width: 100%; font-size: 13px;\" valign=\"top\" "
-"align=\"right\" t-out=\"format_amount(line['price'], currency) or ''\">$ "
-"1.00</td>\n"
-"        </tr>\n"
-"        <tr>\n"
-"            <td/>\n"
-"            <td/>\n"
-"            <td/>\n"
-"            <td/>\n"
-"            <td style=\"width: 100%; font-size: 13px; border-top: 1px solid "
-"black;\"><strong>合计</strong></td>\n"
-"            <td style=\"width: 100%; font-size: 13px; border-top: 1px solid "
-"black;\" align=\"right\"><strong t-out=\"order.get('amount_total') and "
-"format_amount(order['amount_total'], currency) or ''\">$ 10.00</strong></"
-"td>\n"
-"        </tr>\n"
-"    </tbody>\n"
-"</table>\n"
-"\n"
-"<p>如有任何疑问，欢迎随时与我们联系。</p>\n"
-"        </t>"
 
 #. module: lunch
 #: model_terms:ir.actions.act_window,help:lunch.lunch_cashmove_report_action_control_accounts
@@ -333,7 +262,7 @@ msgstr "通过产品的名称,类别,价格和供应商来定义一个产品。"
 #. module: lunch
 #: model:ir.model,name:lunch.model_res_groups
 msgid "Access Groups"
-msgstr ""
+msgstr "访问组"
 
 #. module: lunch
 #: model:ir.model.fields,field_description:lunch.field_lunch_supplier__message_needaction
@@ -363,7 +292,7 @@ msgstr "活动异常标示"
 #. module: lunch
 #: model:ir.model.fields,field_description:lunch.field_lunch_supplier__activity_plans_ids
 msgid "Activity Plans"
-msgstr ""
+msgstr "活动计划"
 
 #. module: lunch
 #: model:ir.model.fields,field_description:lunch.field_lunch_supplier__activity_state
@@ -415,7 +344,7 @@ msgstr "提醒"
 #. odoo-javascript
 #: code:addons/lunch/static/src/components/lunch_dashboard.xml:0
 msgid "Already Paid"
-msgstr ""
+msgstr "已支付"
 
 #. module: lunch
 #: model:ir.model.fields,field_description:lunch.field_lunch_cashmove__amount
@@ -449,7 +378,7 @@ msgstr "附件数量"
 #. module: lunch
 #: model:ir.model.constraint,message:lunch.constraint_lunch_supplier_automatic_email_time_range
 msgid "Automatic Email Sending Time should be between 0 and 24"
-msgstr ""
+msgstr "自动发送邮件的时间应介于 0 到 24 之间"
 
 #. module: lunch
 #: model_terms:ir.ui.view,arch_db:lunch.lunch_supplier_view_form
@@ -460,7 +389,7 @@ msgstr "可用性"
 #. odoo-javascript
 #: code:addons/lunch/static/src/components/lunch_dashboard.xml:0
 msgid "Available Balance"
-msgstr ""
+msgstr "可用余额"
 
 #. module: lunch
 #: model:ir.model.fields,field_description:lunch.field_lunch_order__available_on_date
@@ -617,7 +546,7 @@ msgstr "城市"
 #. odoo-javascript
 #: code:addons/lunch/static/src/components/lunch_dashboard.xml:0
 msgid "Clear Order"
-msgstr ""
+msgstr "清空订单"
 
 #. module: lunch
 #: model_terms:ir.actions.act_window,help:lunch.lunch_order_action_control_suppliers
@@ -632,6 +561,14 @@ msgid ""
 "icon=\"cancel\" role=\"img\" aria-label=\"Cancel button\" title=\"Cancel "
 "button\"></span> red X to announce that the order isn't available."
 msgstr ""
+"点击 <span class=\"oi text-success\" data-icon=\"phone\" role=\"img\" aria-"
+"label=\"下单按钮\" title=\"下单按钮\"></span> 表示订单已下单。<br>\n"
+"            点击 <span class=\"oi text-success\" data-icon=\"check\" "
+"role=\"img\" aria-label=\"收货按钮\" title=\"收货按钮\"></span> 表示订单已收"
+"货。<br>\n"
+"            点击 <span class=\"oi oi-filled text-danger\" data-"
+"icon=\"cancel\" role=\"img\" aria-label=\"取消按钮\" title=\"取消按钮\"></"
+"span> 红色 X 表示该订单无法提供。"
 
 #. module: lunch
 #. odoo-javascript
@@ -782,7 +719,7 @@ msgstr "日期"
 #. odoo-javascript
 #: code:addons/lunch/static/src/components/lunch_dashboard.xml:0
 msgid "Decrease quantity"
-msgstr ""
+msgstr "减少数量"
 
 #. module: lunch
 #: model:ir.model.fields,field_description:lunch.field_lunch_supplier__delivery
@@ -977,7 +914,7 @@ msgstr "火腿、奶酪、蔬菜"
 #. module: lunch
 #: model:ir.module.module,summary:base.module_lunch
 msgid "Handle lunch orders of your employees"
-msgstr ""
+msgstr "管理员工的午餐订单"
 
 #. module: lunch
 #: model:ir.model.fields,field_description:lunch.field_lunch_supplier__has_message
@@ -1082,7 +1019,7 @@ msgstr "图像 512"
 #. odoo-javascript
 #: code:addons/lunch/static/src/components/lunch_dashboard.xml:0
 msgid "Increase quantity"
-msgstr ""
+msgstr "增加数量"
 
 #. module: lunch
 #: model_terms:ir.ui.view,arch_db:lunch.lunch_order_view_form
@@ -1285,32 +1222,32 @@ msgid "Lunch: Supplier Order"
 msgstr "午餐：供应商订单"
 
 #. module: lunch
-#: model:ir.actions.server,name:lunch.lunch_alert_cron_sa_243
+#: model:ir.actions.server,name:lunch.lunch_alert_cron_sa_245
 msgid "Lunch: alert chat notification (Alert for Office 3)"
 msgstr "午餐：提醒聊天通知（提醒Office 3）。"
 
 #. module: lunch
-#: model:ir.actions.server,name:lunch.lunch_supplier_cron_sa_244
+#: model:ir.actions.server,name:lunch.lunch_supplier_cron_sa_246
 msgid "Lunch: send automatic email to Coin gourmand"
 msgstr "午餐：自动发送电子邮件给Coin gourmand"
 
 #. module: lunch
-#: model:ir.actions.server,name:lunch.lunch_supplier_cron_sa_239
+#: model:ir.actions.server,name:lunch.lunch_supplier_cron_sa_241
 msgid "Lunch: send automatic email to Lunch Supplier"
 msgstr "午餐：自动发送电子邮件给午餐供应商"
 
 #. module: lunch
-#: model:ir.actions.server,name:lunch.lunch_supplier_cron_sa_245
+#: model:ir.actions.server,name:lunch.lunch_supplier_cron_sa_247
 msgid "Lunch: send automatic email to Pizza Inn"
 msgstr "午餐：自动发送电子邮件给Pizza Inn"
 
 #. module: lunch
-#: model:ir.actions.server,name:lunch.lunch_supplier_cron_sa_247
+#: model:ir.actions.server,name:lunch.lunch_supplier_cron_sa_249
 msgid "Lunch: send automatic email to Sushi Shop"
 msgstr "午餐：自动发送电子邮件给寿司店"
 
 #. module: lunch
-#: model:ir.actions.server,name:lunch.lunch_supplier_cron_sa_246
+#: model:ir.actions.server,name:lunch.lunch_supplier_cron_sa_248
 msgid "Lunch: send automatic email to The Corner"
 msgstr "午餐：自动发送电子邮件给 The Corner"
 
@@ -1327,7 +1264,7 @@ msgstr "管理员"
 #. module: lunch
 #: model:ir.model.fields,help:lunch.field_lunch_supplier__activity_type_icon
 msgid "Material Symbols icon e.g. checklist"
-msgstr ""
+msgstr "Material Symbols 图标，例如 checklist"
 
 #. module: lunch
 #: model:ir.model.fields,field_description:lunch.field_res_config_settings__company_lunch_minimum_threshold
@@ -1461,7 +1398,7 @@ msgstr "下一活动类型"
 #. module: lunch
 #: model:res.groups.privilege,placeholder:lunch.res_groups_privilege_lunch
 msgid "No"
-msgstr ""
+msgstr "否"
 
 #. module: lunch
 #: model:ir.model.fields.selection,name:lunch.selection__lunch_supplier__delivery__no_delivery
@@ -1477,7 +1414,7 @@ msgstr "无现金凭证"
 #. odoo-javascript
 #: code:addons/lunch/static/src/views/no_content_helper.xml:0
 msgid "No location found"
-msgstr ""
+msgstr "未找到地点"
 
 #. module: lunch
 #. odoo-javascript
@@ -1521,7 +1458,7 @@ msgstr "今天没有可以订购的"
 #. odoo-javascript
 #: code:addons/lunch/static/src/components/lunch_dashboard.xml:0
 msgid "Nothing to order, add some meals to begin."
-msgstr ""
+msgstr "暂无可订内容，请先添加一些餐点。"
 
 #. module: lunch
 #: model:ir.model.fields,field_description:lunch.field_lunch_alert__notification_time
@@ -1531,7 +1468,7 @@ msgstr "通知时间"
 #. module: lunch
 #: model:ir.model.constraint,message:lunch.constraint_lunch_alert_notification_time_range
 msgid "Notification time must be between 0 and 24"
-msgstr ""
+msgstr "通知时间必须介于 0 到 24 之间"
 
 #. module: lunch
 #: model:ir.model.fields,field_description:lunch.field_lunch_order__notified
@@ -1601,7 +1538,7 @@ msgstr "订单截止日期已通过"
 #. odoo-javascript
 #: code:addons/lunch/static/src/components/lunch_dashboard.xml:0
 msgid "Order Now"
-msgstr ""
+msgstr "立即下单"
 
 #. module: lunch
 #: model:ir.model.fields,field_description:lunch.field_lunch_supplier__automatic_email_time
@@ -1642,7 +1579,7 @@ msgstr "透支"
 #. odoo-javascript
 #: code:addons/lunch/static/src/components/lunch_dashboard.xml:0
 msgid "Passed orders"
-msgstr ""
+msgstr "已过期订单"
 
 #. module: lunch
 #: model:lunch.product.category,name:lunch.categ_pasta
@@ -1698,7 +1635,7 @@ msgstr "批萨 素食"
 #. odoo-javascript
 #: code:addons/lunch/static/src/views/no_content_helper.xml:0
 msgid "Please create a location to start ordering."
-msgstr ""
+msgstr "请先创建一个地点，然后开始下单。"
 
 #. module: lunch
 #: model_terms:lunch.alert,message:lunch.alert_office_3
@@ -1774,7 +1711,7 @@ msgstr "产品已不再供应。"
 #. module: lunch
 #: model_terms:ir.ui.view,arch_db:lunch.lunch_product_view_form
 msgid "Product's Name"
-msgstr ""
+msgstr "产品名称"
 
 #. module: lunch
 #: model:ir.actions.act_window,name:lunch.lunch_product_action
@@ -2129,7 +2066,7 @@ msgstr "订购"
 #. odoo-javascript
 #: code:addons/lunch/static/src/components/lunch_dashboard.xml:0
 msgid "To Pay"
-msgstr ""
+msgstr "待付款"
 
 #. module: lunch
 #: model_terms:ir.ui.view,arch_db:lunch.lunch_payment_dialog
@@ -2330,7 +2267,7 @@ msgstr "您应该至少订购一个%s"
 #. odoo-javascript
 #: code:addons/lunch/static/src/components/lunch_dashboard.xml:0
 msgid "Your Cart ("
-msgstr ""
+msgstr "您的购物车 ("
 
 #. module: lunch
 #. odoo-python
@@ -2416,4 +2353,165 @@ msgstr "到"
 #. odoo-javascript
 #: code:addons/lunch/static/src/components/lunch_dashboard.xml:0
 msgid "x"
-msgstr ""
+msgstr "x"
+
+#~ msgid ""
+#~ "<t>\n"
+#~ "<t t-set=\"lines\" t-value=\"ctx.get('lines', [])\"/>\n"
+#~ "<t t-set=\"order\" t-value=\"ctx.get('order', {})\"/>\n"
+#~ "<t t-set=\"currency\" t-"
+#~ "value=\"user.env['res.currency'].browse(order.get('currency_id'))\"/>\n"
+#~ "<p>\n"
+#~ "Dear <t t-out=\"order.get('supplier_name', '')\">Laurie Poiret</t>,\n"
+#~ "</p><p>\n"
+#~ "Here is, today orders for <t t-out=\"order.get('company_name', '')"
+#~ "\">LunchCompany</t>:\n"
+#~ "</p>\n"
+#~ "\n"
+#~ "<t t-if=\"sites\">\n"
+#~ "    <br/>\n"
+#~ "    <p>Location</p>\n"
+#~ "    <p t-foreach=\"site\" t-as=\"site\">\n"
+#~ "        <t t-out=\"site['name'] or ''\"/> : <t t-out=\"site['address'] or "
+#~ "''\"/>\n"
+#~ "    </p>\n"
+#~ "    <br/>\n"
+#~ "</t>\n"
+#~ "\n"
+#~ "<table>\n"
+#~ "    <thead>\n"
+#~ "        <tr style=\"background-color:rgb(233,232,233);\">\n"
+#~ "            <th style=\"width: 100%; min-width: 96px; font-size: 13px;"
+#~ "\"><strong>Product</strong></th>\n"
+#~ "            <th style=\"width: 100%; min-width: 96px; font-size: 13px;"
+#~ "\"><strong>Comments</strong></th>\n"
+#~ "            <th style=\"width: 100%; min-width: 96px; font-size: 13px;"
+#~ "\"><strong>Person</strong></th>\n"
+#~ "            <th style=\"width: 100%; min-width: 96px; font-size: 13px;"
+#~ "\"><strong>Site</strong></th>\n"
+#~ "            <th style=\"width: 100%; min-width: 96px; font-size: 13px;\" "
+#~ "align=\"center\"><strong>Qty</strong></th>\n"
+#~ "            <th style=\"width: 100%; min-width: 96px; font-size: 13px;\" "
+#~ "align=\"center\"><strong>Price</strong></th>\n"
+#~ "        </tr>\n"
+#~ "    </thead>\n"
+#~ "    <tbody>\n"
+#~ "        <tr t-foreach=\"lines\" t-as=\"line\">\n"
+#~ "            <td style=\"width: 100%; font-size: 13px;\" valign=\"top\" t-"
+#~ "out=\"line['product'] or ''\">Sushi salmon</td>\n"
+#~ "            <td style=\"width: 100%; font-size: 13px;\" valign=\"top\">\n"
+#~ "            <t t-if=\"line['toppings']\">\n"
+#~ "                <t t-out=\"line['toppings'] or ''\">Soy sauce</t>\n"
+#~ "            </t>\n"
+#~ "            <t t-if=\"line['note']\">\n"
+#~ "                <div style=\"color: rgb(173,181,189);\" t-"
+#~ "out=\"line['note'] or ''\">With wasabi.</div>\n"
+#~ "            </t>\n"
+#~ "            </td>\n"
+#~ "            <td style=\"width: 100%; font-size: 13px;\" valign=\"top\" t-"
+#~ "out=\"line['username'] or ''\">lap</td>\n"
+#~ "            <td style=\"width: 100%; font-size: 13px;\" valign=\"top\" t-"
+#~ "out=\"line['site'] or ''\">Office 1</td>\n"
+#~ "            <td style=\"width: 100%; font-size: 13px;\" valign=\"top\" "
+#~ "align=\"right\" t-out=\"line['quantity'] or ''\">10</td>\n"
+#~ "            <td style=\"width: 100%; font-size: 13px;\" valign=\"top\" "
+#~ "align=\"right\" t-out=\"format_amount(line['price'], currency) or ''\">$ "
+#~ "1.00</td>\n"
+#~ "        </tr>\n"
+#~ "        <tr>\n"
+#~ "            <td/>\n"
+#~ "            <td/>\n"
+#~ "            <td/>\n"
+#~ "            <td/>\n"
+#~ "            <td style=\"width: 100%; font-size: 13px; border-top: 1px "
+#~ "solid black;\"><strong>Total</strong></td>\n"
+#~ "            <td style=\"width: 100%; font-size: 13px; border-top: 1px "
+#~ "solid black;\" align=\"right\"><strong t-out=\"order.get('amount_total') "
+#~ "and format_amount(order['amount_total'], currency) or ''\">$ 10.00</"
+#~ "strong></td>\n"
+#~ "        </tr>\n"
+#~ "    </tbody>\n"
+#~ "</table>\n"
+#~ "\n"
+#~ "<p>Do not hesitate to contact us if you have any questions.</p>\n"
+#~ "        </t>"
+#~ msgstr ""
+#~ "<t>\n"
+#~ "<t t-set=\"lines\" t-value=\"ctx.get('lines', [])\"/>\n"
+#~ "<t t-set=\"order\" t-value=\"ctx.get('order', {})\"/>\n"
+#~ "<t t-set=\"currency\" t-"
+#~ "value=\"user.env['res.currency'].browse(order.get('currency_id'))\"/>\n"
+#~ "<p>\n"
+#~ "亲爱的 <t t-out=\"order.get('supplier_name', '')\">Laurie Poiret</t>，\n"
+#~ "</p><p>\n"
+#~ "以下是今日 <t t-out=\"order.get('company_name', '')\">LunchCompany</t>的订"
+#~ "单明细：\n"
+#~ "</p>\n"
+#~ "\n"
+#~ "<t t-if=\"sites\">\n"
+#~ "    <br/>\n"
+#~ "    <p>配送地点</p>\n"
+#~ "    <p t-foreach=\"site\" t-as=\"site\">\n"
+#~ "        <t t-out=\"site['name'] or ''\"/>：<t t-out=\"site['address'] or "
+#~ "''\"/>\n"
+#~ "    </p>\n"
+#~ "    <br/>\n"
+#~ "</t>\n"
+#~ "\n"
+#~ "<table>\n"
+#~ "    <thead>\n"
+#~ "        <tr style=\"background-color:rgb(233,232,233);\">\n"
+#~ "            <th style=\"width: 100%; min-width: 96px; font-size: 13px;"
+#~ "\"><strong>产品</strong></th>\n"
+#~ "            <th style=\"width: 100%; min-width: 96px; font-size: 13px;"
+#~ "\"><strong>备注</strong></th>\n"
+#~ "            <th style=\"width: 100%; min-width: 96px; font-size: 13px;"
+#~ "\"><strong>下单人</strong></th>\n"
+#~ "            <th style=\"width: 100%; min-width: 96px; font-size: 13px;"
+#~ "\"><strong>站点</strong></th>\n"
+#~ "            <th style=\"width: 100%; min-width: 96px; font-size: 13px;\" "
+#~ "align=\"center\"><strong>数量</strong></th>\n"
+#~ "            <th style=\"width: 100%; min-width: 96px; font-size: 13px;\" "
+#~ "align=\"center\"><strong>价格</strong></th>\n"
+#~ "        </tr>\n"
+#~ "    </thead>\n"
+#~ "    <tbody>\n"
+#~ "        <tr t-foreach=\"lines\" t-as=\"line\">\n"
+#~ "            <td style=\"width: 100%; font-size: 13px;\" valign=\"top\" t-"
+#~ "out=\"line['product'] or ''\">三文鱼寿司</td>\n"
+#~ "            <td style=\"width: 100%; font-size: 13px;\" valign=\"top\">\n"
+#~ "            <t t-if=\"line['toppings']\">\n"
+#~ "                <t t-out=\"line['toppings'] or ''\">酱油</t>\n"
+#~ "            </t>\n"
+#~ "            <t t-if=\"line['note']\">\n"
+#~ "                <div style=\"color: rgb(173,181,189);\" t-"
+#~ "out=\"line['note'] or ''\">配芥末。</div>\n"
+#~ "            </t>\n"
+#~ "            </td>\n"
+#~ "            <td style=\"width: 100%; font-size: 13px;\" valign=\"top\" t-"
+#~ "out=\"line['username'] or ''\">lap</td>\n"
+#~ "            <td style=\"width: 100%; font-size: 13px;\" valign=\"top\" t-"
+#~ "out=\"line['site'] or ''\">办公室 1</td>\n"
+#~ "            <td style=\"width: 100%; font-size: 13px;\" valign=\"top\" "
+#~ "align=\"right\" t-out=\"line['quantity'] or ''\">10</td>\n"
+#~ "            <td style=\"width: 100%; font-size: 13px;\" valign=\"top\" "
+#~ "align=\"right\" t-out=\"format_amount(line['price'], currency) or ''\">$ "
+#~ "1.00</td>\n"
+#~ "        </tr>\n"
+#~ "        <tr>\n"
+#~ "            <td/>\n"
+#~ "            <td/>\n"
+#~ "            <td/>\n"
+#~ "            <td/>\n"
+#~ "            <td style=\"width: 100%; font-size: 13px; border-top: 1px "
+#~ "solid black;\"><strong>合计</strong></td>\n"
+#~ "            <td style=\"width: 100%; font-size: 13px; border-top: 1px "
+#~ "solid black;\" align=\"right\"><strong t-out=\"order.get('amount_total') "
+#~ "and format_amount(order['amount_total'], currency) or ''\">$ 10.00</"
+#~ "strong></td>\n"
+#~ "        </tr>\n"
+#~ "    </tbody>\n"
+#~ "</table>\n"
+#~ "\n"
+#~ "<p>如有任何疑问，欢迎随时与我们联系。</p>\n"
+#~ "        </t>"

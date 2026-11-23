@@ -2,15 +2,20 @@ import { test, expect } from "@odoo/hoot";
 import { setupEditor, testEditor } from "../_helpers/editor";
 import { unformat } from "../_helpers/format";
 import {
+    deleteBackward,
     insertText,
     setFontSize,
     setFontSizeClassName,
     tripleClick,
 } from "../_helpers/user_actions";
 import { Plugin } from "@html_editor/plugin";
-import { press } from "@odoo/hoot-dom";
+import { animationFrame, press, waitFor } from "@odoo/hoot-dom";
 import { getContent } from "../_helpers/selection";
 import { QWebPlugin } from "@html_editor/others/qweb_plugin";
+import { expectElementCount } from "../_helpers/ui_expectations";
+import { getIframeInput } from "../_helpers/iframe_input";
+import { contains } from "@web/../tests/web_test_helpers";
+import { execCommand } from "../_helpers/userCommands";
 
 test("should change the font size of a few characters", async () => {
     await testEditor({
@@ -217,6 +222,32 @@ test("should update the font class if the parent already has one", async () => {
     });
 });
 
+test("should preserve a heading typography span in its matching heading", async () => {
+    await testEditor({
+        contentBefore: '<h4><span class="h4">a[b]c</span></h4>',
+        stepFunction: setFontSizeClassName("display-1-fs"),
+        contentAfter: '<h4><span class="h4">a<span class="display-1-fs">[b]</span>c</span></h4>',
+    });
+});
+
+test("should replace a default heading typography class with another default class", async () => {
+    await testEditor({
+        contentBefore: '<p><span class="h4">a[b]c</span></p>',
+        stepFunction: setFontSizeClassName("h1"),
+        contentAfter:
+            '<p><span class="h4">a</span><span class="h1">[b]</span><span class="h4">c</span></p>',
+    });
+});
+
+test("should split an inline default font size class", async () => {
+    await testEditor({
+        contentBefore: '<p><span class="o_default_font_size">a[b]c</span></p>',
+        stepFunction: setFontSizeClassName("display-1-fs"),
+        contentAfter:
+            '<p><span class="o_default_font_size">a</span><span class="display-1-fs">[b]</span><span class="o_default_font_size">c</span></p>',
+    });
+});
+
 test("should apply font size on space", async () => {
     await testEditor({
         contentBefore: `<div><p>a[ ]b</p></div>`,
@@ -259,4 +290,61 @@ test("should format inside of content editable boundary (setFontSize)", async ()
         contentAfter:
             '<div contenteditable="false"><p>a<span contenteditable="true"><span style="font-size: 36px;">[b]</span></span>c</p></div>',
     });
+});
+
+test("should set exact font size along with responsive one", async () => {
+    const { el } = await setupEditor("<p>[abc]</p>");
+    await waitFor('[name="font_size"]');
+    const input = el.ownerDocument
+        .querySelector('[name="font_size"] iframe')
+        .contentDocument.querySelector("input");
+    input.value = "10";
+    input.dispatchEvent(new Event("input"));
+    await waitFor("span.o_rfs");
+    expect(el.querySelector("span").getAttribute("style")).toInclude(
+        `font-size: 10px; font-size: clamp(`
+    );
+});
+
+test.tags("mobile");
+test("should update toolbar font size when applying and removing it on a collapsed selection on mobile", async () => {
+    const { el, editor } = await setupEditor("<p>[]<br></p>");
+
+    await expectElementCount(".o-we-toolbar", 1);
+    const fontSizeInputEl = await getIframeInput(
+        ".o-we-toolbar [name='font_size'] iframe.o_font_size_selector_iframe",
+        "input[name='font_size_input']"
+    );
+    expect(fontSizeInputEl).toHaveValue(14);
+
+    await contains(fontSizeInputEl).click();
+    await expectElementCount(".o_font_size_selector_menu .dropdown-item:contains('21')", 1);
+    await contains(".o_font_size_selector_menu .dropdown-item:contains('21')").click();
+    await animationFrame();
+    expect(fontSizeInputEl).toHaveValue(21);
+    expect(getContent(el)).toBe(
+        `<p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`
+    );
+
+    execCommand(editor, "removeFormat");
+    await animationFrame();
+    expect(fontSizeInputEl).toHaveValue(14);
+
+    await contains(fontSizeInputEl).click();
+    await expectElementCount(".o_font_size_selector_menu .dropdown-item:contains('21')", 1);
+    await contains(".o_font_size_selector_menu .dropdown-item:contains('21')").click();
+    await animationFrame();
+    expect(fontSizeInputEl).toHaveValue(21);
+
+    await insertText(editor, "a");
+    await animationFrame();
+    expect(getContent(el)).toBe(`<p><span class="h2-fs">a[]</span></p>`);
+    expect(fontSizeInputEl).toHaveValue(21);
+
+    deleteBackward(editor);
+    await animationFrame();
+    expect(getContent(el)).toBe(
+        `<p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`
+    );
+    expect(fontSizeInputEl).toHaveValue(21);
 });

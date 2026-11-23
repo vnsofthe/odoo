@@ -365,7 +365,6 @@ test("Can unpin chat channel", async () => {
 
 test("No 'Hide Until New Message' on conversation with self in call", async () => {
     const pyEnv = await startServer();
-    onRpc("/mail/rtc/session/notify_call_members", () => true);
     const partnerId = pyEnv["res.partner"].create({ name: "Partner1" });
     const channelId = pyEnv["discuss.channel"].create({
         channel_type: "chat",
@@ -442,6 +441,26 @@ test("Can leave channel", async () => {
     await click(".o-dropdown-item:contains('Leave Conversation')");
     await click(".o_dialog button:text('Leave Conversation')");
     await contains(".o-mail-MessagingMenuItem:has(:text('General'))", { count: 0 });
+});
+
+test("Leaving channel does not open another conversation", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    pyEnv["discuss.channel"].create({ name: "Sales" });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-mail-DiscussContent-threadName", { value: "General" });
+    await contains(
+        ".o-mail-MessagingMenuItem:has(.o-mail-NotificationItem.o-active):has(:text('General'))"
+    );
+    await contains(".o-mail-NotificationItem.o-active");
+    await click(".o-mail-MessagingMenuItem:has(:text('General')) [title='Channel Actions']");
+    await click(".o-dropdown-item:contains('Leave Conversation')");
+    await click(".o_dialog button:text('Leave Conversation')");
+    await contains(".o-mail-MessagingMenuItem:has(:text('General'))", { count: 0 });
+    await contains(".o-mail-MessagingMenuItem:has(:text('Sales'))");
+    await contains(".o-mail-DiscussContent:text(No conversation selected.)");
+    await contains(".o-mail-NotificationItem.o-active", { count: 0 });
 });
 
 test("Do no channel_info after unpin", async () => {

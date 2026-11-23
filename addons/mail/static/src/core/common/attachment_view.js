@@ -1,9 +1,11 @@
 import { propSignal } from "@mail/utils/common/hooks";
 
-import { Component, onWillUnmount, signal, t, useOnChange } from "@odoo/owl";
+import { Component, onMounted, onWillUnmount, signal, t, useOnChange } from "@odoo/owl";
 
 import { useService } from "@web/core/utils/hooks";
 import { hidePDFJSButtons } from "@web/core/utils/pdfjs";
+import { isMobileOS } from "@web/core/browser/feature_detection";
+import { _t } from "@web/core/l10n/translation";
 
 class AbstractAttachmentView extends Component {
     static template = "mail.AttachmentView";
@@ -16,6 +18,7 @@ class AbstractAttachmentView extends Component {
         this.store = useService("mail.store");
         this.thread = propSignal("thread", t.instanceOf(this.store["mail.thread"]));
         this.uiService = useService("ui");
+        this.isMobileOS = isMobileOS();
         useOnChange(
             () => [this.iframeViewerPdfRef()],
             (el) => {
@@ -48,6 +51,10 @@ class AbstractAttachmentView extends Component {
         return this.thread().message_main_attachment_id.name;
     }
 
+    get showsPopoutControl() {
+        return !this.isMobileOS;
+    }
+
     onClickPopout() {}
 }
 
@@ -69,6 +76,7 @@ export class PopoutAttachmentView extends AbstractAttachmentView {
 export function usePopoutAttachment({ thread }) {
     const uiService = useService("ui");
     const mailPopoutService = useService("mail.popout");
+    const notification = useService("notification");
 
     function attachmentViewParentElementClassList() {
         const attachmentViewEl = document.querySelector(".o-mail-Attachment");
@@ -96,6 +104,9 @@ export function usePopoutAttachment({ thread }) {
     }
 
     function popout() {
+        if (isMobileOS()) {
+            return notification.add(_t("Pop out is not supported on mobile."), { type: "warning" });
+        }
         mailPopoutService.addHooks(
             () => {
                 hideAttachmentView();
@@ -109,10 +120,18 @@ export function usePopoutAttachment({ thread }) {
         mailPopoutService.popout(PopoutAttachmentView, { thread });
     }
 
+    function updatePopout() {
+        if (mailPopoutService.externalWindow) {
+            hideAttachmentView();
+            mailPopoutService.popout(PopoutAttachmentView, { thread });
+        }
+    }
+
     function resetPopout() {
         mailPopoutService.reset();
     }
 
+    onMounted(() => updatePopout());
     onWillUnmount(resetPopout);
     return { popout };
 }

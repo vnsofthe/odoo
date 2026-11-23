@@ -39,7 +39,7 @@ class ProjectProject(models.Model):
         count_fields = {fname for fname in self._fields if 'count' in fname}
         if count_field not in count_fields:
             raise ValueError(f"Parameter 'count_field' can only be one of {count_fields}, got {count_field} instead.")
-        domain = Domain('project_id', 'in', self.ids) & Domain('is_template', '=', False)
+        domain = Domain('project_id', 'in', self.ids) & Domain('has_template_ancestor', '=', False)
         if additional_domain:
             domain &= Domain(additional_domain)
         ProjectTask = self.env['project.task'].with_context(active_test=any(project.active for project in self))
@@ -53,10 +53,7 @@ class ProjectProject(models.Model):
     def _compute_open_task_count(self):
         self.__compute_task_count(
             count_field='open_task_count',
-            additional_domain=Domain.AND([
-                [('state', 'in', self.env['project.task'].OPEN_STATES)],
-                ['|', ('parent_id.is_template', '=', False), ('parent_id', '=', False)],
-            ]),
+            additional_domain=[('state', 'in', self.env['project.task'].OPEN_STATES)],
         )
 
     def _compute_closed_task_count(self):
@@ -179,7 +176,14 @@ class ProjectProject(models.Model):
     task_completion_percentage = fields.Float(compute="_compute_task_completion_percentage", export_string_translation=False)
 
     # Project Sharing fields
-    collaborator_ids = fields.One2many('project.collaborator', 'project_id', string='Collaborators', copy=False, export_string_translation=False)
+    collaborator_ids = fields.One2many(
+        'project.collaborator',
+        'project_id',
+        string='Collaborators',
+        copy=False,
+        export_string_translation=False,
+        search='_search_collaborator_ids',
+    )
     collaborator_count = fields.Integer('# Collaborators', compute='_compute_collaborator_count', compute_sudo=True, export_string_translation=False)
 
     # Not `required` since this is an option to enable in project settings.
@@ -219,6 +223,26 @@ class ProjectProject(models.Model):
         'check(date >= date_start)',
         "The project's start date must be before its end date.",
     )
+
+    def _search_collaborator_ids(self, operator, value):
+        """`project_task_rule_portal` OR's two sub-queries, which makes postgresql
+        seq-scan project_task instead of using its indexes. Materialize the ids of
+        each branch when there are few enough, so that it can BitmapOr them.
+        """
+        if operator not in ('any', 'any!') or self.env.user._is_internal():
+            # returning the condition unchanged makes the ORM apply its
+            # standard semantics
+            return Domain('collaborator_ids', operator, value)
+        collaborator_query = self.env['project.collaborator']._search(
+            Domain('id', operator, value), bypass_access=operator == 'any!',
+        )
+        domain = Domain('id', 'in', collaborator_query.subselect(SQL('project_id')))
+        project_ids = self._search(
+            domain, limit=self.env.cr.IN_MAX, active_test=False, bypass_access=True,
+        ).get_result_ids()
+        if len(project_ids) < self.env.cr.IN_MAX:
+            return Domain('id', 'in', project_ids)
+        return domain
 
     @api.onchange('company_id')
     def _onchange_company_id(self):
@@ -807,8 +831,9 @@ class ProjectProject(models.Model):
         # Delete the empty related analytic account
         analytic_accounts_to_delete = self.env['account.analytic.account']
         for project in self:
-            if project.account_id and not project.account_id.line_ids:
-                analytic_accounts_to_delete |= project.account_id
+            account = project.account_id
+            if account and not account.line_ids and not (account.with_context(active_test=False).project_ids - self):
+                analytic_accounts_to_delete |= account
         self.with_context(active_test=False).tasks.unlink()
         result = super().unlink()
         analytic_accounts_to_delete.unlink()
@@ -1059,7 +1084,7 @@ class ProjectProject(models.Model):
         action['display_name'] = _("%(name)s's Rating", name=self.name)
         action_context = ast.literal_eval(action['context']) if action['context'] else {}
         action_context.update(self.env.context)
-        action_context['search_default_filter_write_date'] = 'custom_write_date_last_30_days'
+        action_context['search_default_filter_rated_on'] = 'custom_rated_on_last_30_days'
         action_context.pop('group_by', None)
         action['domain'] = [('consumed', '=', True), ('parent_res_model', '=', 'project.project'), ('parent_res_id', '=', self.id)]
         if self.rating_count == 1:
@@ -1243,10 +1268,10 @@ class ProjectProject(models.Model):
         if "followers" in request_list:
             res.many("collaborator_ids", [], value=lambda p: p.sudo().collaborator_ids.partner_id)
 
-    @api.depends('task_count', 'open_task_count')
+    @api.depends('task_count', 'closed_task_count')
     def _compute_task_completion_percentage(self):
         for task in self:
-            task.task_completion_percentage = task.task_count and 1 - task.open_task_count / task.task_count
+            task.task_completion_percentage = task.task_count and task.closed_task_count / task.task_count
 
     def _get_share_url(self, redirect=False, signup_partner=False, pid=None, share_token=True):
         self.ensure_one()

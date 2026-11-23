@@ -87,7 +87,7 @@
                 <filter string="Running Contract" name="running_contract"
                         domain="[
                             '&amp;',
-                                ('contract_date_start', '&lt;', 'today'),
+                                ('contract_date_start', '&lt;=', 'today'),
                                 '|',
                                     ('contract_date_end', '=', False),
                                     ('contract_date_end', '>=', 'today')
@@ -112,12 +112,12 @@
                 <separator />
                 <filter string="Archived" name="archived" domain="[('active', '=', False)]"/>
                 <filter invisible="1" string="Late Activities" name="activities_overdue"
-                    domain="[('my_activity_date_deadline', '&lt;', context_today().strftime('%Y-%m-%d'))]"
+                    domain="[('my_activity_date_deadline', '&lt;', 'today')]"
                     help="Show all records whose next activity date is past"/>
                 <filter invisible="1" string="Today Activities" name="activities_today"
-                    domain="[('my_activity_date_deadline', '=', context_today().strftime('%Y-%m-%d'))]"/>
+                    domain="[('my_activity_date_deadline', '=', 'today')]"/>
                 <filter invisible="1" string="Future Activities" name="activities_upcoming_all"
-                    domain="[('my_activity_date_deadline', '&gt;', context_today().strftime('%Y-%m-%d'))]"/>
+                    domain="[('my_activity_date_deadline', '&gt;', 'today')]"/>
 
                 <filter string="Employee" name="group_by_employee" domain="[]" context="{'group_by': 'employee_id'}"/>
                 <separator />
@@ -125,7 +125,7 @@
                 <filter string="Department" name="group_by_department" domain="[]" context="{'group_by': 'department_id'}"/>
                 <separator />
                 <filter string="Working Schedule" name="group_by_resource_calendar_id" domain="[]" context="{'group_by': 'resource_calendar_id'}"/>
-                <filter string="Salary Structure Type" name="group_by_structure_type_id" domain="[]" context="{'group_by': 'structure_type_id'}"/>
+                <filter string="Salary Structure Type" name="group_by_structure_type_id" domain="[]" context="{'group_by': 'structure_type_id'}" groups="hr.group_hr_manager"/>
             </search>
         </field>
     </record>

@@ -118,6 +118,7 @@ export function clickForceDoneButton() {
             trigger: ".paymentline_status_actions .paymentline_status_actions_button_force_done",
             run: "click",
         },
+        Dialog.confirm("Validate", ".btn-secondary"),
     ];
 }
 
@@ -426,7 +427,7 @@ export function clickPartnerButton() {
     ];
 }
 
-export function clickCustomer(name, pressEnter = false) {
+export function clickCustomer(name, pressEnter = true) {
     return [...PartnerList.searchCustomerValue(name, pressEnter), PartnerList.clickPartner(name)];
 }
 

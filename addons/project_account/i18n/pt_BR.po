@@ -1,0 +1,71 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * project_account
+#
+# "Tiffany Chang (tic)" <tic@odoo.com>, 2025.
+# "Maitê Dietze (madi)" <madi@odoo.com>, 2025.
+# Weblate Translation Memory <noreply-mt-weblate-translation-memory@weblate.org>, 2026.
+# OpenAI <noreply-mt-openai@weblate.org>, 2026.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-18 17:39+0000\n"
+"PO-Revision-Date: 2026-10-29 18:57+0000\n"
+"Last-Translator: OpenAI <noreply-mt-openai@weblate.org>\n"
+"Language-Team: Portuguese (Brazil) <https://translate.odoo.com/projects/odoo-"
+"20/project_account/pt_BR/>\n"
+"Language: pt_BR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=2; plural=n > 1;\n"
+"X-Generator: Weblate 2026.8.1\n"
+
+#. module: project_account
+#: model:ir.module.module,description:base.module_project_account
+msgid ""
+"\n"
+"Allows the computation of some section for the project profitability\n"
+"==================================================================================================\n"
+"This module allows the computation of the 'Vendor Bills', 'Other Costs' and "
+"'Other Revenue' section for the project profitability, in the project update "
+"view.\n"
+msgstr ""
+"\n"
+"Permite o cálculo de algumas seções para a rentabilidade do projeto\n"
+"==================================================================================================\n"
+"Este módulo permite o cálculo das seções 'Faturas de Fornecedor', 'Outros "
+"Custos' e 'Outras Receitas' para a rentabilidade do projeto, na visualização "
+"de atualização do projeto.\n"
+
+#. module: project_account
+#: model:ir.embedded.actions,name:project_account.project_embedded_action_analytic_items
+#: model:ir.embedded.actions,name:project_account.project_embedded_action_analytic_items_dashboard
+msgid "Analytic Items"
+msgstr "Itens analíticos"
+
+#. module: project_account
+#: model:ir.model.fields,field_description:project_account.field_project_project__display_name
+msgid "Display Name"
+msgstr "Exibir nome"
+
+#. module: project_account
+#: model:ir.model.fields,field_description:project_account.field_project_project__id
+msgid "ID"
+msgstr "ID"
+
+#. module: project_account
+#: model:ir.model,name:project_account.model_project_project
+msgid "Project"
+msgstr "Projeto"
+
+#. module: project_account
+#: model:ir.module.module,shortdesc:base.module_project_account
+msgid "Project - Account"
+msgstr "Conta do projeto"
+
+#. module: project_account
+#: model:ir.module.module,summary:base.module_project_account
+msgid "project profitability items computation"
+msgstr "cálculo dos itens de rentabilidade do projeto"

@@ -94,16 +94,13 @@ class StockRule(models.Model):
                 mo = self.env['mrp.production'].sudo().search(domain, limit=1)
             is_batch_size = bom and bom.enable_batch_size
             if not mo or is_batch_size:
-                if not bom:
-                    # No BOM: skip MO creation, only replenishment rules should handle this
-                    continue
                 procurement_qty = procurement.product_qty
                 batch_size = bom.uom_id._compute_quantity(bom.batch_size, procurement.uom_id) if is_batch_size else procurement_qty
                 vals = rule._prepare_mo_vals(*procurement, bom)
                 while procurement.uom_id.compare(procurement_qty, 0) > 0:
                     new_productions_values_by_company[procurement.company_id.id]['values'].append({
                         **vals,
-                        'product_qty': procurement.uom_id._compute_quantity(batch_size, bom.uom_id),
+                        'product_qty': procurement.uom_id._compute_quantity(batch_size, bom.uom_id) if bom else procurement_qty,
                     })
                     new_productions_values_by_company[procurement.company_id.id]['procurements'].append(procurement)
                     procurement_qty -= batch_size
@@ -251,7 +248,7 @@ class StockRule(models.Model):
 
     def _push_prepare_move_copy_values(self, move_to_copy):
         new_move_vals = super()._push_prepare_move_copy_values(move_to_copy)
-        new_move_vals['production_group_id'] = move_to_copy.production_group_id.id
+        new_move_vals['production_group_id'] = move_to_copy.production_group_id.id if move_to_copy.production_id else False
         new_move_vals['production_id'] = False
         return new_move_vals
 

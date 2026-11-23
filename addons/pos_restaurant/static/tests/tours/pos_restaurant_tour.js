@@ -25,6 +25,26 @@ import {
 const ProductScreen = { ...ProductScreenPos, ...ProductScreenResto };
 import * as Notification from "@point_of_sale/../tests/generic_helpers/notification_util";
 
+registry.category("web_tour.tours").add("test_release_table_clears_timer_badge", {
+    steps: () =>
+        Chrome.withTimeFreeze(1786792500000, [
+            Chrome.startPoS(),
+            Dialog.confirm("Open Register"),
+            {
+                content: "Check that the timer badge shows 15 minutes on table 4",
+                trigger:
+                    '.o_fp_table:has(.o_fp_table_number:contains("4")) .table-timer-badge:contains("15\'")',
+            },
+            FloorScreen.clickTable("4"),
+            ProductScreen.releaseTable(),
+            FloorScreen.isShown(),
+            negateStep({
+                content: "Check that the timer badge is cleared on table 4",
+                trigger: '.o_fp_table:has(.o_fp_table_number:contains("4")) .table-timer-badge',
+            }),
+        ]).flat(),
+});
+
 registry.category("web_tour.tours").add("pos_restaurant_sync", {
     steps: () =>
         [
@@ -59,6 +79,18 @@ registry.category("web_tour.tours").add("pos_restaurant_sync", {
             ),
             Chrome.closePrintingWarning(),
             FloorScreen.clickTable("5"),
+            ProductScreen.orderlineIsToOrder("Water"),
+            ProductScreen.orderlineIsToOrder("Coca-Cola"),
+            checkPreparationTicketData([
+                { name: "Coca-Cola", qty: 1 },
+                { name: "Water", qty: 1 },
+            ]),
+            ProductScreen.clickOrderButton(true),
+            FloorScreen.table({ name: "5", run: "click", waitForSync: false }),
+            Notification.has(
+                "This order is currently syncing, please wait a moment before loading it."
+            ),
+            FloorScreen.clickTable("5"),
             ProductScreen.orderlinesHaveNoChange(),
             ProductScreen.totalAmountIs("4.40"),
 
@@ -75,7 +107,6 @@ registry.category("web_tour.tours").add("pos_restaurant_sync", {
             ProductScreen.clickPayButton(false),
             PaymentScreen.clickPaymentMethod("Cash"),
             PaymentScreen.clickValidate(),
-            Chrome.closePrintingWarning(),
             FeedbackScreen.clickNextOrder(),
 
             // order on another table with a product variant
@@ -91,7 +122,6 @@ registry.category("web_tour.tours").add("pos_restaurant_sync", {
                 { name: "Desk Organizer", qty: 1, attributes: ["S", "Leather"] },
             ]),
             ProductScreen.clickOrderButton(),
-            Chrome.closePrintingWarning(),
             FloorScreen.clickTable("4"),
             ProductScreen.orderlinesHaveNoChange(),
             checkPreparationTicketData([]),
@@ -124,7 +154,6 @@ registry.category("web_tour.tours").add("pos_restaurant_sync", {
             // The first order made in the session is a floating order.
             TicketScreen.deleteOrder("002"),
             Dialog.confirm(),
-            Chrome.closePrintingWarning(),
             Chrome.isSyncStatusConnected(),
             TicketScreen.selectOrder("005"),
             TicketScreen.loadSelectedOrder(),
@@ -220,8 +249,7 @@ registry.category("web_tour.tours").add("SaveLastPreparationChangesTour", {
             FloorScreen.clickTable("5"),
             ProductScreen.clickDisplayedProduct("Coca-Cola", true, "1"),
             ProductScreen.orderlineIsToOrder("Coca-Cola"),
-            ProductScreen.clickOrderButton(),
-            Chrome.closePrintingWarning(),
+            ProductScreen.clickOrderButton(true),
             FloorScreen.clickTable("5"),
             Chrome.waitRequest(),
             ProductScreen.orderlinesHaveNoChange(),
@@ -248,8 +276,7 @@ registry.category("web_tour.tours").add("test_pos_restaurant_course", {
             ProductScreen.clickCourseButton(),
             ProductScreen.clickDisplayedProduct("Minute Maid"),
             ProductScreen.clickCourseButton(),
-            ProductScreen.clickOrderButton(),
-            Chrome.closePrintingWarning(),
+            ProductScreen.clickOrderButton(true),
             FloorScreen.clickTable("5"),
             // Check only 2 courses are there and empty course gets removed on clicking Order button
             negateStep(ProductScreen.checkCourseAtIndex(2, "Course 3")),
@@ -270,7 +297,6 @@ registry.category("web_tour.tours").add("test_pos_restaurant_course", {
                 run: async () => await delay(1000),
             },
             ProductScreen.fireCourseButton(),
-            Chrome.closePrintingWarning(),
             FloorScreen.table({ name: "5", run: "click", waitForSync: false }),
             Notification.has(
                 "This order is currently syncing, please wait a moment before loading it."
@@ -311,6 +337,7 @@ registry.category("web_tour.tours").add("OrderTrackingTour", {
             FeedbackScreen.isContinueEnabled(),
         ].flat(),
 });
+
 registry.category("web_tour.tours").add("CrmTeamTour", {
     steps: () =>
         [
@@ -784,6 +811,7 @@ registry.category("web_tour.tours").add("test_combo_synchronisation", {
                 content: "Check if there still has combo lines",
                 trigger: ".orderline-combo",
             },
+            ProductScreen.clickDisplayedProduct("Coca-Cola"), // fake product to prevent course from being cleaned up
             ProductScreen.addCourse(),
             ProductScreen.clickOrderline("Combo Product 2"),
             ProductScreen.transferCourseTo("Course 2"),
@@ -791,11 +819,11 @@ registry.category("web_tour.tours").add("test_combo_synchronisation", {
                 content: "Check if entire combo is transfered to course 2",
                 trigger: ".pos", // dummy trigger
                 run: function () {
-                    const onlyCourse2 = window.posmodel
+                    const comboLines = window.posmodel
                         .getOrder()
-                        .lines.every((x) => x.course_id.name === "Course 2");
+                        .lines.filter((x) => x.combo_parent_id || x.combo_line_ids?.length);
 
-                    if (!onlyCourse2) {
+                    if (!comboLines.every((x) => x.course_id.name === "Course 2")) {
                         throw new Error("The entire combo must be transferred to Course 2.");
                     }
                 },

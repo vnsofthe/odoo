@@ -356,8 +356,8 @@ class Many2one(_Relational):
 
     def convert_to_record_multi(self, values, records):
         # return the ids as a recordset without duplicates
-        prefetch_ids = Prefetch.relational(self, records)
         ids = tuple(unique(id_ for id_ in values if id_ is not None))
+        prefetch_ids = Prefetch.relational(self, records, ids)
         return records.pool[self.comodel_name](records.env, ids, prefetch_ids)
 
     def convert_to_read(self, value, record, use_display_name=True):
@@ -691,7 +691,7 @@ class _RelationalMulti(_Relational):
 
     def convert_to_record(self, value, record: BaseModel):
         # use registry to avoid creating a recordset for the model
-        prefetch_ids = Prefetch.relational(self, record)
+        prefetch_ids = Prefetch.relational(self, record, value)
         env = record.env
         Comodel = env.registry[self.comodel_name]
         corecords = Comodel(env, value, prefetch_ids)
@@ -943,6 +943,11 @@ class One2many(_RelationalMulti):
     def setup_inverses(self, registry, inverses):
         if self.inverse_name:
             # link self to its inverse field and vice-versa
+            if self.manual and self.inverse_name not in registry[self.comodel_name]._fields:
+                # ignore manual fields (e.g. from Studio) that may reference a
+                # non-existent inverse field in the registry to avoid crashing
+                _logger.warning("%s: ignoring manual field with invalid inverse name %r", self, self.inverse_name)
+                return
             invf = registry[self.comodel_name]._fields[self.inverse_name]
             if isinstance(invf, (Many2one, Many2oneReference)):
                 # setting one2many fields only invalidates many2one inverses;
@@ -1291,8 +1296,15 @@ class Many2many(_RelationalMulti):
             **kwargs
         )
 
-    def setup_nonrelated(self, model: BaseModel) -> None:
+    def setup_related(self, model):
+        super().setup_related(model)
+        self._setup_relation(model)
+
+    def setup_nonrelated(self, model):
         super().setup_nonrelated(model)
+        self._setup_relation(model)
+
+    def _setup_relation(self, model: BaseModel):
         # 2 cases:
         # 1) The ondelete attribute is defined and its definition makes sense
         # 2) The ondelete attribute is explicitly defined as 'set null' for a m2m,

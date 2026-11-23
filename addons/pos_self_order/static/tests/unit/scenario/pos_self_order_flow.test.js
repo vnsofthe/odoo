@@ -418,7 +418,7 @@ test("self_combo_selector: Office Combo with attributes + 2 plain items", async 
     ]);
     await Utils.clickBtn("Order");
     await Utils.checkOrderNumberShown();
-    await Utils.checkOrderNumberIs("S", "1");
+    await Utils.checkOrderNumberIs("", "1");
     await Utils.clickBtn("Ok");
     await Utils.checkIsNoBtn("Order Now");
 });
@@ -558,7 +558,7 @@ test("self_kiosk_each_table_takeaway_in: table mode, order, qty numpad, close, v
     await Utils.clickNumpad("3");
     await Utils.clickBtn("Order");
     await Utils.checkOrderNumberShown();
-    await Utils.checkOrderNumberIs("K1-", "1");
+    await Utils.checkOrderNumberIs("", "1");
     await Utils.clickBtn("Close");
     await Utils.checkIsNoBtn("My Order");
     await Utils.clickBtn("Order Now");
@@ -678,6 +678,25 @@ test("test_duplicate_order_kiosk: order then close, no My Order button", async (
     await Utils.clickBtn("Order");
     await Utils.clickBtn("Close");
     await Utils.checkIsNoBtn("My Order");
+});
+
+test("click anywhere goes back to landing page", async () => {
+    await setupSelfPosEnv(
+        "kiosk",
+        "counter",
+        "each",
+        { use_presets: false, available_preset_ids: [] },
+        true
+    );
+    await Utils.clickOrderNow();
+    await Utils.clickCategory("Miscellaneous");
+    await Utils.clickProduct("Coca-Cola");
+    await Utils.clickBtn("Checkout");
+    await Utils.clickBtn("Order");
+    await Utils.checkConfirmationPage();
+    await Utils.clickConfirmationPage();
+    await Utils.checkBtn("Order Now");
+    expect(".confirmation-page").toHaveCount(0);
 });
 
 test("kiosk_order_price_null: zero-price product order", async () => {
@@ -1369,7 +1388,7 @@ test("test_slot_limit_orders: slot limit order test", async () => {
     await Utils.clickProduct("Free");
     await Utils.clickBtn("Checkout");
     await Utils.clickBtn("Order");
-    await Utils.checkSlotUnavailable("12:00");
+    await Utils.checkSlotDisabled("12:00");
 });
 
 test("test_self_order_preset_btn: check preset button displays correct preset", async () => {

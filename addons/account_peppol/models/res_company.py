@@ -5,6 +5,7 @@ import requests
 from lxml import etree
 
 from odoo import _, api, fields, models
+from odoo.addons.base.models.res_country import FR_AND_OVERSEAS_TERRITORIES
 from odoo.exceptions import ValidationError
 from odoo.tools.urls import urljoin
 
@@ -24,12 +25,14 @@ class ResCompany(models.Model):
         compute='_compute_account_peppol_contact_email', store=True, readonly=False,
         help='Primary contact email for Peppol connection related communications and notifications.\n'
              'In particular, this email is used by Odoo to reconnect your Peppol account in case of database change.',
+        groups='base.group_user',
     )
     account_peppol_migration_key = fields.Char(string="Migration Key", groups="base.group_system")
     account_peppol_phone_number = fields.Char(
         string='Mobile number',
         compute='_compute_account_peppol_phone_number', store=True, readonly=False,
         help='This number is used for identification purposes only.',
+        groups='base.group_user',
     )
     account_peppol_proxy_state = fields.Selection(
         selection=[
@@ -132,10 +135,20 @@ class ResCompany(models.Model):
         if not phonenumbers.is_valid_number(phone_nbr):
             raise ValidationError(error_message)
 
+    def _get_einvoicing_network_name(self):
+        """Return the user-facing name of the company's e-invoicing network or platform."""
+        self.ensure_one()
+        return self.env._("Peppol")
+
+    def _get_einvoicing_identifier_name(self):
+        """Return the user-facing name of an identifier on the network."""
+        self.ensure_one()
+        return self.env._("Peppol EAS and/or Endpoint identifier")
+
     def _peppol_is_french_company(self):
         self.ensure_one()
         return (
-            self.account_fiscal_country_id.code in {'FR', 'GP', 'MQ', 'RE'}
+            self.account_fiscal_country_id.code in FR_AND_OVERSEAS_TERRITORIES
             or self.routing_scheme in {'0225', '0009', '9957', '0002'}
         )
 

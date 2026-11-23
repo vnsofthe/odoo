@@ -1,4 +1,4 @@
-import { computed, EventBus, proxy, toRaw, usePlugin } from "@odoo/owl";
+import { computed, EventBus, proxy, signal, toRaw, usePlugin } from "@odoo/owl";
 import { router } from "@web/core/browser/router";
 import { makeContext } from "@web/core/context";
 import { DebugModePlugin } from "@web/core/debug_mode_plugin";
@@ -216,6 +216,7 @@ export class SearchModel extends EventBus {
     query = proxy([]);
     searchItems = proxy({});
 
+    _groupByState = signal.Object({ defaultGroupBy: undefined, globalGroupBy: [] });
     _groupBy = computed(() => (this.searchMenuTypes.has("groupBy") ? this._getGroupBy() : []));
 
     constructor(env, services, args) {
@@ -377,6 +378,8 @@ export class SearchModel extends EventBus {
             this._createGroupOfDynamicFilters(dynamicFilters);
         }
 
+        const defaultFavoriteId = this._createGroupOfFavorites(this.irFilters || []);
+
         // Activate filters if necessary (from url or saved filters)
         const { domain: urlDomain, groupBy: urlGroupBy, orderBy: urlOrderBy } = router.current;
         let useUrl = urlDomain || urlGroupBy || urlOrderBy;
@@ -384,7 +387,6 @@ export class SearchModel extends EventBus {
             useUrl = this._tryApplySharedFilters(urlDomain, urlGroupBy, urlOrderBy); // Returns False if no filters could be activated
         }
         if (!useUrl) {
-            const defaultFavoriteId = this._createGroupOfFavorites(this.irFilters || []);
             const activateFavorite = "activateFavorite" in config ? config.activateFavorite : true;
             this._activateDefaultSearchItems(activateFavorite ? defaultFavoriteId : null);
         }
@@ -497,6 +499,22 @@ export class SearchModel extends EventBus {
      */
     get filters() {
         return [...this.sections.values()].filter((s) => s.type === "filter");
+    }
+
+    get defaultGroupBy() {
+        return this._groupByState().defaultGroupBy;
+    }
+
+    set defaultGroupBy(groupBy) {
+        this._groupByState().defaultGroupBy = groupBy;
+    }
+
+    get globalGroupBy() {
+        return this._groupByState().globalGroupBy;
+    }
+
+    set globalGroupBy(groupBy) {
+        this._groupByState().globalGroupBy = groupBy;
     }
 
     /**
@@ -717,7 +735,7 @@ export class SearchModel extends EventBus {
      */
     deactivateGroup(groupId) {
         if (groupId === DEFAULT_GROUPBY_ID) {
-            delete this.defaultGroupBy;
+            this.defaultGroupBy = undefined;
             this._notify();
             return;
         }
@@ -1061,7 +1079,7 @@ export class SearchModel extends EventBus {
         if (searchItem.type !== "dateFilter" && searchItem.type !== "parentFilter") {
             return;
         }
-        const generatorIds = generatorId ? [generatorId] : searchItem.defaultGeneratorIds;
+        const generatorIds = generatorId ? [generatorId] : searchItem.defaultGeneratorIds || [];
         for (const generatorId of generatorIds) {
             const index = this.query.findIndex(
                 (queryElem) =>

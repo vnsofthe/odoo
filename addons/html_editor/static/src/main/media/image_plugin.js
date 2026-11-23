@@ -183,6 +183,7 @@ export class ImagePlugin extends Plugin {
     }
 
     destroy() {
+        this.fileViewer.close();
         super.destroy();
     }
 
@@ -264,7 +265,16 @@ export class ImagePlugin extends Plugin {
         };
         this.document.getSelection().collapseToEnd();
         this.document.activeElement.blur();
-        this.fileViewer.open(fileModel);
+        const onClose = () => {
+            this.dependencies.selection.focusEditable();
+        };
+        this.fileViewer.open(fileModel, undefined, { onCloseCallback: onClose });
+        Promise.resolve().then(() => {
+            // Clear the selection after editor focus has been restored by
+            // onButtonClick(), otherwise the selection reappears.
+            const selection = this.document.getSelection();
+            selection.removeAllRanges();
+        });
     }
 
     deleteImage() {
@@ -330,12 +340,15 @@ export class ImagePlugin extends Plugin {
 
     setSelectionAroundImage(img) {
         const [anchorNode, anchorOffset, focusNode, focusOffset] = boundariesOut(img);
-        this.dependencies.selection.setSelection({
-            anchorNode,
-            anchorOffset,
-            focusNode,
-            focusOffset,
-        });
+        this.dependencies.selection.setSelection(
+            {
+                anchorNode,
+                anchorOffset,
+                focusNode,
+                focusOffset,
+            },
+            { normalize: false }
+        );
         this.dependencies.selection.focusEditable();
     }
 }

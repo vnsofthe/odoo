@@ -44,7 +44,7 @@ class MrpProductionSerials(models.TransientModel):
     def action_generate_serial_numbers(self):
         self.ensure_one()
         if self.lot_name and self.lot_quantity:
-            lots = self.env['stock.lot'].generate_lot_names(self.lot_name, self.lot_quantity)
+            lots = self.env['stock.lot'].generate_lot_names(self.lot_name, self.lot_quantity, self.production_id.product_id.lot_sequence_id)
             self.serial_numbers = '\n'.join([lot['lot_name'] for lot in lots])
             self._onchange_serial_numbers()
         action = self.env["ir.actions.actions"]._for_xml_id("mrp.action_assign_serial_numbers")
@@ -59,7 +59,10 @@ class MrpProductionSerials(models.TransientModel):
         split_amounts = {self.production_id: [1] * len(lots)}
         mos = self.production_id._split_productions(amounts=split_amounts)
         for mo, serial in zip(mos, lots):
-            mo.lot_producing_ids = [Command.link(serial.id)]
+            mo.lot_producing_ids = [Command.set([serial.id])]
+            mo.qty_producing = 0
+            for move in mo.move_raw_ids:
+                move.quantity = move.product_uom_qty
         if new_lots and self.production_id.picking_type_id.auto_print_generated_mrp_lot:
             print_action = self.production_id._autoprint_generated_lots(new_lots)
             print_action['close_on_report_download'] = True

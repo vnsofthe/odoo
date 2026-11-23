@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 20.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-18 17:40+0000\n"
-"PO-Revision-Date: 2026-09-18 17:40+0000\n"
+"POT-Creation-Date: 2026-10-30 17:40+0000\n"
+"PO-Revision-Date: 2026-10-30 17:40+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -437,6 +437,12 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.js:0
 msgid "1 for one-tailed, 2 for two-tailed."
+msgstr ""
+
+#. module: spreadsheet
+#. odoo-javascript
+#: code:addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.js:0
+msgid "1 is hidden"
 msgstr ""
 
 #. module: spreadsheet
@@ -1446,7 +1452,7 @@ msgstr ""
 #. module: spreadsheet
 #. odoo-javascript
 #: code:addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.xml:0
-msgid "Automatic evaluation is disabled. Press F9 to recalculate."
+msgid "Automatic evaluation is disabled. Press"
 msgstr ""
 
 #. module: spreadsheet
@@ -2152,7 +2158,7 @@ msgstr ""
 
 #. module: spreadsheet
 #. odoo-javascript
-#: code:addons/spreadsheet/static/src/chart/odoo_link/chart_menu.js:0
+#: code:addons/spreadsheet/static/src/chart/odoo_link/components/chart_menu.js:0
 msgid "Chart Odoo Link"
 msgstr ""
 
@@ -4876,31 +4882,31 @@ msgstr ""
 
 #. module: spreadsheet
 #. odoo-javascript
-#: code:addons/spreadsheet/static/src/chart/odoo_link/figure_component.js:0
+#: code:addons/spreadsheet/static/src/chart/odoo_link/components/figure_component.js:0
 msgid "Go to Baseline record"
 msgstr ""
 
 #. module: spreadsheet
 #. odoo-javascript
-#: code:addons/spreadsheet/static/src/chart/odoo_link/figure_component.js:0
+#: code:addons/spreadsheet/static/src/chart/odoo_link/components/figure_component.js:0
 msgid "Go to Baseline records"
 msgstr ""
 
 #. module: spreadsheet
 #. odoo-javascript
-#: code:addons/spreadsheet/static/src/chart/odoo_link/figure_component.js:0
+#: code:addons/spreadsheet/static/src/chart/odoo_link/components/figure_component.js:0
 msgid "Go to Key record"
 msgstr ""
 
 #. module: spreadsheet
 #. odoo-javascript
-#: code:addons/spreadsheet/static/src/chart/odoo_link/figure_component.js:0
+#: code:addons/spreadsheet/static/src/chart/odoo_link/components/figure_component.js:0
 msgid "Go to Key records"
 msgstr ""
 
 #. module: spreadsheet
 #. odoo-javascript
-#: code:addons/spreadsheet/static/src/chart/odoo_link/figure_component.js:0
+#: code:addons/spreadsheet/static/src/chart/odoo_link/components/figure_component.js:0
 msgid "Go to link"
 msgstr ""
 
@@ -6878,6 +6884,12 @@ msgstr ""
 
 #. module: spreadsheet
 #. odoo-javascript
+#: code:addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.js:0
+msgid "No region is available"
+msgstr ""
+
+#. module: spreadsheet
+#. odoo-javascript
 #: code:addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.xml:0
 msgid "No results"
 msgstr ""
@@ -7974,6 +7986,12 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.xml:0
 msgid "Region"
+msgstr ""
+
+#. module: spreadsheet
+#. odoo-javascript
+#: code:addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.js:0
+msgid "Region %(region)s is not available"
 msgstr ""
 
 #. module: spreadsheet
@@ -10157,6 +10175,12 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.js:0
 msgid "The chart definition is invalid for an unknown reason"
+msgstr ""
+
+#. module: spreadsheet
+#. odoo-javascript
+#: code:addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.xml:0
+msgid "The chart is deactivated"
 msgstr ""
 
 #. module: spreadsheet
@@ -13567,6 +13591,14 @@ msgstr ""
 
 #. module: spreadsheet
 #. odoo-javascript
+#: code:addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.js:0
+msgid ""
+"This operation would cause tables to overlap. Move or remove the conflicting"
+" table and try again."
+msgstr ""
+
+#. module: spreadsheet
+#. odoo-javascript
 #: code:addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.xml:0
 msgid "This pivot has no cell missing on this sheet"
 msgstr ""
@@ -15127,6 +15159,12 @@ msgstr ""
 
 #. module: spreadsheet
 #. odoo-javascript
+#: code:addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.xml:0
+msgid "here"
+msgstr ""
+
+#. module: spreadsheet
+#. odoo-javascript
 #: code:addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.js:0
 msgid "in the past month"
 msgstr ""
@@ -15225,6 +15263,12 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/spreadsheet/static/src/global_filters/helpers.js:0
 msgid "or"
+msgstr ""
+
+#. module: spreadsheet
+#. odoo-javascript
+#: code:addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.xml:0
+msgid "or F9 to recalculate."
 msgstr ""
 
 #. module: spreadsheet

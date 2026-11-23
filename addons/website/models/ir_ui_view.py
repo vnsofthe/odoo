@@ -85,6 +85,18 @@ class IrUiView(models.Model):
                     raise ValueError(f"Trying to create a view for website {new_website_id} from a website {website_id} environment")
         return super().create(vals_list)
 
+    def copy(self, default=None):
+        # `visibility_password` has "copy=False" because reading and writing
+        # it requires `base.group_system`, which the website designer may not
+        # have. Thus, the (hashed) password is copied here with sudo().
+        new_views = super().copy(default=default)
+        if default and 'visibility_password' in default:
+            return new_views
+        for view, new_view in zip(self, new_views):
+            if view.visibility == 'password':
+                new_view.sudo().visibility_password = view.sudo().visibility_password
+        return new_views
+
     @api.depends('website_id', 'key')
     @api.depends_context('display_key', 'display_website')
     def _compute_display_name(self):
@@ -393,11 +405,27 @@ class IrUiView(models.Model):
         return domain & Domain('website_id', 'in', (False, self.env.context.get('website_id', False)))
 
     @api.model
+    def _raise_error(self, error):
+        kind, *values = error
+        if len(values) == 2:
+            error, website_id = values
+            if kind == 'missing_template':
+                raise MissingError(self.env._("Template not found: '%(error)s' (website: %(website_id)s)",
+                    error=error, website_id=website_id))
+            if kind == 'missing_external':
+                raise MissingError(self.env._("External ID can not be loaded: %(error)s (website: %(website_id)s)",
+                    error=error, website_id=website_id))
+        super()._raise_error(error)
+
+    @api.model
     def _fetch_template_views(self, ids_or_xmlids):
         data = super()._fetch_template_views(ids_or_xmlids)
         for key in list(data):
-            if isinstance(data[key], MissingError):
-                data[key] = MissingError(self.env._("%(error)s (website: %(website_id)s)", error=data[key], website_id=self.env.context.get('website_id')))
+            if (
+                isinstance(data[key], tuple) and data[key]
+                and data[key][0] in ('missing_template', 'missing_external')
+            ):
+                data[key] = (data[key][0], data[key][1], self.env.context.get('website_id'))
         return data
 
     @api.model
@@ -407,7 +435,7 @@ class IrUiView(models.Model):
     def _get_cached_visibility(self):
         info = self._get_cached_template_info(self.id, _view=self)
         if info['error']:
-            raise info['error']
+            self._raise_error(info['error'])
         return info['visibility']
 
     def _handle_visibility(self, do_raise=True):
@@ -428,7 +456,11 @@ class IrUiView(models.Model):
             elif visibility == 'password' and \
                     (self.env.website.is_public_user() or self.id not in request.session.get('views_unlock', [])):
                 pwd = request.params.get('visibility_password')
-                if pwd and self.env.user._crypt_context().verify(
+                # Guard against a falsy visibility_password which would make
+                # crypt_context().verify() raise. Old databases can contain
+                # such views, because duplication of a password-protected
+                # page did not copy the password.
+                if pwd and self.visibility_password and self.env.user._crypt_context().verify(
                         pwd, self.visibility_password):
                     request.session.setdefault('views_unlock', list()).append(self.id)
                 else:
@@ -657,11 +689,11 @@ class IrUiView(models.Model):
             ], limit=1)
             if website_specific_view:
                 view = website_specific_view
-        if self.env.context.get('delay_translations'):
-            disable_delay_translations = self.env['ir.config_parameter'].sudo().get_bool(
+        if view.env.context.get('delay_translations'):
+            disable_delay_translations = view.env['ir.config_parameter'].sudo().get_bool(
                 'website.disable_delay_translations'
             )
-            self.env = self.with_context(delay_translations=not disable_delay_translations).env
+            view = view.with_context(delay_translations=not disable_delay_translations)
         arch_section = html.fromstring(value)
 
         if xpath is None:
@@ -689,6 +721,9 @@ class IrUiView(models.Model):
         if not view._are_archs_equal(old_arch, new_arch):
             view._set_noupdate()
             view.write({'arch': etree.tostring(new_arch, encoding='unicode')})
+            # TODO: on master, use `_get_template_view` instead (and add the
+            # website in the context where we call `save`)
+            view = view if view.website_id or 'website_id' not in view.env.context else view.env['website'].viewref(view.key)
             view._copy_custom_snippet_translations(view, 'arch_db')
 
     @api.model

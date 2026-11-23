@@ -132,11 +132,7 @@ class PaymentTransaction(models.Model):
             # We only support the flow where exactly one quotation is linked to a transaction.
             if len(tx.sale_order_ids) == 1:
                 quotation = tx.sale_order_ids.filtered(lambda so: so.state in ("draft", "sent"))
-                if (
-                    quotation
-                    and not quotation._has_to_be_signed()
-                    and quotation._is_confirmation_amount_reached()
-                ):
+                if quotation and quotation._is_confirmation_amount_reached():
                     quotation.with_context(
                         send_email=True, sale_include_signature=True
                     ).action_confirm()
@@ -168,7 +164,6 @@ class PaymentTransaction(models.Model):
             invoice_to_send = tx.invoice_ids.filtered(
                 lambda i: not i.is_move_sent and i.state == "posted" and i._is_ready_to_be_sent()
             )
-            invoice_to_send.is_move_sent = True  # Mark invoice as sent
 
             send_context = {"allow_raising": False, "allow_fallback_pdf": True}
             default_template_param = (
@@ -182,7 +177,7 @@ class PaymentTransaction(models.Model):
                 if mail_template.exists():
                     send_context["mail_template"] = mail_template
 
-            tx.env["account.move.send"]._generate_and_send_invoices(invoice_to_send, **send_context)
+            tx.env['account.move.send']._generate_and_send_invoices_post_commit(invoice_to_send, **send_context)
 
     def _cron_send_invoice(self):
         """Send invoices that where not ready to be send directly after posting."""
@@ -235,6 +230,8 @@ class PaymentTransaction(models.Model):
                 if invoices:
                     tx.invoice_ids = [Command.set(invoices.ids)]
 
+        self.env.flush_all()
+
     @api.model
     def _compute_reference_prefix(self, separator, **values):
         """Override of payment to compute the reference prefix based on Sales-specific values.
@@ -257,6 +254,30 @@ class PaymentTransaction(models.Model):
             if len(orders) == len(order_ids):  # All ids are valid
                 return separator.join(orders.mapped("name"))
         return super()._compute_reference_prefix(separator, **values)
+
+    def _get_line_items(self):
+        """Override of `payment` to return the items of the linked sales orders."""
+        self.ensure_one()
+        if not self.sale_order_ids:
+            return super()._get_line_items()
+
+        line_items = {}
+        product_lines = self.sale_order_ids.order_line.filtered(
+            lambda line: (
+                not line.display_type and not line.is_downpayment and line.product_type != "combo"
+            )
+        )
+        for line in product_lines:
+            product = line.product_id.with_context(display_default_code=False)
+            line_items[line] = {
+                "name": product.display_name or line.name or "",
+                "description": line.name or "",
+                "sku": product.default_code,
+                "barcode": product.barcode,
+                "quantity": line.product_uom_qty,
+                "total": line.price_total,
+            }
+        return line_items
 
     @api.readonly
     def action_view_sales_orders(self):

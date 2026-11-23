@@ -1,0 +1,224 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * spreadsheet_dashboard_pos_restaurant
+#
+# Bone NI <bounkirdni@gmail.com>, 2026.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.4a1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-08-28 17:43+0000\n"
+"PO-Revision-Date: 2026-11-08 11:33+0000\n"
+"Last-Translator: Bone NI <bounkirdni@gmail.com>\n"
+"Language-Team: Lao <https://translate.odoo.com/projects/odoo-20/"
+"spreadsheet_dashboard_pos_restaurant/lo/>\n"
+"Language: lo\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 2026.8.1\n"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+msgid "# Tables"
+msgstr "ຈຳນວນໂຕະ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_sample_dashboard.json:0
+msgid "#Orders"
+msgstr "ຈຳນວນລາຍການສັ່ງ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+msgid "Average per table"
+msgstr "ຄ່າສະເລ່ຍຕໍ່ໂຕະ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_sample_dashboard.json:0
+msgid "Avg Revenue per Guest"
+msgstr "ລາຍຮັບສະເລ່ຍຕໍ່ແຂກ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_sample_dashboard.json:0
+msgid "Avg Revenue per Order"
+msgstr "ລາຍຮັບສະເລ່ຍຕໍ່ລາຍການສັ່ງ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_sample_dashboard.json:0
+msgid "Daily Total Revenue"
+msgstr "ລາຍຮັບລວມປະຈຳວັນ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+msgid "Day of the week"
+msgstr "ວັນໃນອາທິດ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_sample_dashboard.json:0
+msgid "Discount Rate"
+msgstr "ອັດຕາສ່ວນຫຼຸດ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_sample_dashboard.json:0
+msgid "Hourly Total Revenue"
+msgstr "ລາຍຮັບລວມປະຈຳຊົ່ວໂມງ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#: model:spreadsheet.dashboard,name:spreadsheet_dashboard_pos_restaurant.spreadsheet_dashboard_pos_restaurant
+msgid "POS - Restaurant"
+msgstr "POS - ຮ້ານອາຫານ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+msgid "Period"
+msgstr "ໄລຍະເວລາ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+msgid "Point of Sale"
+msgstr "ຈຸດຂາຍໜ້າຮ້ານ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+msgid "Preset"
+msgstr "ຕັ້ງຄ່າໄວ້ລ່ວງໜ້າ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+msgid "Product"
+msgstr "ສິນຄ້າ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+msgid "Product Category"
+msgstr "ໝວດໝູ່ສິນຄ້າ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+msgid "Revenue"
+msgstr "ລາຍຮັບ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+msgid "Revenue per day"
+msgstr "ລາຍຮັບຕໍ່ວັນ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+msgid "Revenue per hour"
+msgstr "ລາຍຮັບຕໍ່ຊົ່ວໂມງ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#: model:ir.module.module,description:base.module_spreadsheet_dashboard_pos_restaurant
+#: model:ir.module.module,summary:base.module_spreadsheet_dashboard_pos_restaurant
+msgid "Spreadsheet"
+msgstr "ຕາຕະລາງຄຳນວນ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#: model:ir.module.module,shortdesc:base.module_spreadsheet_dashboard_pos_restaurant
+msgid "Spreadsheet dashboard for restaurants"
+msgstr "ໜ້າກະດານຕາຕະລາງຄຳນວນສຳລັບຮ້ານອາຫານ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+msgid "Time"
+msgstr "ເວລາ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+msgid "Top"
+msgstr "ອັນດັບຕົ້ນ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+msgid "Top Categories"
+msgstr "ໝວດໝູ່ອັນດັບຕົ້ນ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_sample_dashboard.json:0
+msgid "Top Products per Margin"
+msgstr "ສິນຄ້າອັນດັບຕົ້ນຕາມກຳໄລ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_sample_dashboard.json:0
+msgid "Top Responsibles"
+msgstr "ຜູ້ຮັບຜິດຊອບອັນດັບຕົ້ນ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_sample_dashboard.json:0
+msgid "Top Tables per Revenue"
+msgstr "ໂຕະອັນດັບຕົ້ນຕາມລາຍຮັບ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_sample_dashboard.json:0
+msgid "Total Guests"
+msgstr "ຈຳນວນແຂກທັງໝົດ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_sample_dashboard.json:0
+msgid "Total Revenue"
+msgstr "ລາຍຮັບທັງໝົດ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_sample_dashboard.json:0
+msgid "Untaxed Revenue"
+msgstr "ລາຍຮັບບໍ່ລວມອາກອນ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_sample_dashboard.json:0
+msgid "Untaxed Revenue per Guest"
+msgstr "ລາຍຮັບບໍ່ລວມອາກອນຕໍ່ແຂກ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_sample_dashboard.json:0
+msgid "Untaxed Revenue per Order"
+msgstr "ລາຍຮັບບໍ່ລວມອາກອນຕໍ່ລາຍການສັ່ງ"
+
+#. module: spreadsheet_dashboard_pos_restaurant
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_pos_restaurant/data/files/pos_restaurant_dashboard.json:0
+msgid "Waiter"
+msgstr "ພະນັກງານເສີບ"

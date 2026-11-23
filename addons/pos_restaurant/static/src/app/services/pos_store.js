@@ -82,6 +82,22 @@ patch(PosStore.prototype, {
         }
         return super.preSyncAllOrders(...arguments);
     },
+    async postSyncAllOrders(orders) {
+        await super.postSyncAllOrders(...arguments);
+        // The server merges an order synced on a table into the open order of that table,
+        // the local order is left empty (its lines are moved) and must be removed
+        for (const order of orders.filter((o) => o.table_id && !o.finalized)) {
+            const mergedOrders = this.models["pos.order"].filter(
+                (o) => !o.isSynced && o.table_id?.id === order.table_id.id && !o.lines.length
+            );
+            for (const mergedOrder of mergedOrders) {
+                if (this.getOrder()?.uuid === mergedOrder.uuid) {
+                    this.setOrder(order);
+                }
+                this.removeOrder(mergedOrder, false); // Not synced so no need server delete
+            }
+        }
+    },
     async setCustomerCount(o = false, removeEmptyOrder = true) {
         const currentOrder = o || this.getOrder();
         const count = await makeAwaitable(this.dialog, NumberPopup, {
@@ -112,7 +128,7 @@ patch(PosStore.prototype, {
         }
         const result = await super.sendOrderInPreparation(order, opts);
 
-        if (this.config.module_pos_restaurant && categoryCount.length) {
+        if (result && this.config.module_pos_restaurant && categoryCount.length) {
             const categorySummary = formatList(
                 categoryCount.map((cat) => `${cat.count} ${cat.name}`)
             );
@@ -132,9 +148,16 @@ patch(PosStore.prototype, {
             currentPreset?.use_guest &&
             !order.uiState.guestSetted
         ) {
+            const previousCount = order.getCustomerCount();
             await this.setCustomerCount(order, removeEmptyOrder);
             if (order.getCustomerCount() === 0 && order.table_id) {
                 order.setCustomerCount(order.table_id.seats);
+            }
+            const delta = order.getCustomerCount() - previousCount;
+            const originalOrder = order.originalSplittedOrder;
+            if (delta && originalOrder && !originalOrder.finalized) {
+                originalOrder.setCustomerCount(originalOrder.getCustomerCount() - delta);
+                this.addPendingOrder([originalOrder.id]);
             }
             order.uiState.guestSetted = true;
         }
@@ -220,14 +243,39 @@ patch(PosStore.prototype, {
             allocation.course.delete();
         }
     },
-    async mergeOrders(sourceOrder, destOrder) {
-        let whileGuard = 0;
-        // The merged order takes the destination's preset, so the source's fee lines
-        // are stale: drop them, the recompute below re-applies the fee on the merged
-        // base. A refund order keeps its own (see recomputeServiceFees).
-        if (!sourceOrder.isRefund && !destOrder.isRefund) {
-            sourceOrder.removeAllServiceFeeLines();
+    async _mergeLines(orphanLine, destinationLine, destOrder, sourceOrder, mergedCourses) {
+        let uuid;
+        const prepLines = orphanLine.prep_line_ids;
+        if (destinationLine) {
+            destinationLine.merge(orphanLine);
+            uuid = destinationLine.uuid;
+            this.handlePreparationLine(destinationLine, prepLines);
+        } else {
+            const serializedLine = { ...orphanLine.raw };
+            serializedLine.order_id = destOrder.id;
+            delete serializedLine.uuid;
+            delete serializedLine.id;
+            const newLine = this.models["pos.order.line"].create(serializedLine, false, true);
+            newLine.course_id = orphanLine.course_id?.id;
+            uuid = newLine.uuid;
+            if (orphanLine.course_id && mergedCourses) {
+                // Replace new line uuid in the merged courses
+                const course = mergedCourses[orphanLine.course_id.uuid];
+                if (course?.lines) {
+                    course.lines = course.lines.map((lineUuid) =>
+                        lineUuid === orphanLine.uuid ? uuid : lineUuid
+                    );
+                }
+            }
+            this.handlePreparationLine(newLine, prepLines);
         }
+        return uuid;
+    },
+    getLinesToMerge(sourceOrder, destinationOrder) {
+        return sourceOrder.lines;
+    },
+
+    async _mergeOrders(sourceOrder, destOrder) {
         const mergedCourses = this.mergeCourses(sourceOrder, destOrder);
         const sourceLastPrint = sourceOrder.lastPrints.at(-1);
         // Sum the guest counts from both orders
@@ -238,40 +286,20 @@ patch(PosStore.prototype, {
             (l) => l.pos_order_id?.uuid === sourceOrder.uuid
         );
         this.handlePreparationOrder(destOrder, prepOrders);
-        while (sourceOrder.lines.length) {
-            const orphanLine = sourceOrder.lines[0];
+        const sourceLines = this.getLinesToMerge(sourceOrder, destOrder);
+        for (const orphanLine of sourceLines) {
             const destinationLine = destOrder?.lines?.find((l) => l.canBeMergedWith(orphanLine));
-            let uuid = "";
-            const prepLines = orphanLine.prep_line_ids;
-            if (destinationLine) {
-                destinationLine.merge(orphanLine);
-                uuid = destinationLine.uuid;
-                this.handlePreparationLine(destinationLine, prepLines);
-            } else {
-                const serializedLine = { ...orphanLine.raw };
-                serializedLine.order_id = destOrder.id;
-                delete serializedLine.uuid;
-                delete serializedLine.id;
-                const newLine = this.models["pos.order.line"].create(serializedLine, false, true);
-                newLine.course_id = orphanLine.course_id?.id;
-                uuid = newLine.uuid;
-                if (orphanLine.course_id && mergedCourses) {
-                    // Replace new line uuid in the merged courses
-                    const course = mergedCourses[orphanLine.course_id.uuid];
-                    if (course?.lines) {
-                        course.lines = course.lines.map((lineUuid) =>
-                            lineUuid === orphanLine.uuid ? uuid : lineUuid
-                        );
-                    }
-                }
-                this.handlePreparationLine(newLine, prepLines);
-            }
-
+            await this._mergeLines(
+                orphanLine,
+                destinationLine,
+                destOrder,
+                sourceOrder,
+                mergedCourses
+            );
             orphanLine.delete();
-            whileGuard++;
-            if (whileGuard > 1000) {
-                break;
-            }
+        }
+        if (sourceOrder.pricelist_id?.id !== destOrder.pricelist_id?.id) {
+            destOrder.setPricelist(destOrder.pricelist_id);
         }
         if (destOrder.courses) {
             // Ensure unassigned lines in destOrder are linked to the last course
@@ -318,8 +346,17 @@ patch(PosStore.prototype, {
         ) {
             destOrder.pushLastPrints(combinedPrint);
         }
-        // Re-apply the fee on the merged base before syncing. The courses are only
-        // settled above, so the fee can be pinned to the last one.
+    },
+    async mergeOrders(sourceOrder, destOrder) {
+        // The merged order takes the destination's preset, so the source's fee lines
+        // are stale: drop them, the recompute below re-applies the fee on the merged
+        // base. A refund order keeps its own (see recomputeServiceFees).
+        if (!sourceOrder.isRefund && !destOrder.isRefund) {
+            sourceOrder.removeAllServiceFeeLines();
+        }
+        await this._mergeOrders(sourceOrder, destOrder);
+        // Re-apply the fee on the merged base before syncing. The courses are
+        // settled during the merge, so the fee can be pinned to the last one.
         destOrder.recomputeServiceFees();
         if (typeof destOrder.id === "number") {
             await this.syncAllOrders({ orders: [destOrder] });
@@ -376,6 +413,18 @@ patch(PosStore.prototype, {
             this.navigate("FloorScreen");
         }
         return orderRemoved;
+    },
+    onDeleteOrderConfirmed(order) {
+        super.onDeleteOrderConfirmed(...arguments);
+        // Don't wait for the preparation tickets to be printed to navigate to floor screen (like when sending to the kitchen)
+        if (
+            this.config.module_pos_restaurant &&
+            this.selectedOrderUuid === order.uuid &&
+            this.router.currentScreen() === "ProductScreen"
+        ) {
+            this.navigate("FloorScreen");
+            this.setOrder(null);
+        }
     },
     removeOrderShouldRedirect(order, hasBeenRemoved) {
         const wasCurrentOrder = this.selectedOrderUuid === order?.uuid;
@@ -443,7 +492,21 @@ patch(PosStore.prototype, {
     },
     //@override
     addNewOrder(data = {}) {
-        const order = super.addNewOrder(...arguments);
+        if (
+            this.config.module_pos_restaurant &&
+            this.router.currentScreen() === "ProductScreen" &&
+            !data.table_id &&
+            !data.is_refund &&
+            this.getOrder()?.finalized &&
+            this.selectedTable
+        ) {
+            // When a table isn't synchronized and paid from another device
+            // clicking on a table will re-create a direct sales.
+            // But the user might not be aware of this and expects the table
+            // to be linked to the new order.
+            data = { ...data, table_id: this.selectedTable };
+        }
+        const order = super.addNewOrder(data);
         if (this.config.module_pos_restaurant) {
             this.addPendingOrder([order.id]);
         }
@@ -492,16 +555,8 @@ patch(PosStore.prototype, {
     async submitOrder() {
         const order = this.getOrder();
         await this.ensureGuestCustomerCount(order);
+        this.sendOrderInPreparationUpdateLastChange(order);
         this.showDefault();
-        await this.sendOrderInPreparationUpdateLastChange(order);
-        this.addPendingOrder([order.id]);
-        if (order.isDirty()) {
-            // showDefault() triggers unsetTable() which calls syncAllOrders(),
-            // but sendOrderInPreparationUpdateLastChange holds the order in syncingOrders,
-            // preventing that sync from picking it up. Sync only if still dirty after the lock
-            // is released.
-            await this.syncAllOrders({ orders: [order] });
-        }
     },
     async reprintOrder() {
         const order = this.getOrder();
@@ -722,8 +777,11 @@ patch(PosStore.prototype, {
 
                 try {
                     this.ui.block();
-                    this.isOrderTransferMode = false;
                     const table = this.getTableFromElement(tableElement);
+                    if (this.isOrderDeleting(table?.getOrder())) {
+                        return;
+                    }
+                    this.isOrderTransferMode = false;
                     if (table) {
                         const order = table.getOrder();
 
@@ -747,8 +805,11 @@ patch(PosStore.prototype, {
 
                 try {
                     this.ui.block();
-                    this.isOrderTransferMode = false;
                     const order = this.getOrderFromElement(orderElement);
+                    if (this.isOrderDeleting(order)) {
+                        return;
+                    }
+                    this.isOrderTransferMode = false;
                     if (order) {
                         if (order.uuid === orderUuid) {
                             return transferToItselfNotif();
@@ -769,7 +830,7 @@ patch(PosStore.prototype, {
         };
         document.addEventListener("click", onClickWhileTransfer);
     },
-    prepareOrderTransfer(order, destinationTable) {
+    async prepareOrderTransfer(order, destinationTable) {
         const originalTable = order.table_id;
         this.alert.remove();
 
@@ -795,7 +856,7 @@ patch(PosStore.prototype, {
         const sourceOrder = this.models["pos.order"].getBy("uuid", orderUuid);
 
         if (destinationTable) {
-            if (!this.prepareOrderTransfer(sourceOrder, destinationTable)) {
+            if (!(await this.prepareOrderTransfer(sourceOrder, destinationTable))) {
                 await this.syncAllOrders({ orders: [sourceOrder] });
                 return;
             }
@@ -809,7 +870,7 @@ patch(PosStore.prototype, {
     async mergeTableOrders(orderUuid, destinationTable) {
         const sourceOrder = this.models["pos.order"].getBy("uuid", orderUuid);
 
-        if (!this.prepareOrderTransfer(sourceOrder, destinationTable)) {
+        if (!(await this.prepareOrderTransfer(sourceOrder, destinationTable))) {
             await this.syncAllOrders({ orders: [sourceOrder] });
             return;
         }
@@ -817,6 +878,7 @@ patch(PosStore.prototype, {
         const destinationOrder = this.getActiveOrdersOnTable(destinationTable.rootTable)[0];
         await this.mergeOrders(sourceOrder, destinationOrder);
         await this.setTable(destinationTable);
+        return destinationOrder;
     },
     getCustomerCount(tableId) {
         const tableOrders = this.getTableOrders(tableId).filter((order) => !order.finalized);

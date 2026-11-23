@@ -1,4 +1,4 @@
-import { negateStep } from "@point_of_sale/../tests/generic_helpers/utils";
+import { negate, negateStep } from "@point_of_sale/../tests/generic_helpers/utils";
 import { selectButton } from "@point_of_sale/../tests/pos/tours/utils/common";
 
 export function clickPartner(name = "", { expectUnloadPage = false } = {}) {
@@ -114,6 +114,12 @@ export function checkCustomerShown(val) {
         trigger: `.partner-list .partner-info:nth-child(1):contains("${val}")`,
     };
 }
+export function checkCustomerNotShown(val) {
+    return {
+        content: `Check "${val}" is not in the partner list`,
+        trigger: negate(`.partner-info:contains("${val}")`, ".modal-body.partner-list"),
+    };
+}
 export function searchCustomer(val) {
     return [
         {
@@ -137,7 +143,7 @@ export function searchCustomer(val) {
     ];
 }
 
-export function searchCustomerValue(val, pressEnter = false) {
+export function searchCustomerValue(val, pressEnter = true) {
     const steps = searchCustomer(val);
 
     if (pressEnter) {

@@ -411,7 +411,9 @@ class StockRule(models.Model):
         bypass_global_horizon_days = self.env.context.get('bypass_global_horizon_days')
         if bypass_global_horizon_days:
             return delays, delay_description
-        global_horizon_days = self.env['stock.warehouse.orderpoint'].get_horizon_days()
+        orderpoint = values.get('orderpoint_id') or self.env['stock.warehouse.orderpoint']
+        # keep the rules' context: mrp sets global_horizon_days=0 on pre-production rules
+        global_horizon_days = orderpoint.with_context(self.env.context).get_horizon_days()
         if global_horizon_days:
             delays['horizon_time'] += global_horizon_days
             if not bypass_delay_description:
@@ -556,7 +558,8 @@ class StockRule(models.Model):
             locations |= locations[-1].location_id
         domain = self._get_rule_domain(locations, values)
         routes_with_no_warehouse = self.env['stock.route']._get_routes_with_no_warehouse()
-        routes = (values.get('route_ids') or self.env['stock.route']) | routes_with_no_warehouse
+        explicit_routes = values.get('route_ids') or self.env['stock.route']
+        routes = explicit_routes | routes_with_no_warehouse
         # Get a mapping (location_id, route_id) -> warehouse_id -> rule_id
         rule_dict = self._search_rule_for_warehouses(
             routes,
@@ -569,7 +572,7 @@ class StockRule(models.Model):
 
         def extract_rule(rule_dict, route_ids, warehouse_id, location_dest_id):
             rule = self.env['stock.rule']
-            for route_id in sorted(route_ids, key=lambda r: (r not in product_id.route_ids, r.sequence)):
+            for route_id in sorted(route_ids, key=lambda r: (r not in explicit_routes, r not in product_id.route_ids, r.sequence)):
                 sub_dict = rule_dict.get((location_dest_id.id, route_id.id))
                 if not sub_dict:
                     continue

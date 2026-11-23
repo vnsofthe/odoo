@@ -66,6 +66,8 @@ class MassMailController(main.MassMailController):
 
         fname = self._get_fname(subscription_type)
         self.subscribe_to_newsletter(subscription_type, value, list_id, fname)
+        # TODO in master: we no longer display the toast on success, so update
+        # the return.
         return {
             'toast_type': 'success',
             'toast_content': _("Thanks for subscribing!"),
@@ -92,6 +94,12 @@ class MassMailController(main.MassMailController):
         request.session[f'mass_mailing_{fname}'] = value
 
         mailing_list = MailingList.browse(int(list_id)).exists()
+        if mailing_list and not request.env.user._is_internal() and not mailing_list.is_public:
+            return {
+                'toast_type': 'danger',
+                'toast_content': _("Invalid mailing list."),
+            }
+
         subscription = ContactSubscription.search(
             [('list_id', '=', mailing_list.id), (f'contact_id.{fname}', '=', value)], limit=1)
         if not subscription:

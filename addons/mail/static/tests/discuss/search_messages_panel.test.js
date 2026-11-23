@@ -140,7 +140,7 @@ test("Searching messages shows spinner icon", async () => {
             "/discuss/channel/messages",
             {
                 channel_id: channelId,
-                fetch_params: { search_term: "message", before: false },
+                fetch_params: { search_term: "message", before: false, limit: 31 },
             },
         ],
     ]);
@@ -194,7 +194,7 @@ test("Clearing message input while pending search should empty message results",
             "/discuss/channel/messages",
             {
                 channel_id: channelId,
-                fetch_params: { search_term: "This is", before: false },
+                fetch_params: { search_term: "This is", before: false, limit: 31 },
             },
         ],
     ]);
@@ -214,13 +214,72 @@ test("Clearing message input while pending search should empty message results",
             "/discuss/channel/messages",
             {
                 channel_id: channelId,
-                fetch_params: { search_term: "This is a message", before: false },
+                fetch_params: { search_term: "This is a message", before: false, limit: 31 },
             },
         ],
     ]);
     await animationFrame();
     await contains(".o-mail-SearchMessageResult .o-mail-Message", { count: 0 });
     await contains(".o-mail-SearchMessageInput .o-mail-SearchInput input", { value: "" });
+});
+
+test.tags("desktop");
+test("Clearing message input while a search is queued should not show its results", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    pyEnv["mail.message"].create({
+        author_id: serverState.partnerId,
+        body: "This is a message",
+        attachment_ids: [],
+        message_type: "comment",
+        model: "discuss.channel",
+        res_id: channelId,
+    });
+    let blockedFetchMessages = Promise.withResolvers();
+    listenStoreFetch("/discuss/channel/messages", {
+        logParams: ["/discuss/channel/messages"],
+        async onRpc(request) {
+            await blockedFetchMessages.promise;
+            blockedFetchMessages = Promise.withResolvers();
+        },
+    });
+    await start();
+    await openDiscuss(channelId);
+    blockedFetchMessages.resolve();
+    await contains(".o-mail-Message");
+    await waitStoreFetch([
+        [
+            "/discuss/channel/messages",
+            { channel_id: channelId, fetch_params: { limit: 60, around: 0 } },
+        ],
+    ]);
+    await click("button[title='Search Messages']");
+    await contains(".o-mail-SearchMessageInput .o-mail-SearchInput input");
+    await editInput(document.body, ".o-mail-SearchMessageInput .o-mail-SearchInput input", "This");
+    await contains(".o-mail-SearchMessageInput .o-mail-SearchInput.o-searching");
+    await editInput(
+        document.body,
+        ".o-mail-SearchMessageInput .o-mail-SearchInput input",
+        "This is"
+    );
+    await animationFrame();
+    await click("button[aria-label='Clear']");
+    await contains(".o-mail-SearchMessageInput .o-mail-SearchInput input", { value: "" });
+    blockedFetchMessages.resolve();
+    await waitStoreFetch([
+        [
+            "/discuss/channel/messages",
+            {
+                channel_id: channelId,
+                fetch_params: { search_term: "This", before: false, limit: 31 },
+            },
+        ],
+    ]);
+    blockedFetchMessages.resolve();
+    await animationFrame();
+    expect.verifySteps([]);
+    await contains(".o-mail-SearchMessageInput .o-mail-SearchInput input", { value: "" });
+    await contains(".o-mail-SearchMessageResult .o-mail-Message", { count: 0 });
 });
 
 test.tags("desktop");
@@ -335,11 +394,14 @@ test.tags("desktop");
 test("Search a message containing single quotes", async () => {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    pyEnv["mail.message"].create({
+        body: "<p>I can't do it</p>",
+        model: "discuss.channel",
+        res_id: channelId,
+        message_type: "comment",
+    });
     await start();
     await openDiscuss(channelId);
-    await insertText(".o-mail-Composer-input", "I can't do it");
-    await click(".o-sendMessageActive:enabled");
-    await contains(".o-mail-Message");
     await click("button[title='Search Messages']");
     await contains(".o-mail-SearchMessageInput");
     await insertText(".o-mail-SearchMessageInput .o-mail-SearchInput input", "can't");
@@ -376,4 +438,45 @@ test("Search should trigger a single store fetch", async () => {
     await insertText(".o-mail-SearchMessageInput .o-mail-SearchInput input", "message");
     await waitStoreFetch("/discuss/channel/messages");
     await waitStoreFetch();
+});
+
+test.tags("desktop");
+test("Empty search should not trigger rpc", async () => {
+    listenStoreFetch("/discuss/channel/messages", {
+        logParams: ["/discuss/channel/messages"],
+    });
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    pyEnv["mail.message"].create({
+        author_id: serverState.partnerId,
+        body: "This is a message",
+        attachment_ids: [],
+        message_type: "comment",
+        model: "discuss.channel",
+        res_id: channelId,
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-mail-Message");
+    await click("button[title='Search Messages']");
+    await waitStoreFetch([
+        [
+            "/discuss/channel/messages",
+            { channel_id: channelId, fetch_params: { limit: 60, around: 0 } },
+        ],
+    ]);
+    await contains(".o-mail-SearchMessageInput .o-mail-SearchInput input");
+    await editInput(document.body, ".o-mail-SearchMessageInput .o-mail-SearchInput input", "          ");
+    await animationFrame();
+    await insertText(".o-mail-SearchMessageInput .o-mail-SearchInput input", "m", { replace: true });
+    await contains(".o-mail-SearchMessagesPanel .o-mail-Message");
+    await waitStoreFetch([
+        [
+            "/discuss/channel/messages",
+            {
+                channel_id: channelId,
+                fetch_params: { search_term: "m", before: false, limit: 31 },
+            },
+        ],
+    ]);
 });

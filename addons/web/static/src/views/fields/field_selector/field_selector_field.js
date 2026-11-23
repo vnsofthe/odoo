@@ -40,7 +40,10 @@ export class FieldSelectorField extends Component {
     }
 
     get resModel() {
-        return this.props.record.data[this.props.model] || this.props.model;
+        if (this.props.record.fieldNames.includes(this.props.model)) {
+            return this.props.record.data[this.props.model];
+        }
+        return this.props.model;
     }
 
     get selectorProps() {
@@ -74,11 +77,12 @@ export const fieldSelectorField = {
             type: "string",
         },
     ],
-    extractProps({ options }) {
+    extractProps({ options }, dynamicInfo) {
         return {
             allowProperties: options.allow_properties ?? true,
             followRelation: options.follow_relations ?? true,
             model: options.model,
+            required: dynamicInfo.required,
         };
     },
 };

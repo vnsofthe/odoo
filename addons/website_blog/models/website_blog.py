@@ -3,10 +3,12 @@
 from collections import defaultdict
 
 from odoo import _, api, fields, models
+from odoo.fields import Domain
 from odoo.tools import html_escape
 from odoo.tools.json import scriptsafe as json_scriptsafe
 from odoo.tools.translate import html_translate
 
+from odoo.addons.portal.controllers.thread import PortalWebClientController
 from odoo.addons.website.tools import images_from_html, text_from_html
 
 
@@ -33,7 +35,10 @@ class BlogBlog(models.Model):
     name = fields.Char('Blog Name', required=True, translate=True)
     subtitle = fields.Char('Blog Subtitle', translate=True)
     active = fields.Boolean('Active', default=True)
-    content = fields.Html('Content', translate=html_translate, sanitize=False)
+    content = fields.Html(
+        'Content', translate=html_translate,
+        sanitize_overridable=True,
+        sanitize_attributes=False, sanitize_form=False)
     blog_post_ids = fields.One2many('blog.post', 'blog_id', 'Blog Posts')
     blog_post_count = fields.Integer("Posts", compute='_compute_blog_post_count')
 
@@ -197,7 +202,10 @@ class BlogPost(models.Model):
     recommended_next_post_id = fields.Many2one('blog.post', string="Recommended Next Post",
         help="Next blog post that will be shown as the next article to users at the bottom of the blog post.")
     tag_ids = fields.Many2many('blog.tag', string='Tags')
-    content = fields.Html('Content', default=_default_content, translate=html_translate, sanitize=False)
+    content = fields.Html(
+        'Content', default=_default_content, translate=html_translate,
+        sanitize_overridable=True,
+        sanitize_attributes=False, sanitize_form=False)
     teaser = fields.Text('Teaser', compute='_compute_teaser', inverse='_set_teaser', translate=True)
     teaser_manual = fields.Text(string='Teaser Content', translate=True)
 
@@ -208,6 +216,16 @@ class BlogPost(models.Model):
     write_uid = fields.Many2one('res.users', 'Last Contributor', readonly=True)
     visits = fields.Integer('No of Views', copy=False, default=0, readonly=True)
     website_id = fields.Many2one(related='blog_id.website_id', readonly=True, store=True)
+    comment_count = fields.Integer("Comment count", compute='_compute_comment_count')
+
+    def _compute_comment_count(self):
+        count_by_post = dict(self.env['mail.message']._read_group(
+            domain=PortalWebClientController._get_portal_message_fetch_domain(self),
+            groupby=["res_id"],
+            aggregates=['__count'],
+        ))
+        for post in self:
+            post.comment_count = count_by_post.get(post.id, 0)
 
     @api.depends('content', 'teaser_manual')
     def _compute_teaser(self):
@@ -300,6 +318,15 @@ class BlogPost(models.Model):
         res['default_opengraph']['og:title'] = self.name
         res['default_meta_description'] = self.subtitle
         return res
+
+    def _mail_get_operation_for_mail_message_operation(self, message_operation):
+        if (
+            message_operation == 'create'
+            and not self.env.user._is_internal()
+            and not self.env['website'].is_view_active('website_blog.opt_blog_post_comment')
+        ):
+            return [(Domain.TRUE, 'write')]
+        return super()._mail_get_operation_for_mail_message_operation(message_operation)
 
     @api.model
     def _search_get_detail(self, website, order, options):

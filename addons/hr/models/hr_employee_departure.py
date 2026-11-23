@@ -1,5 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from dateutil.relativedelta import relativedelta
+from markupsafe import Markup
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
@@ -18,6 +19,12 @@ class HrEmployeeDeparture(models.Model):
     def _get_domain_employee_id(self):
         return [('active', '=', True), ('company_id', 'in', self.env.companies.ids)]
 
+    def _get_departure_reason_domain(self):
+        return []
+
+    def _get_default_departure_reason(self):
+        return self.env['hr.departure.reason'].search(self._get_departure_reason_domain(), limit=1)
+
     employee_id = fields.Many2one(
         'hr.employee', string='Employee', required=True,
         default=_get_default_employee_id,
@@ -29,7 +36,8 @@ class HrEmployeeDeparture(models.Model):
     departure_reason_id = fields.Many2one(
         "hr.departure.reason",
         string="End Reason",
-        default=lambda self: self.env['hr.departure.reason'].search([], limit=1),
+        domain=lambda self: self._get_departure_reason_domain(),
+        default=lambda self: self._get_default_departure_reason(),
         required=True, index=True, ondelete='restrict')
     departure_description = fields.Html(string="Additional Information")
     dismissal_date = fields.Date(string="Dismissal Date", default=fields.Date.today, required=True,
@@ -37,7 +45,9 @@ class HrEmployeeDeparture(models.Model):
     departure_date = fields.Date(string="Departure Date", compute="_compute_departure_date",
         store=True, readonly=False, help="Date at which the departure actually takes place.")
     action_date = fields.Date(string="Archive Employee On", compute="_compute_action_date",
-        store=True, help="Date at which the departure actually takes place.")
+        store=True, help="Date at which the employee (and their user, if they have no other active employee)"
+                         " is archived, by default the day after the departure. If it is today or earlier,"
+                         " the departure is applied on confirmation; otherwise it is scheduled for that date.")
     is_user_employee = fields.Boolean(
         compute='_compute_is_user_employee',
         export_string_translation=False,
@@ -48,6 +58,10 @@ class HrEmployeeDeparture(models.Model):
 
     @api.depends('dismissal_date')
     def _compute_departure_date(self):
+        """Compute the departure date, equal to the dismissal date by default.
+
+        Override point for localizations with a notice period.
+        """
         # meant to be overriden in case of notice period
         for departure in self:
             departure.departure_date = departure.dismissal_date
@@ -107,6 +121,15 @@ class HrEmployeeDeparture(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        """Create departures and end the employee's contract on the departure date.
+
+        On all versions of the contract in effect on ``departure_date``,
+        ``departure_id`` is set and ``contract_date_end`` becomes the departure
+        date (only if the version has a contract). The previous contract end
+        date is saved in ``last_contract_date_end`` (restored by
+        ``hr.employee.action_cancel_departure``). The employee is archived
+        later, by :meth:`action_register`.
+        """
         res = super().create(vals_list)
         for departure in res:
             version = departure.employee_id._get_version(departure.departure_date)
@@ -118,13 +141,46 @@ class HrEmployeeDeparture(models.Model):
                 vals.update({
                     "contract_date_end": departure.departure_date,
                 })
+            departure._track_in_employee_chatter()
             departure.employee_id.version_ids.filtered(
                 lambda v: v.contract_date_start == version.contract_date_start
                 and v.contract_date_end == version.contract_date_end,
             ).with_context(sync_contract_dates=True).write(vals)
         return res
 
+    def _track_in_employee_chatter(self, is_cancellation=False):
+        """ Log the departure fields in the employee chatter. The values are taken
+        from the departure, as it may be linked to versions other than the current
+        one, whose departure fields are the ones shown on the employee.
+
+        :param bool is_cancellation: log the departures as cancelled instead of planned
+        """
+
+        if self.employee_id._track_disabled():
+            return
+        tracked_fields = ['departure_reason_id', 'dismissal_date', 'departure_date']
+        empty_values = dict.fromkeys(tracked_fields, False)
+        if is_cancellation:
+            title = self.env._("End of Collaboration cancelled")
+        else:
+            title = self.env._("End of Collaboration planned")
+        for departure in self:
+            employee = departure.employee_id
+            departure_values = {fname: departure[fname] for fname in tracked_fields}
+            before, after = (departure_values, empty_values) if is_cancellation else (empty_values, departure_values)
+            employee._track_add(
+                initial_values={employee.id: before},
+                end_values={employee.id: after},
+                body=Markup("<strong>%s</strong>") % title,
+            )
+
     def _cron_apply_departure(self):
+        """Apply the pending departures whose date is reached (daily cron).
+
+        Targets departures not applied yet whose ``action_date`` is today or
+        earlier, or, without ``action_date``, whose ``departure_date`` is
+        before today; see :meth:`action_register`.
+        """
         today = fields.Date.today()
         departures = self.search([
             ('apply_date', '=', False),
@@ -140,6 +196,19 @@ class HrEmployeeDeparture(models.Model):
         return {'type': 'ir.actions.act_window_close'}
 
     def action_register(self):
+        """Apply the departures: archive the employees (and their users) and delete later versions.
+
+        For the departures returned by :meth:`_get_departures_to_archive`:
+        versions with ``date_version`` after the departure date are deleted,
+        employees are archived (``hr.employee.action_archive``) and
+        ``apply_date`` is set to today. A user is archived only if all its
+        active employees are departing.
+
+        :return: a notification action listing archived / kept users, or a
+            window close action
+        :rtype: dict
+        :raise ValidationError: if a departure's apply date is in the future
+        """
         def _get_user_archive_notification_action(message, message_type, next_action):
             return {
                 'type': 'ir.actions.client',
@@ -202,6 +271,11 @@ class HrEmployeeDeparture(models.Model):
         return next_action
 
     def _get_departures_to_archive(self):
-        """ Overrideable function to allow excluding departures from archival, e.g. per
-        country rules. """
+        """Return the departures that :meth:`action_register` should apply (all of ``self`` by default).
+
+        Override to exclude departures from archival, e.g. per country rules
+        (see ``l10n_be_hr_payroll``).
+
+        :rtype: hr.employee.departure
+        """
         return self

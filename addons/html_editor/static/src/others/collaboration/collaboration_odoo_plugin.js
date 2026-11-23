@@ -1,5 +1,6 @@
 import { Plugin } from "@html_editor/plugin";
 import { rpc } from "@web/core/network/rpc";
+import { browser } from "@web/core/browser/browser";
 import { user } from "@web/core/user";
 import { Mutex } from "@web/core/utils/concurrency";
 import { debounce } from "@web/core/utils/timing";
@@ -35,6 +36,9 @@ import { localeCompare } from "@web/core/l10n/utils";
 const PTP_MAX_RECOVERY_TIME = 500;
 
 const REQUEST_ERROR = Symbol("REQUEST_ERROR");
+
+// Delay during which server notifications are buffered to be sent together.
+const BROADCAST_BATCH_DELAY = 150;
 
 // this is a local cache for ice server descriptions
 let ICE_SERVERS = null;
@@ -132,6 +136,8 @@ export class CollaborationOdooPlugin extends Plugin {
         this.ptpJoined = false;
         this.resetCollabRequests();
         this.ptp && this.ptp.stop();
+        // do not delay the disconnection notification
+        this.flushBroadcasts?.();
     }
 
     getCurrentCollaborativeSelection() {
@@ -155,6 +161,7 @@ export class CollaborationOdooPlugin extends Plugin {
         }
 
         this.collaborationChannelName = channelName;
+        this.collaborationPeerChannelName = `${channelName}:${this.config.collaboration.peerId}`;
         this.historyCommitsBuffer = [];
         // Wysiwyg.activeCollaborationChannelNames.add(channelName);
 
@@ -174,10 +181,12 @@ export class CollaborationOdooPlugin extends Plugin {
         const { busService } = this.config.collaboration;
         busService.subscribe("editor_collaboration", collaborationBusListener);
         busService.addChannel(this.collaborationChannelName);
+        busService.addChannel(this.collaborationPeerChannelName);
         this.collaborationStopBus = () => {
             // Wysiwyg.activeCollaborationChannelNames.delete(this.collaborationChannelName);
             busService.unsubscribe("editor_collaboration", collaborationBusListener);
             busService.deleteChannel(this.collaborationChannelName);
+            busService.deleteChannel(this.collaborationPeerChannelName);
         };
 
         this.startCollaborationTime = new Date().getTime();
@@ -239,11 +248,36 @@ export class CollaborationOdooPlugin extends Plugin {
     }
 
     getNewPtp() {
-        const rpcMutex = new Mutex();
         const { collaborationChannel } = this.config.collaboration;
         const modelName = collaborationChannel.collaborationModelName;
         const fieldName = collaborationChannel.collaborationFieldName;
         const resId = collaborationChannel.collaborationResId;
+
+        const rpcMutex = new Mutex();
+        let pendingBroadcasts = [];
+        let broadcastTimeout;
+        this.flushBroadcasts = () => {
+            browser.clearTimeout(broadcastTimeout);
+            broadcastTimeout = undefined;
+            const broadcasts = pendingBroadcasts;
+            pendingBroadcasts = [];
+            if (!broadcasts.length) {
+                return;
+            }
+            return rpcMutex.exec(async () => {
+                try {
+                    await rpc("/html_editor/bus_broadcast", {
+                        model_name: modelName,
+                        field_name: fieldName,
+                        res_id: resId,
+                        bus_data: broadcasts.map(({ rpcData }) => rpcData),
+                    });
+                    broadcasts.forEach(({ resolve }) => resolve());
+                } catch (error) {
+                    broadcasts.forEach(({ reject }) => reject(error));
+                }
+            });
+        };
 
         // Wether or not the history has been sent or received at least
         // once.
@@ -253,14 +287,13 @@ export class CollaborationOdooPlugin extends Plugin {
             peerConnectionConfig: { iceServers: this.iceServers },
             currentPeerId: this.config.collaboration.peerId,
             broadcastAll: (rpcData) =>
-                rpcMutex.exec(async () =>
-                    rpc("/html_editor/bus_broadcast", {
-                        model_name: modelName,
-                        field_name: fieldName,
-                        res_id: resId,
-                        bus_data: rpcData,
-                    })
-                ),
+                new Promise((resolve, reject) => {
+                    pendingBroadcasts.push({ rpcData, resolve, reject });
+                    broadcastTimeout ??= browser.setTimeout(
+                        this.flushBroadcasts,
+                        BROADCAST_BATCH_DELAY
+                    );
+                }),
             onRequest: {
                 get_peer_metadata: this.getMetadata.bind(this),
                 get_missing_commits: (params) =>
@@ -607,6 +640,7 @@ export class CollaborationOdooPlugin extends Plugin {
             this.editable.replaceChildren(this.dependencies.baseContainer.createBaseContainer());
         }
         this.handleHistoryIds();
+        this.processThrough("html_compatibility_processors", this.editable);
         this.dependencies.dom.normalize(this.editable);
 
         this.dependencies.history.reset();

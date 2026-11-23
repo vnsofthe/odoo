@@ -257,7 +257,8 @@ class MailRenderMixin(models.AbstractModel):
         html = self.env['ir.qweb']._render(layout_xmlid, template_ctx, minimal_qcontext=True, raise_if_not_found=False)
         if not html:
             _logger.warning('QWeb template %s not found when rendering encapsulation template.' % (layout_xmlid))
-        html = self.env['mail.render.mixin']._replace_local_links(html)
+        base_url = context_record.get_base_url() if context_record else None
+        html = self.env['mail.render.mixin']._replace_local_links(html, base_url)
         return html
 
     @api.model
@@ -485,6 +486,12 @@ class MailRenderMixin(models.AbstractModel):
 
         Supporting only QWeb allowed expressions, no custom variable in that mode.
         """
+
+        # normalize the HTML (add a parent div to avoid modification of the template)
+        template_src_normalized = html_normalize(f'<div>{template_src}</div>')
+        if template_src_normalized.startswith('<div>') and template_src_normalized.endswith('</div>'):
+            template_src_normalized = template_src_normalized[5:-6]
+
         result = {}
         for record in render_res_ids(self.env[model], res_ids, result):
             def replace(match):
@@ -502,15 +509,10 @@ class MailRenderMixin(models.AbstractModel):
                 value = escape(value or '')
                 return value if tag.lower() == 't' else f"<{tag}>{value}</{tag}>"
 
-            # normalize the HTML (add a parent div to avoid modification of the template)
-            template_src = html_normalize(f'<div>{template_src}</div>')
-            if template_src.startswith('<div>') and template_src.endswith('</div>'):
-                template_src = template_src[5:-6]
-
             result[record.id] = Markup(re.sub(
                 r'''<(\w+)[\s|\n]+t-out=[\s|\n]*(\'|\")((\w|\.)+)(\2)[\s|\n]*((\/>)|(>[\s|\n]*([^<>]*?))[\s|\n]*<\/\1>)''',
                 replace,
-                template_src,
+                template_src_normalized,
                 flags=re.DOTALL,
             ))
 

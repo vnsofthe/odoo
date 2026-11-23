@@ -41,16 +41,23 @@ export class MailingPreviewIframe extends Component {
                     this.iframeRef()?.contentDocument.body.replaceChildren(
                         this.renderBodyContent()
                     );
+                    this.throttledResize();
                 });
             },
             () => [this.props.record.data.preview_record_ref]
         );
 
         useLayoutEffect(
-            () => {
+            (isMobileMode) => {
                 this.iframeLoaded.promise.then(() => {
                     this.throttledResize();
                 });
+                if (!isMobileMode) {
+                    return;
+                }
+                const dialog = this.iframeRef().closest(".modal-dialog");
+                dialog?.classList.add("o_mass_mailing_preview_transparent_dialog");
+                return () => dialog?.classList.remove("o_mass_mailing_preview_transparent_dialog");
             },
             () => [this.state.isMobileMode]
         );
@@ -63,12 +70,20 @@ export class MailingPreviewIframe extends Component {
 
         const updateIframeSize = () => {
             const iframe = this.iframeRef();
+            const content = iframe.contentDocument.body.firstElementChild;
+            if (content) {
+                content.style.zoom = "";
+            }
             if (this.state.isMobileMode) {
                 // same styling for mobile as we have in 'mass_mailing_iframe'
                 iframe.style.width = "367px";
                 iframe.style.height = "668px";
                 iframe.style.transform = "";
                 iframe.style.backgroundColor = "white";
+                // Scale the email down to fit the screen, like a mobile mail client.
+                if (content && content.clientWidth && content.scrollWidth > content.clientWidth) {
+                    content.style.zoom = content.clientWidth / content.scrollWidth;
+                }
                 iframe.contentDocument.body.scrollTop = 0;
             } else {
                 iframe.style.width = "140%";

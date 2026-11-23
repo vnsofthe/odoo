@@ -18,6 +18,13 @@ class ProjectTask(models.Model):
                 return related_project.sale_line_employee_ids.sale_line_id.order_partner_id[:1]
         return res
 
+    @api.model
+    def _get_portal_timesheet_domain(self):
+        return Domain.AND([
+            super()._get_portal_timesheet_domain(),
+            ['|', ('so_line', '=', False), ('sale_order_state', '=', 'sale')],
+        ])
+
     sale_order_id = fields.Many2one(domain="['|', '|', ('partner_id', '=', partner_id), ('partner_id.commercial_partner_id.id', 'parent_of', partner_id), ('partner_id', 'parent_of', partner_id)]")
     pricing_type = fields.Selection(related="project_id.pricing_type")
     is_project_map_empty = fields.Boolean("Is Project map empty", compute='_compute_is_project_map_empty')
@@ -26,7 +33,6 @@ class ProjectTask(models.Model):
     remaining_hours_so = fields.Float('Time Remaining on SO', compute='_compute_remaining_hours_so', search='_search_remaining_hours_so', compute_sudo=True)
     remaining_hours_available = fields.Boolean(related="sale_line_id.remaining_hours_available")
     last_sol_of_customer = fields.Many2one('sale.order.line', compute='_compute_last_sol_of_customer')
-    portal_timesheet_ids = fields.One2many('account.analytic.line', 'task_id', domain=['|', ('so_line', '=', False), ('sale_order_state', '=', 'sale')], export_string_translation=False)
 
     @property
     def TASK_PORTAL_READABLE_FIELDS(self):
@@ -58,7 +64,12 @@ class ProjectTask(models.Model):
 
     @api.model
     def _search_remaining_hours_so(self, operator, value):
-        return [('sale_line_id.remaining_hours', operator, value)]
+        if operator in Domain.NEGATIVE_OPERATORS:
+            return NotImplemented
+        domain = Domain('sale_line_id.remaining_hours', operator, value)
+        if operator == 'in' and False in value:  # relation may be falsy
+            domain |= Domain('sale_line_id', '=', False)
+        return domain
 
     def _compute_last_sol_of_customer(self):
         sol_per_domain = dict()
@@ -76,7 +87,10 @@ class ProjectTask(models.Model):
         super()._inverse_partner_id()
         for task in self:
             if task.allow_billable and not task.sale_line_id:
-                task.sale_line_id = task.sudo().last_sol_of_customer
+                if self.env.user._is_portal():
+                    task.sudo().sale_line_id = task.sudo().last_sol_of_customer
+                else:
+                    task.sale_line_id = task.sudo().last_sol_of_customer
 
     @api.depends('sale_line_id.order_partner_id', 'parent_id.sale_line_id', 'project_id.sale_line_id', 'allow_billable')
     def _compute_sale_line(self):

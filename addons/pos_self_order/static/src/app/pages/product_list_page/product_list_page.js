@@ -31,11 +31,8 @@ export class ProductListPage extends Component {
         this.ui = useService("ui");
 
         const initCategories = !this.selfOrder.currentCategory;
-        if (initCategories) {
-            this.selfOrder.computeAvailableCategories();
-        }
-        const availableCategories = this.selfOrder.availableCategories;
-        const topCategories = availableCategories.filter((category) => !category.parent_id);
+        this.selfOrder.computeAvailableCategories();
+        const topCategories = this.topCategories;
         const selectedCategory =
             initCategories && topCategories.length > 0
                 ? topCategories[0]
@@ -44,7 +41,6 @@ export class ProductListPage extends Component {
         this.state = proxy({
             selectedCategory: selectedCategory,
             quantityByProductTmplId: {},
-            topCategories: topCategories,
             subCategories: [],
         });
 
@@ -54,9 +50,7 @@ export class ProductListPage extends Component {
                 this.categoryListRef,
                 this.productListRef,
                 (catId) => {
-                    this.state.selectedCategory = this.state.topCategories.find(
-                        (c) => c.id === catId
-                    );
+                    this.state.selectedCategory = this.topCategories.find((c) => c.id === catId);
                 }
             ).scrollToCategory;
         }
@@ -146,7 +140,7 @@ export class ProductListPage extends Component {
     }
 
     ensureCategoryVisible() {
-        if (!this.selfOrder.kioskMode) {
+        if (!this.selfOrder.kioskMode || !this.selectedCategory) {
             return;
         }
 
@@ -174,17 +168,21 @@ export class ProductListPage extends Component {
         if (!currentCategory) {
             return [];
         }
-        if (currentCategory.parent_id) {
-            return currentCategory.parent_id.child_ids;
-        }
-        return currentCategory.child_ids || [];
+        const parentCategory = currentCategory.parent_id || currentCategory;
+        return (parentCategory.child_ids || []).filter((c) =>
+            this.selfOrder.isCategoryAvailable(c.id)
+        );
+    }
+
+    get topCategories() {
+        return this.selfOrder.availableCategories.filter((category) => !category.parent_id);
     }
 
     get productCategories() {
         if (this.selfOrder.kioskMode) {
-            return [this.selectedCategory];
+            return this.selectedCategory ? [this.selectedCategory] : [];
         }
-        return this.state.topCategories;
+        return this.topCategories;
     }
 
     getProducts(category) {

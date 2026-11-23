@@ -9,6 +9,7 @@ import {
 import { prepareRoundingVals } from "../accounting/utils";
 import { getService, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { localization } from "@web/core/l10n/localization";
+import { patch } from "@web/core/utils/patch";
 import { PosNumberBufferPlugin } from "@point_of_sale/app/plugins/pos_number_buffer_plugin";
 
 const { DateTime } = luxon;
@@ -25,6 +26,20 @@ describe("pos_store.js", () => {
         expect(order.is_tipped).toBe(true);
         expect(order.tip_amount).toBe(50);
         expect(order.lines.length).toBe(3); // 2 original lines + 1 tip line
+    });
+
+    test("a popstate after clickSaveOrder does not reopen the saved order", async () => {
+        const store = await setupPosEnv();
+        const order = await getFilledOrder(store);
+        store.navigate("ProductScreen", { orderUuid: order.uuid });
+
+        store.clickSaveOrder();
+        const newOrder = store.getOrder();
+        expect(newOrder.uuid).not.toBe(order.uuid);
+        expect(store.router.currentScreenParams().orderUuid).toBe(newOrder.uuid);
+        await store.router.popStateCallback();
+
+        expect(store.getOrder().uuid).toBe(newOrder.uuid);
     });
 
     test("orderNoteFormat", async () => {
@@ -90,6 +105,60 @@ describe("pos_store.js", () => {
 
         expect(printCalled).toBe(false);
         expect(order.hasChange).toBe(false);
+    });
+
+    test("sendOrderInPreparation retries only the failed preparation printer", async () => {
+        const store = await setupPosEnv();
+        const kitchen = store.models["pos.printer"].get(1);
+        kitchen.name = "Kitchen";
+        kitchen.product_categories_ids = [store.models["pos.category"].get(1)];
+        const bar = store.models["pos.printer"].create({
+            name: "Bar",
+            product_categories_ids: [store.models["pos.category"].get(2)],
+            printer_type: "epson_epos",
+        });
+        store.config.preparation_printer_ids = [kitchen, bar];
+        await store.ticketPrinter.initPrinters();
+        // 3 "TEST" for the kitchen and 2 "TEST 2" for the bar
+        const order = await getFilledOrder(store);
+
+        const printed = [];
+        let barFailures = 1;
+        let retry;
+        patchWithCleanup(store.ticketPrinter, {
+            async generateIframe(template, ticket) {
+                return ticket;
+            },
+            setIframeSizeFromPrinter() {},
+            async generateImage(ticket) {
+                return ticket;
+            },
+            async print({ printer, image }) {
+                if (printer === bar && barFailures-- > 0) {
+                    return { successful: false, message: { body: "Bar is not reachable" } };
+                }
+                const lines = image.changes.data.map(
+                    (line) => `${line.quantity} ${line.basic_name}`
+                );
+                printed.push(`${printer.name}: ${lines.join(", ")}`);
+                return { successful: true };
+            },
+            showPrinterErrorDialog(message, retryFunction) {
+                retry = retryFunction;
+            },
+        });
+
+        await store.sendOrderInPreparation(order);
+        expect(printed).toEqual(["Kitchen: 3 TEST"]);
+
+        // The kitchen must not print its lines again, and the bar must print its own lines
+        await retry();
+        expect(printed).toEqual(["Kitchen: 3 TEST", "Bar: 2 TEST 2"]);
+
+        expect(order.preparationChanges.quantity).toBe(0);
+        // The changes printed on retry must not be printed again with the next ones
+        await store.sendOrderInPreparation(order);
+        expect(printed).toEqual(["Kitchen: 3 TEST", "Bar: 2 TEST 2"]);
     });
 
     describe("syncAllOrders", () => {
@@ -521,6 +590,38 @@ describe("pos_store.js", () => {
         expect(products[0].id).toBe(6);
     });
 
+    test("falls back to all products when the selected category becomes empty", async () => {
+        const store = await setupPosEnv();
+        const product = store.models["product.template"].get(12);
+        const category = product.pos_categ_ids[0];
+        let onSave;
+
+        patchWithCleanup(store.action, {
+            doAction(action, options) {
+                if (action === "point_of_sale.product_template_action_edit_pos") {
+                    onSave = options.props.onSave;
+                }
+            },
+        });
+        patchWithCleanup(store.data, {
+            loadRecordsFromPos: async () => {
+                store.models.connectNewData({
+                    "product.template": [{ ...product.raw, pos_categ_ids: [] }],
+                });
+                return { "product.template.attribute.value": [] };
+            },
+        });
+
+        store.setSelectedCategory(category.id);
+        expect(store.selectedCategory.id).toBe(category.id);
+
+        await store.editProduct(product);
+        await onSave({ evalContext: { id: product.id } });
+
+        expect(store.selectedCategory).toBe(undefined);
+        expect(store.productsToDisplay.length).toBeGreaterThan(0);
+    });
+
     test("productToDisplayByCateg", async () => {
         const store = await setupPosEnv();
 
@@ -661,6 +762,52 @@ describe("pos_store.js", () => {
         expect(store.models["pos.order"].getBy("uuid", order.uuid)).toBeEmpty();
     });
 
+    test("onDeleteOrder keeps the router state in sync with the order it switches to", async () => {
+        const store = await setupPosEnv();
+        const order = store.addNewOrder();
+        store.navigate("ProductScreen", { orderUuid: order.uuid });
+
+        await store.onDeleteOrder(order);
+
+        const newOrder = store.getOrder();
+        expect(newOrder.uuid).not.toBe(order.uuid);
+        expect(store.router.currentScreenParams().orderUuid).toBe(newOrder.uuid);
+    });
+
+    test("onDeleteOrder ignores a second deletion of the same order", async () => {
+        const store = await setupPosEnv();
+        const order = store.addNewOrder();
+        let deleteCount = 0;
+        patch(store, {
+            async deleteOrders() {
+                deleteCount++;
+                return super.deleteOrders(...arguments);
+            },
+        });
+
+        const [firstDeletion, secondDeletion] = await Promise.all([
+            store.onDeleteOrder(order),
+            store.onDeleteOrder(order),
+        ]);
+        expect(firstDeletion).toBe(true);
+        expect(secondDeletion).toBe(false);
+        expect(deleteCount).toBe(1);
+        expect(store.isOrderDeleting(order, false)).toBe(false);
+    });
+
+    test("syncAllOrders skips an order being deleted", async () => {
+        const store = await setupPosEnv();
+        const order = await getFilledOrder(store);
+
+        store.deletingOrders.add(order.uuid);
+        await store.syncAllOrders();
+        expect(order.isSynced).toBe(false);
+
+        // An explicit sync of the order still goes through (e.g. sending the cancellation in preparation)
+        await store.syncAllOrders({ orders: [order] });
+        expect(order.isSynced).toBe(true);
+    });
+
     test("setNextOrderRefs", async () => {
         const store = await setupPosEnv();
         const order = store.addNewOrder();
@@ -756,8 +903,11 @@ describe("pos_store.js", () => {
         const store = await setupPosEnv();
         const order = await getFilledOrder(store);
 
-        const fastPM = store.config.payment_method_ids[0];
+        const fastPM = store.config.paymentMethods[0];
         const card = store.models["pos.payment.method"].get(2);
+        // Card comes first in payment_method_ids but Cash has the lowest sequence
+        expect(store.config.payment_method_ids[0]).toBe(card);
+        expect(fastPM.name).toBe("Cash");
         const payLaterMethod = store.models["pos.payment.method"].find(
             (pm) => pm.type === "pay_later"
         );
@@ -800,6 +950,28 @@ describe("pos_store.js", () => {
         // No refund + multiple payments
         createPaymentLine(store, order, card, { amount: -5 });
         expect(getOpts()).toEqual(expectedWithoutFastPM);
+    });
+
+    test("fast payment is never pay_later even when pay_later is first", async () => {
+        const store = await setupPosEnv();
+        const order = await getFilledOrder(store);
+
+        const payLaterMethod = store.models["pos.payment.method"].find(
+            (pm) => pm.type === "pay_later"
+        );
+        const cashMethod = store.models["pos.payment.method"].find((pm) => pm.name === "Cash");
+        const cardMethod = store.models["pos.payment.method"].find((pm) => pm.name === "Card");
+
+        store.config.payment_method_ids = [payLaterMethod.id, cashMethod.id, cardMethod.id];
+
+        payLaterMethod.sequence = -1;
+        cashMethod.sequence = 0;
+        cardMethod.sequence = 1;
+
+        const opts = store.getValidationOrderOptions({ order });
+        expect(opts.fastPaymentMethod).not.toBe(undefined);
+        expect(opts.fastPaymentMethod.type).not.toBe("pay_later");
+        expect(opts.fastPaymentMethod).toBe(cashMethod);
     });
 
     test("autoValidateOrder", async () => {
@@ -966,6 +1138,46 @@ describe("pos_store.js", () => {
                 title: "Custom",
                 qrCode: "data:image/png;base64,explicit",
             });
+        });
+    });
+
+    describe("reloadData", () => {
+        test("keeps a paid order that could not be synced", async () => {
+            const store = await setupPosEnv();
+            const order = await getFilledOrder(store);
+            order.state = "paid";
+            store.data.network.offline = true;
+            patchWithCleanup(store.data, {
+                async resetIndexedDB() {
+                    expect.step("resetIndexedDB");
+                    throw new Error("stop before leaving the page");
+                },
+            });
+            patchWithCleanup(store.dialog, {
+                add(component, props) {
+                    expect.step(props.title);
+                },
+            });
+
+            await store.reloadData().catch(() => {});
+            expect.verifySteps(["Reload Data"]);
+            expect(store.models["pos.order"].get(order.id)).toBe(order);
+            expect(order.isSynced).toBe(false);
+        });
+
+        test("syncs a paid order before wiping local data", async () => {
+            const store = await setupPosEnv();
+            const order = await getFilledOrder(store);
+            order.state = "paid";
+            patchWithCleanup(store.data, {
+                async resetIndexedDB() {
+                    expect.step(`resetIndexedDB, synced: ${order.isSynced}`);
+                    throw new Error("stop before leaving the page");
+                },
+            });
+
+            await expect(store.reloadData()).rejects.toThrow("stop before leaving the page");
+            expect.verifySteps(["resetIndexedDB, synced: true"]);
         });
     });
 });

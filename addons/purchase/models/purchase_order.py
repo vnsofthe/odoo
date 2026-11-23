@@ -6,7 +6,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from dateutil.relativedelta import relativedelta
-from markupsafe import escape, Markup
+from markupsafe import Markup
 from werkzeug.urls import url_encode
 
 from odoo import api, fields, models, _
@@ -464,7 +464,13 @@ class PurchaseOrder(models.Model):
                     seq_date = fields.Datetime.context_timestamp(self, fields.Datetime.to_datetime(vals['date_order']))
                 vals['name'] = self_comp.env['ir.sequence'].next_by_code('purchase.order', sequence_date=seq_date) or '/'
             orders |= super(PurchaseOrder, self_comp).create(vals)
+        orders.filtered(lambda po: po.state == 'purchase')._check_approval_allowed()
         return orders
+
+    def write(self, vals):
+        if vals.get('state') == 'purchase':
+            self.filtered(lambda po: po.state != 'purchase')._check_approval_allowed()
+        return super().write(vals)
 
     @api.ondelete(at_uninstall=False)
     def _unlink_if_cancelled(self):
@@ -771,7 +777,7 @@ class PurchaseOrder(models.Model):
                 'partner_id': self.partner_id.id,
             },
             'domain': [
-                ('partner_id', 'in', (self.partner_id | self.partner_id.commercial_partner_id).ids),
+                ('partner_id.commercial_partner_id', '=', self.partner_id.commercial_partner_id.id),
                 ('company_id', 'in', self.env.company.ids),
                 '|', '|',
                 ('purchase_order_id', '=', self.id),
@@ -1152,7 +1158,7 @@ class PurchaseOrder(models.Model):
                 email_layout_xmlid="mail.mail_notification_layout_with_responsible_signature",
                 email_values={'email_to': self.env.user.email, 'recipient_ids': []},
             )
-            return {'toast_message': escape(_("A sample email has been sent to %s.", self.env.user.email))}
+            return {'toast_message': _("A sample email has been sent to %s.", self.env.user.email)}
 
     def _send_reminder_open_composer(self,template_id):
         self.ensure_one()
@@ -1340,6 +1346,10 @@ class PurchaseOrder(models.Model):
                     self.date_order))
             or self.env.user.has_group('purchase.group_purchase_manager'))
 
+    def _check_approval_allowed(self):
+        if not self.env.su and not all(order._approval_allowed() for order in self):
+            raise UserError(_("Only a purchase manager can approve this purchase order."))
+
     def get_localized_date_planned(self, date_planned=False):
         """Returns the localized date planned in the timezone of the order's user or the
         company's partner or UTC if none of them are set."""
@@ -1362,7 +1372,7 @@ class PurchaseOrder(models.Model):
         # create or update the activity
         activity = self.env['mail.activity'].search([
             ('summary', '=', _('Date Updated')),
-            ('res_model_id', '=', 'purchase.order'),
+            ('res_model', '=', 'purchase.order'),
             ('res_id', '=', self.id),
             ('user_id', '=', self.user_id.id)], limit=1)
         if activity:

@@ -3975,6 +3975,54 @@ test("pivot view with monetary with multiple currencies", async () => {
     expect(".o_pivot table tbody tr:last").toHaveText("EUR \n400.00 €");
 });
 
+test("pivot view with a monetary measure aggregated in the company currency", async () => {
+    Partner._fields.amount = fields.Monetary({
+        currency_field: "currency_id",
+        aggregator: "sum_currency",
+    });
+    Partner._fields.currency_id = fields.Many2one({ relation: "res.currency", default: 2 });
+    Partner._records[0].amount = 500;
+    Partner._records[1].amount = 300;
+    Partner._records[2].amount = 200;
+    Partner._records[3].amount = 400;
+    await mountView({
+        type: "pivot",
+        resModel: "partner",
+        arch: `
+			<pivot>
+				<field name="amount" type="measure"/>
+			</pivot>`,
+        groupBy: ["currency_id"],
+    });
+    expect(".o_pivot table tbody tr:first").toHaveText("Total \n$ 1,400.00");
+    expect(".o_pivot table tbody tr:last").toHaveText("EUR \n$ 1,400.00");
+});
+
+test("pivot view with a monetary measure that is not a sum", async () => {
+    Partner._fields.amount = fields.Monetary({
+        currency_field: "currency_id",
+        aggregator: "max",
+    });
+    Partner._fields.currency_id = fields.Many2one({ relation: "res.currency", default: 1 });
+    Partner._records[0].amount = 500;
+    Partner._records[1].amount = 300;
+    Partner._records[2].amount = 200;
+    Partner._records[3].amount = 400;
+    Partner._records[3].currency_id = 2;
+    await mountView({
+        type: "pivot",
+        resModel: "partner",
+        arch: `
+			<pivot>
+				<field name="amount" type="measure"/>
+			</pivot>`,
+        groupBy: ["currency_id"],
+    });
+    expect(".o_pivot table tbody tr:first").toHaveText("Total \n500.00");
+    expect(".o_pivot table tbody tr:eq(1)").toHaveText("USD \n$ 500.00");
+    expect(".o_pivot table tbody tr:last").toHaveText("EUR \n400.00 €");
+});
+
 test.tags("desktop");
 test("scroll position is restored when coming back to pivot view", async () => {
     Partner._views = {
@@ -4023,6 +4071,43 @@ test("scroll position is restored when coming back to pivot view", async () => {
     await animationFrame();
     expect(".o_content .o_pivot").toHaveCount(1);
     expect(".o_content").toHaveProperty("scrollTop", 200);
+});
+
+test.tags("desktop");
+test("restored scroll position is not reapplied when the pivot is updated", async () => {
+    Partner._views = {
+        pivot: `
+            <pivot>
+                <field name="foo" type="row"/>
+            </pivot>`,
+        list: `<list><field name="foo"/></list>`,
+        search: `<search />`,
+    };
+
+    for (let i = 1; i < 20; i++) {
+        Partner._records.push({ id: 100 + i, foo: 100 + i });
+    }
+
+    await resize({ width: 800, height: 300 });
+    await mountWithCleanup(WebClient);
+    await getService("action").doAction({
+        res_model: "partner",
+        type: "ir.actions.act_window",
+        views: [
+            [false, "pivot"],
+            [false, "list"],
+        ],
+    });
+    queryOne(".o_content").scrollTop = 200;
+    await getService("action").switchView("list");
+    await getService("action").switchView("pivot");
+    await animationFrame();
+    expect(".o_content").toHaveProperty("scrollTop", 200);
+
+    // the user scrolls back to the top, then sorts the rows by clicking on the measure
+    queryOne(".o_content").scrollTop = 0;
+    await contains("th.o_pivot_measure_row").click();
+    expect(".o_content").toHaveProperty("scrollTop", 0);
 });
 
 test.tags("mobile");

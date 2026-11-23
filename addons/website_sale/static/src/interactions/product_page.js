@@ -450,6 +450,10 @@ export class ProductPage extends Interaction {
     }
 
     /**
+     * Requests are discarded as soon as a newer combination has been requested: the server may
+     * answer concurrent requests out of order, and applying an outdated answer would leave the
+     * page in a state that doesn't match the selected combination.
+     *
      * @see onChangeVariant
      *
      * @param {Event} ev
@@ -459,6 +463,7 @@ export class ProductPage extends Interaction {
         const parent = ev.target.closest('.js_product');
         if (!parent) return Promise.resolve();
         const combination = wSaleUtils.getSelectedAttributeValues(parent);
+        const requestId = ++this.combinationInfoRequestId;
         const addToCart = parent.querySelector('#add_to_cart_wrap button[name="add_to_cart"]');
         const productTemplateId = parseInt(addToCart?.dataset?.productTemplateId);
 
@@ -471,10 +476,12 @@ export class ProductPage extends Interaction {
             'context': this.context,
             ...this._getOptionalCombinationInfoParams(parent),
         }));
+        if (this.combinationInfoRequestId !== requestId) return;
         const attributeValueImages = await this.waitFor(rpc('/website_sale/get_attribute_images', {
             'product_template_id': productTemplateId,
             'combination': combination,
         }));
+        if (this.combinationInfoRequestId !== requestId) return;
         if (combinationInfo.product_tags) {
             combinationInfo.product_tags = markup(combinationInfo.product_tags);
         }
@@ -712,7 +719,7 @@ export class ProductPage extends Interaction {
         const pricePerUom = parent.querySelector('.o_product_price_unit')
             ?.querySelector('.oe_currency_value');
         if (pricePerUom) {
-            const hasPrice = isCombinationPossible && combination.base_unit_price !== 0;
+            const hasPrice = this._hasUomPrice(combination);
             pricePerUom.closest('.o_product_price_unit').classList.toggle('d-none', !hasPrice);
             if (hasPrice) {
                 pricePerUom.textContent = this._priceToStr(combination.base_unit_price, precision);
@@ -954,6 +961,10 @@ export class ProductPage extends Interaction {
         });
     }
 
+    _hasUomPrice(combination) {
+        return !!combination.is_combination_possible && combination.base_unit_price !== 0;
+    }
+
     /**
      * Return the formatted price.
      *
@@ -972,6 +983,12 @@ export class ProductPage extends Interaction {
         formatted[0] = insertThousandsSep(formatted[0], thousandsSep, grouping);
         return formatted.join(decimalPoint);
     }
+
+    /**
+     * The id of the last `_getCombinationInfo` request, used to discard the answers of the
+     * requests that have been superseded since.
+     */
+    combinationInfoRequestId = 0;
 
     /**
      * Return a throttled `_getCombinationInfo` with a leading and a trailing call, which is
@@ -1053,16 +1070,7 @@ export class ProductPage extends Interaction {
     _displayErrorMessage(message, stockNotificationEl) {
         const incorrectIconEl = stockNotificationEl.querySelector('#stock_notification_input_incorrect');
         incorrectIconEl.classList.remove('d-none');
-
-        const errorMessageEl = stockNotificationEl.querySelector('#stock_notification_error_message');
-        if (errorMessageEl) {
-            errorMessageEl.textContent = message;
-        } else {
-            const span = document.createElement('span');
-            span.id = 'stock_notification_error_message';
-            span.textContent = message;
-            incorrectIconEl.appendChild(span);
-        }
+        incorrectIconEl.textContent = message;
     }
 
     onClickWishlistStockNotificationMessage(ev) {

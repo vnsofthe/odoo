@@ -24,7 +24,6 @@ class AccountMoveReversal(models.TransientModel):
         readonly=False,
         store=True,
         check_company=True,
-        help='If empty, uses the journal of the journal entry to be reversed.',
     )
     company_id = fields.Many2one('res.company', required=True, readonly=True)
     available_journal_ids = fields.Many2many('account.journal', compute='_compute_available_journal_ids')
@@ -110,6 +109,7 @@ class AccountMoveReversal(models.TransientModel):
             'invoice_user_id': move.invoice_user_id.id,
             'auto_post': 'at_date' if reverse_date > fields.Date.context_today(self) else 'no',
             'invoice_origin': move.invoice_origin,
+            'invoice_currency_rate': move.invoice_currency_rate,
         }
 
     def reverse_moves(self, is_modify=False):
@@ -138,7 +138,7 @@ class AccountMoveReversal(models.TransientModel):
         # Handle reverse method.
         moves_to_redirect = self.env['account.move']
         for moves, default_values_list, is_cancel_needed in batches:
-            new_moves = moves._reverse_moves(default_values_list, cancel=is_cancel_needed)
+            new_moves = moves.with_context(mail_notrack=True)._reverse_moves(default_values_list, cancel=is_cancel_needed)
             new_moves._compute_partner_bank_id()
             moves._message_log_batch(
                 bodies={

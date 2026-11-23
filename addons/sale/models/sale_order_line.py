@@ -6,7 +6,7 @@ from markupsafe import Markup
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
-from odoo.tools import float_compare, float_is_zero, format_date, groupby
+from odoo.tools import float_compare, float_is_zero, float_round, format_date, groupby
 
 
 class SaleOrderLine(models.Model):
@@ -231,7 +231,7 @@ class SaleOrderLine(models.Model):
     discount = fields.Float(
         string="Discount (%)",
         compute="_compute_discount",
-        digits="Discount",
+        min_display_digits="Discount",
         store=True,
         readonly=False,
         precompute=True,
@@ -324,6 +324,8 @@ class SaleOrderLine(models.Model):
     analytic_line_ids = fields.One2many(
         comodel_name="account.analytic.line", inverse_name="so_line", string="Analytic lines"
     )
+    # precomputed as the amounts, which are precomputed, read it to prepare the tax base lines
+    analytic_distribution = fields.Json(compute="_compute_analytic_distribution", store=True, precompute=True)
 
     invoice_lines = fields.Many2many(
         comodel_name="account.move.line",
@@ -419,6 +421,7 @@ class SaleOrderLine(models.Model):
     collapse_composition = fields.Boolean(
         string="Collapse Composition", copy=True, default=False
     )  # Whether this section's lines will be hidden in reports and in the portal.
+    line_number_offset = fields.Integer(compute="_compute_line_number_offset")
 
     mandatory_product = fields.Boolean(
         string="Is Product Mandatory", compute="_compute_mandatory_product"
@@ -478,7 +481,12 @@ class SaleOrderLine(models.Model):
             line.product_template_id = line.product_id.product_tmpl_id
 
     def _search_product_template_id(self, operator, value):
-        return [("product_id.product_tmpl_id", operator, value)]
+        if operator in Domain.NEGATIVE_OPERATORS:
+            return NotImplemented
+        domain = Domain("product_id.product_tmpl_id", operator, value)
+        if operator == 'in' and False in value:  # relation may be falsy
+            domain |= Domain('product_id', '=', False)
+        return domain
 
     @api.depends("product_id")
     def _compute_is_product_archived(self):
@@ -649,24 +657,31 @@ class SaleOrderLine(models.Model):
                 line.label = line.name
                 continue
 
-            product_with_lang = line.product_id.with_context(lang=line.order_id._get_lang())
+            product_display_name = line.with_context(
+                lang=line.order_id._get_lang()
+            )._get_product_display_name()
             if not line.name:
-                line.label = product_with_lang.display_name
-            elif line.name.splitlines()[0] == product_with_lang.display_name:
+                line.label = product_display_name
+            elif line.name.splitlines()[0] == product_display_name:
                 # If description already holds the product name, use it as label
                 line.label = line.name
             else:
-                line.label = product_with_lang.display_name + "\n" + line.name
+                line.label = product_display_name + "\n" + line.name
 
     def _inverse_label(self):
         for line in self:
             if line.product_id and line.label:
-                display_name = line.product_id.with_context(
+                product_display_name = line.with_context(
                     lang=line.order_id._get_lang()
-                ).display_name
-                line.name = line.label.removeprefix(display_name).removeprefix("\n")
+                )._get_product_display_name()
+                line.name = line.label.removeprefix(product_display_name).removeprefix("\n")
             else:
                 line.name = line.label
+
+    def _get_product_display_name(self):
+        """Get the product display name for this sale order line."""
+        self.ensure_one()
+        return self.product_id.display_name
 
     @api.depends("display_type", "product_id")
     def _compute_product_uom_qty(self):
@@ -999,6 +1014,7 @@ class SaleOrderLine(models.Model):
     @api.depends("product_id", "product_uom_id", "product_uom_qty")
     def _compute_discount(self):
         discount_enabled = self.env["product.pricelist.item"]._is_discount_feature_enabled()
+        discount_precision = self.env["decimal.precision"].precision_get("Discount")
         for line in self:
             if not line.product_id or line.display_type:
                 line.discount = 0.0
@@ -1027,7 +1043,7 @@ class SaleOrderLine(models.Model):
                 if (discount > 0 and base_price > 0) or (discount < 0 and base_price < 0):
                     # only show negative discounts if price is negative
                     # otherwise it's a surcharge which shouldn't be shown to the customer
-                    line.discount = discount
+                    line.discount = float_round(discount, precision_digits=discount_precision)
 
     def _prepare_base_line_for_taxes_computation(self, **kwargs):
         """Convert the current record to a dictionary in order to use the generic taxes computation
@@ -1289,11 +1305,20 @@ class SaleOrderLine(models.Model):
     def _prepare_qty_invoiced(self):
         invoiced_qties = defaultdict(float)
         for line in self:
-            for invoice_line in line._get_invoice_lines():
+            invoice_lines = line._get_invoice_lines()
+            for invoice_line in invoice_lines:
                 if (
                     invoice_line.move_id.state != "cancel"
                     or invoice_line.move_id.payment_state == "invoicing_legacy"
                 ) and line._affects_qty_invoiced(invoice_line):
+                    if line.is_downpayment:
+                        if not line.currency_id.is_zero(sum(invoice_lines.filtered(lambda l: l.move_id.state != 'cancel' or l.move_id.payment_state == 'invoicing_legacy').mapped('balance'))):
+                            invoiced_qties[line] = 1
+                            line.qty_invoiced = 1
+                        else:
+                            invoiced_qties[line] = 0
+                            line.qty_invoiced = 0
+                        continue
                     invoice_qty = invoice_line.product_uom_id._compute_quantity(
                         invoice_line.quantity, line.product_uom_id, round=False
                     )
@@ -1506,7 +1531,7 @@ class SaleOrderLine(models.Model):
                 price_subtotal = 0.0
                 uom_qty_to_consider = (
                     line.qty_delivered
-                    if line.product_id.invoice_policy == "delivery"
+                    if line.invoice_policy == "delivery"
                     else line.product_uom_qty
                 )
                 price_reduce = line.price_unit * (1 - (line.discount or 0.0) / 100.0)
@@ -1584,20 +1609,21 @@ class SaleOrderLine(models.Model):
         ones currently out of sync, or that were out of sync as of `date` but have since been
         settled (nothing left to accrue today). Extended by `sale_stock`, which can also detect
         a delivery-side mismatch via stock moves.
+        Lines with an accrual entry still active as of `date` are left out,
+        their mismatch was already accounted for.
         """
         domain = Domain([
             ("state", "=", "sale"),
             ("display_type", "=", False),
             ("is_downpayment", "=", False),
             ("product_id.type", "!=", "combo"),
-            # Lines with an accrual entry that's still standing (posted, not yet reversed or
-            # cancelled) already have their accrual accounted for: excluded until it isn't.
-            (
-                "accrual_move_ids",
-                "not any",
-                [("state", "=", "posted"), ("reversal_move_ids", "=", False)],
-            ),
         ])
+        accrual_entry_date = date or fields.Date.to_date(self.env.context.get("accrual_entry_date")) or fields.Date.context_today(self)
+        domain &= Domain(
+            "accrual_move_ids",
+            "any" if self.env.context.get("already_accrued") else "not any",
+            self.env["account.move"]._get_active_accrual_domain(accrual_entry_date),
+        )
         if date:
             domain &= Domain.OR([
                 [("qty_to_invoice", "!=", 0)],
@@ -1630,7 +1656,8 @@ class SaleOrderLine(models.Model):
         if not date:
             date = fields.Date.to_date(self.env.context.get("accrual_entry_date"))
         accrual_entry_date = date or fields.Date.context_today(self)
-        domain = self._get_accrual_domain(accrual_entry_date)
+        # The date is also put in the context for the stock overrides using no date in _get_accrual_domain
+        domain = self.with_context(accrual_entry_date=fields.Date.to_string(accrual_entry_date))._get_accrual_domain(accrual_entry_date)
         if extra_domain:
             domain &= extra_domain
         order_lines = self.env["sale.order.line"].search(domain)
@@ -1699,6 +1726,22 @@ class SaleOrderLine(models.Model):
                 elif line in sale_order_lines:
                     line.parent_id = last_sub or last_section
 
+    def _compute_line_number_offset(self):
+        sale_order_lines = set(self)
+        for order, lines in self.grouped("order_id").items():
+            lines.line_number_offset = 0
+            if not order.show_sol_numbers:
+                continue
+            line_count = 0
+            for line in order.order_line.sorted("sequence"):
+                if line in sale_order_lines:
+                    line.line_number_offset = line_count
+                if line.display_type == "line_section" or not (
+                    line.parent_id.collapse_composition
+                    or line.parent_id.parent_id.collapse_composition
+                ):
+                    line_count += 1
+
     def _compute_mandatory_product(self):
         self.mandatory_product = (
             self.env["ir.config_parameter"].sudo().get_bool("sale.mandatory_product")
@@ -1766,6 +1809,13 @@ class SaleOrderLine(models.Model):
             if not self.product_template_id:
                 self.product_id = False
                 self.name = ""
+
+    @api.onchange("label")
+    def _onchange_label(self):
+        """Immediately apply the label inverse to set the line name and prevent subsequent onchanges
+        from resetting it.
+        """
+        self._inverse_label()
 
     # === CRUD METHODS ===#
 
@@ -1981,6 +2031,11 @@ class SaleOrderLine(models.Model):
             return self._get_discounted_price()
 
         return super()._get_catalog_unit_price(parent_record, **kwargs)
+
+    def _get_product_catalog_lines_data(self, parent_record, **kwargs):
+        lines_data = super()._get_product_catalog_lines_data(parent_record, **kwargs)
+        lines_data["readOnly"] |= bool(self.combo_item_id)
+        return lines_data
 
     def _can_be_unlinked_from_catalog(self):
         return super()._can_be_unlinked_from_catalog() and self.state in {"draft", "sent"}

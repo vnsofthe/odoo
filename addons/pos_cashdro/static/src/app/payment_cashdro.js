@@ -22,7 +22,8 @@ export class PaymentCashdro extends PaymentInterface {
 
     /** @returns {import("@point_of_sale/app/models/pos_payment").PosPayment | null} */
     get paymentLine() {
-        const order = this.pos.getOrder();
+        // Read the selected order directly: self-order's getOrder() creates one when none exists
+        const order = this.pos.models["pos.order"].getBy("uuid", this.pos.selectedOrderUuid);
         if (!order) {
             return null;
         }
@@ -61,6 +62,13 @@ export class PaymentCashdro extends PaymentInterface {
             .catch((error) => this.showError(_t("Cashdro error: %s", error.message)));
         if (!executingOperationId) {
             return executingOperationId !== null;
+        }
+
+        if (this.pos.config.self_ordering_mode === "kiosk") {
+            this.showError(
+                _t("The cash machine is busy with another payment, please wait until it is free.")
+            );
+            return true;
         }
 
         const shouldCancel = await ask(this.pos.dialog, {
@@ -147,6 +155,14 @@ export class PaymentCashdro extends PaymentInterface {
         const { promise, resolve } = Promise.withResolvers();
         this.cancellationResolver = resolve;
         return promise;
+    }
+
+    onForceDone() {
+        this.cashdroService
+            .cancelPayment(this.operationId)
+            .catch((error) =>
+                console.warn(`Cashdro cancellation failed after Force Done: ${error}`)
+            );
     }
 
     /**

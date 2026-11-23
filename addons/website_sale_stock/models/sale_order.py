@@ -11,7 +11,9 @@ class SaleOrder(models.Model):
     is_pickup_required = fields.Boolean(related="carrier_id.support_pickup_locations")
 
     def _compute_warehouse_id(self):
-        website_orders = self.filtered("website_id")
+        website_orders = self.filtered(
+            lambda so: so.website_id and (so.state in ("draft", "sent") or not so.ids)
+        )
         super(SaleOrder, self - website_orders)._compute_warehouse_id()
         for order in website_orders:
             if order.website_id.warehouse_id:
@@ -61,7 +63,15 @@ class SaleOrder(models.Model):
                 self.partner_id,
                 pickup_delivery_method_id=self.carrier_id.id,
             )
-            self.partner_shipping_id = address or self.partner_id
+            if address:
+                self.partner_shipping_id = address
+
+    def _get_checkout_delivery_address(self):
+        """Override of `website_sale` to select the customer address instead of the pickup
+        location, which is not listed among the delivery addresses."""
+        if self.partner_shipping_id.pickup_delivery_method_id:
+            return self.partner_shipping_id.parent_id
+        return super()._get_checkout_delivery_address()
 
     def _get_shop_warehouse_id(self):
         """Return the warehouse to use for shop availability checks.

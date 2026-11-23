@@ -419,6 +419,9 @@ class IrModuleModule(models.Model):
                 'records': modules_list[:(limit or 80)],
             }
         else:
+            domain = Domain(domain).map_conditions(
+                lambda c: Domain.OR([c, [('module_type', '=', False)]]) if c.field_expr == 'module_type' else c
+            ).optimize(self)
             return super().web_search_read(domain, specification, offset=offset, limit=limit, order=order, count_limit=count_limit)
 
     def more_info(self):
@@ -525,12 +528,6 @@ class IrModuleModule(models.Model):
             return []
         except requests.exceptions.ConnectionError:
             return []
-
-    def button_upgrade(self):
-        res = super().button_upgrade()
-        # revert states for imported modules since they cannot be upgraded
-        self.search([('imported', '=', True), ('state', '=', 'to upgrade')]).state = 'installed'
-        return res
 
     def button_immediate_install_app(self):
         if not self.env.is_admin():

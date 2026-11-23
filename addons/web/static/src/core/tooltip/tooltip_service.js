@@ -14,6 +14,10 @@ import { whenReady } from "@odoo/owl";
  * Usage:
  *   <button data-tooltip="This is a tooltip">Do something</button>
  *
+ * The tooltip isn't displayed if it would only repeat what the user can already
+ * read, i.e. if its content is exactly the text content of the element, and if
+ * that text is entirely displayed (not truncated by an overflow).
+ *
  * The ideal position of the tooltip can be specified thanks to the attribute
  * "data-tooltip-position":
  *   <button data-tooltip="This is a tooltip" data-tooltip-position="left">Do something</button>
@@ -42,6 +46,7 @@ import { whenReady } from "@odoo/owl";
 export const OPEN_DELAY = 400;
 export const CLOSE_DELAY = 200;
 export const SHOW_AFTER_DELAY = 250;
+export const TOUCH_MOVE_THRESHOLD = 5;
 const TOOLTIP_SELECTOR = "[data-tooltip], [data-tooltip-template]";
 const TOOLTIP_SELECTOR_WITH_TITLE = TOOLTIP_SELECTOR + ", [title]";
 
@@ -51,6 +56,7 @@ export const tooltipService = {
         let openTooltipTimeout;
         let closeTooltip;
         let showTimer;
+        let touchStartPosition = null;
         let target = null;
 
         /**
@@ -63,6 +69,110 @@ export const tooltipService = {
                 el.textContent === "?" &&
                 (el.hasAttribute("data-tooltip") || el.hasAttribute("data-tooltip-template"))
             );
+        }
+
+        /**
+         * Detect if the content of the element is truncated by an overflow.
+         * Note that elements that can't be measured (e.g. non blockified inline
+         * elements, whose clientWidth is 0) can't truncate their own content.
+         *
+         * @param {HTMLElement} el
+         * @return {boolean}
+         */
+        function isOverflowing(el) {
+            return (
+                el.clientWidth > 0 &&
+                (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight)
+            );
+        }
+
+        /**
+         * Detect if the element is (partially) clipped by one of its ancestors.
+         * Such an element doesn't overflow itself, but is visually cut anyway
+         * (e.g. an inline element inside a ".text-truncate" container, or a
+         * "flex-shrink-0" element inside a narrower one).
+         *
+         * @param {HTMLElement} el
+         * @return {boolean}
+         */
+        function isClippedByAncestor(el) {
+            const { top, right, bottom, left } = el.getBoundingClientRect();
+            for (
+                let parent = el.parentElement;
+                parent && parent !== document.documentElement;
+                parent = parent.parentElement
+            ) {
+                if (!isOverflowing(parent)) {
+                    continue; // nothing sticks out of that ancestor, nor does el
+                }
+                // that check is only done on the few ancestors having an
+                // overflowing content, as "getComputedStyle" isn't free
+                const { overflowX, overflowY } = getComputedStyle(parent);
+                if (overflowX === "visible" && overflowY === "visible") {
+                    continue; // that ancestor doesn't clip its content
+                }
+                const rect = parent.getBoundingClientRect();
+                if (
+                    left < rect.left - 1 ||
+                    right > rect.right + 1 ||
+                    top < rect.top - 1 ||
+                    bottom > rect.bottom + 1
+                ) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Detect if the text displayed by the element is entirely visible, i.e.
+         * if it is neither truncated by an overflow (on the element itself or
+         * on one of its descendants, e.g. an inner ".text-truncate"), nor
+         * clipped by one of its ancestors.
+         *
+         * @param {HTMLElement} el
+         * @return {boolean}
+         */
+        function isTextEntirelyVisible(el) {
+            if (isOverflowing(el)) {
+                return false; // most common case: the element itself is truncated
+            }
+            for (const descendant of el.querySelectorAll("*")) {
+                // "isOverflowing" is a couple of integer reads, while
+                // "textContent" walks the subtree of the element, so we only
+                // look at the text of the few descendants that overflow: those
+                // displaying no text can't hide any part of it anyway (e.g. a
+                // button displaying only an icon).
+                if (isOverflowing(descendant) && descendant.textContent.trim()) {
+                    return false;
+                }
+            }
+            return !isClippedByAncestor(el);
+        }
+
+        /**
+         * Detect if the tooltip would only repeat what the user can already
+         * read, i.e. if it is a plain text tooltip (no template) whose content
+         * is the text displayed by the element, that text being entirely
+         * visible (i.e. neither truncated by an overflow nor clipped).
+         *
+         * @param {HTMLElement} el
+         * @param {string} tooltip
+         * @param {string} [template]
+         * @return {boolean}
+         */
+        function isTooltipRedundant(el, tooltip, template) {
+            if (template) {
+                return false; // dynamic content, nothing to compare
+            }
+            const normalize = (str) => str.replace(/\s+/g, " ").trim();
+            // "innerText" is used instead of "textContent" as it only contains
+            // the text that is actually rendered, ignoring e.g. a label hidden
+            // by a "d-none" on small screens, which the tooltip must display.
+            if (normalize(el.innerText) !== normalize(tooltip)) {
+                return false;
+            }
+            return isTextEntirelyVisible(el);
         }
 
         /**
@@ -121,13 +231,14 @@ export const tooltipService = {
             }
             const timeoutDelay = isHelpNode(el) ? 0 : delay;
             openTooltipTimeout = browser.setTimeout(() => {
-                // verify that the element is still in the DOM
-                if (target.isConnected) {
+                // verify that the element is still in the DOM, and that the
+                // tooltip is actually useful
+                if (target.isConnected && !isTooltipRedundant(target, tooltip, template)) {
                     closeTooltip = popover.add(
                         target,
                         Tooltip,
                         { tooltip, template, info },
-                        { position }
+                        { position, role: "tooltip" }
                     );
                 }
             }, timeoutDelay);
@@ -225,10 +336,36 @@ export const tooltipService = {
          */
         function onTouchStart(ev) {
             cleanup();
+            const touch = ev.touches[0];
+            touchStartPosition = touch && { x: touch.clientX, y: touch.clientY };
             const timeoutDelay = isHelpNode(ev.target) ? 0 : SHOW_AFTER_DELAY;
             showTimer = browser.setTimeout(() => {
                 openElementsTooltip(ev.target, true);
             }, timeoutDelay);
+        }
+
+        /**
+         * Cancels the tooltip if the touch moved further than a small threshold
+         * since the "touchstart" (e.g. the user is scrolling or dragging).
+         *
+         * @param {TouchEvent} ev a "touchmove" event
+         */
+        function onTouchMove(ev) {
+            const touch = ev.touches[0];
+            if (!touchStartPosition || !touch) {
+                return;
+            }
+            const distance = Math.hypot(
+                touch.clientX - touchStartPosition.x,
+                touch.clientY - touchStartPosition.y
+            );
+            if (distance < TOUCH_MOVE_THRESHOLD) {
+                return;
+            }
+            touchStartPosition = null;
+            browser.clearTimeout(showTimer);
+            showTimer = null;
+            cleanup();
         }
 
         function onTouchCancelEnd(ev) {
@@ -256,6 +393,7 @@ export const tooltipService = {
 
             if (hasTouch()) {
                 document.body.addEventListener("touchstart", onTouchStart);
+                document.body.addEventListener("touchmove", onTouchMove);
                 document.body.addEventListener("touchend", onTouchCancelEnd);
                 document.body.addEventListener("touchcancel", onTouchCancelEnd);
             }

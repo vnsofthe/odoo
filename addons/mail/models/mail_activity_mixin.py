@@ -154,7 +154,12 @@ class MailActivityMixin(models.AbstractModel):
             record.activity_user_id = record.activity_ids[0].user_id if record.activity_ids else False
 
     def _search_activity_exception_decoration(self, operator, operand):
-        return [('activity_ids.activity_type_id.decoration_type', operator, operand)]
+        if operator in Domain.NEGATIVE_OPERATORS:
+            return NotImplemented
+        domain = Domain('activity_ids.activity_type_id.decoration_type', operator, operand)
+        if operator == 'in' and False in operand:  # relation may be falsy
+            domain |= Domain('activity_ids', '=', False)
+        return domain
 
     @api.depends('activity_ids.state')
     def _compute_activity_state(self):
@@ -172,6 +177,7 @@ class MailActivityMixin(models.AbstractModel):
     def _compute_sql_activity_state(self, table):
         # find activities
         act_query = self.activity_ids._search(Domain('res_model', '=', self._name) & Domain('active', '=', True), bypass_access=True)
+        act_query.add_where(SQL("res_id=%s", table.id))
         activity_t = act_query.table
         res_id_sql = activity_t.res_id
         # group them by res_id and compute the state (as int)
@@ -196,7 +202,7 @@ class MailActivityMixin(models.AbstractModel):
 
         # join the results and translate int into the state value
         act_alias = table._make_alias('activity_state')
-        table._query.add_join('LEFT JOIN', act_alias, act_sql, SQL("%s = %s", table.id, act_alias.res_id))
+        table._query.add_join('LEFT JOIN LATERAL', act_alias, act_sql, SQL("TRUE"))
         col = act_alias.activity_state
         return SQL("""CASE
             WHEN %(col)s < 0 THEN 'overdue'
@@ -211,11 +217,12 @@ class MailActivityMixin(models.AbstractModel):
             record.activity_date_deadline = activities[:1].date_deadline
 
     def _search_activity_date_deadline(self, operator, operand):
-        if operator == 'in' and False in operand:
-            return Domain('activity_ids', '=', False) | Domain(self._search_activity_date_deadline('in', operand - {False}))
         if operator in Domain.NEGATIVE_OPERATORS:
             return NotImplemented
-        return Domain('activity_ids.date_deadline', operator, operand)
+        domain = Domain('activity_ids.date_deadline', operator, operand)
+        if operator == 'in' and False in operand:  # relation may be falsy
+            domain |= Domain('activity_ids', '=', False)
+        return domain
 
     @api.model
     def _search_activity_user_id(self, operator, operand):
@@ -240,13 +247,19 @@ class MailActivityMixin(models.AbstractModel):
     def _search_activity_type_id(self, operator, operand):
         if operator in Domain.NEGATIVE_OPERATORS:
             return NotImplemented
-        return [('activity_ids.activity_type_id', operator, operand)]
+        domain = Domain('activity_ids.activity_type_id', operator, operand)
+        if operator == 'in' and False in operand:  # relation may be falsy
+            domain |= Domain('activity_ids', '=', False)
+        return domain
 
     @api.model
     def _search_activity_summary(self, operator, operand):
         if operator in Domain.NEGATIVE_OPERATORS:
             return NotImplemented
-        return [('activity_ids.summary', operator, operand)]
+        domain = Domain('activity_ids.summary', operator, operand)
+        if operator == 'in' and False in operand:  # relation may be falsy
+            domain |= Domain('activity_ids', '=', False)
+        return domain
 
     @api.depends('activity_ids.date_deadline', 'activity_ids.user_id')
     @api.depends_context('uid')
@@ -261,12 +274,15 @@ class MailActivityMixin(models.AbstractModel):
     def _search_my_activity_date_deadline(self, operator, operand):
         if operator in Domain.NEGATIVE_OPERATORS:
             return NotImplemented
-        return [('activity_ids', 'any', [
+        domain = Domain('activity_ids', 'any', [
             ('active', '=', True),  # never overdue if "done"
             ('date_deadline', operator, operand),
             ('res_model', '=', self._name),
             ('user_id', '=', self.env.user.id)
-        ])]
+        ])
+        if operator == 'in' and False in operand:  # relation may be falsy
+            domain |= Domain('activity_ids', '=', False)
+        return domain
 
     # Reschedules next my activity to Today
     def action_reschedule_my_next_today(self):

@@ -22,7 +22,8 @@ import { makeRecordFieldLocalId } from "@mail/model/misc";
 import { Store as StoreModel } from "@mail/model/store";
 import { toRawValue } from "@mail/utils/common/local_storage";
 
-import { describe, expect, mockPermission, queryOne, test } from "@odoo/hoot";
+import { describe, expect, mockPermission, queryOne, test, waitFor } from "@odoo/hoot";
+import { press } from "@odoo/hoot-dom";
 import { animationFrame, mockUserAgent } from "@odoo/hoot-mock";
 import {
     Command,
@@ -44,6 +45,14 @@ test("should have messaging menu button in systray", async () => {
     await contains(".o_menu_systray i[aria-label='Messages']");
     await contains(".o-mail-MessagingMenu", { count: 0 });
     await contains(".o_menu_systray i[aria-label='Messages'][data-icon='forum'].oi");
+});
+
+test("light user can start a chat from the messaging menu", async () => {
+    serverState.isRegularUser = false;
+    await start();
+    await openMessagingMenu();
+    await waitFor(".o-mail-MessagingMenu-tab.active:text('Chats')");
+    await waitFor("button:has([data-icon='add']):text('Chat')");
 });
 
 test("messaging menu should have topbar buttons", async () => {
@@ -1275,4 +1284,22 @@ test("preserve message link formatting in messaging menu", async () => {
     await start();
     await openMessagingMenu(MENU_ACTIVE_IDS.CHANNEL);
     await contains(`.o-mail-NotificationItem-text a[href="https://odoo.com/"]`);
+});
+
+test("allow tab navigation in messaging menu", async () => {
+    const pyEnv = await startServer();
+    pyEnv["discuss.channel"].create([
+        { name: "R&D" },
+        { name: "General" },
+    ]);
+    await start();
+    await openMessagingMenu(MENU_ACTIVE_IDS.CHANNEL);
+    await contains(".o-mail-NotificationItem:has(:text('General'))");
+    await click(".o-mail-SearchInput input");
+    expect(".o-mail-SearchInput input").toBeFocused();
+    for (let i = 0; i < 5; i++) {
+        await press("Tab");
+        await animationFrame();
+    }
+    expect(".o-mail-NotificationItem:has(:text('R&D'))").toBeFocused();
 });

@@ -13,19 +13,30 @@ class HrVersion(models.Model):
     _inherit = 'hr.version'
 
     def has_static_work_entries(self):
+        """Attendance-based versions have no static work entries.
+
+        :rtype: bool
+        """
         return not self.attendance_based
 
     def _get_attendance_intervals(self, start_dt, end_dt):
+        """Return empty intervals for the resources of attendance-based versions, the
+        schedule intervals for the others.
+
+        :return: ``{resource_id: Intervals}``
+        :rtype: dict
+        """
         result = {}
-        for v in self.filtered('attendance_based'):
+        calendar_versions = self.filtered(lambda v: v.has_static_work_entries())
+        for v in self - calendar_versions:
             result[v.employee_id.resource_id.id] = Intervals()
-        calendar_versions = self.filtered(lambda v: not v.attendance_based)
         if calendar_versions:
             result.update(super(HrVersion, calendar_versions)._get_attendance_intervals(start_dt, end_dt))
         return result
 
     @api.model
     def _get_work_entry_source_fields(self):
+        """Also merge ``attendance_ids`` (and track ``attendance_based``)."""
         return super()._get_work_entry_source_fields() + ['attendance_based', 'attendance_ids']
 
     def _resolve_attendance_intervals(self, intervals):
@@ -33,6 +44,24 @@ class HrVersion(models.Model):
         return resolve_intervals_by_sequence(intervals)
 
     def _get_version_work_entries_values(self, date_start, date_stop):
+        """Add the raw values of the validated, closed attendances of the period.
+
+        Each attendance gives a value of its own type, from ``check_in`` to ``check_out`` minus
+        the break, with the key ``attendance_ids``; where an attendance and a working time
+        leave overlap, the lowest type sequence wins. The schedule part is computed by
+        ``super()`` with three context keys (``{resource_id: Intervals}``, aware UTC):
+
+        - ``knocked_day_intervals``: for static versions, the local days with an attendance,
+          removed from the schedule (:meth:`_get_real_attendances`);
+        - ``time_on_intervals``: the worked time (attendances and working time leaves), cut out
+          of the absences (:meth:`_get_valid_leave_intervals`);
+        - ``att_coverage_intervals``: the attendance segments that won over a working time
+          leave, cut out of that leave.
+
+        :param datetime date_start: naive or aware (UTC)
+        :param datetime date_stop: naive or aware (UTC)
+        :rtype: list[dict]
+        """
         start_dt = date_start.replace(tzinfo=UTC) if not date_start.tzinfo else date_start
         end_dt = date_stop.replace(tzinfo=UTC) if not date_stop.tzinfo else date_stop
 
@@ -82,7 +111,7 @@ class HrVersion(models.Model):
                 # deficit outputs start after source check_out (unworked time); exclude from time_on
                 if not att.source_attendance_id or att.check_in < att.source_attendance_id.check_out:
                     time_on_raw[rid].append((check_in, check_out, dummy))
-                if not version.attendance_based:
+                if version.has_static_work_entries():
                     start_day = check_in.astimezone(tz).date()
                     end_day = check_out.astimezone(tz).date()
                     knocked_raw[rid].append((
@@ -98,10 +127,12 @@ class HrVersion(models.Model):
                     att_by_range[check_in, work_check_out] = att
 
             # priority-resolve attendance against wt-leave intervals (lower sequence wins)
-            leave_types = {wet for _, _, wet in wt_iv_by_rid.get(rid, [])}
             combined = raw_att + wt_iv_by_rid.get(rid, [])
             for seg_start, seg_stop, wet in self._resolve_attendance_intervals(combined):
-                if wet in leave_types:
+                if any(
+                    leave_start <= seg_start and seg_stop <= leave_stop and leave_wet == wet
+                    for leave_start, leave_stop, leave_wet in wt_iv_by_rid.get(rid, [])
+                ):
                     # wt-leave won; so we skip and let base handle it
                     continue
                 # attendance won: look up the source record (dict miss on split sub-segments,
@@ -141,12 +172,14 @@ class HrVersion(models.Model):
         return base_vals + attendance_vals
 
     def _get_real_attendances(self, attendances, leaves, worked_leaves):
+        """Also remove the days with an attendance (context ``knocked_day_intervals``)."""
         knocked = self.env.context.get('knocked_day_intervals', {}).get(
             self.employee_id.resource_id.id, Intervals()
         )
         return (attendances - knocked) - leaves - worked_leaves
 
     def _generate_work_entries_postprocess_adapt_to_calendar(self, vals):
+        """Values from attendances and from fully flexible versions keep their real duration."""
         if vals.pop('_from_attendance', False):
             return False
         # fully-flexible employees have no calendar; compute duration from actual time span
@@ -156,6 +189,7 @@ class HrVersion(models.Model):
         return super()._generate_work_entries_postprocess_adapt_to_calendar(vals)
 
     def _get_more_vals_attendance_interval(self, interval):
+        """Add ``('attendance_ids', attendance)`` when the payload is an ``hr.attendance``."""
         vals = super()._get_more_vals_attendance_interval(interval)
         att = interval[2]
         if att and hasattr(att, '_name') and att._name == 'hr.attendance':
@@ -163,6 +197,11 @@ class HrVersion(models.Model):
         return vals
 
     def _get_valid_leave_intervals(self, attendances, interval):
+        """Cut absences where the employee worked (context ``time_on_intervals``) and working
+        time leaves where an attendance won (context ``att_coverage_intervals``).
+
+        :rtype: list
+        """
         payload = interval[2]
         if not payload:
             return [interval]

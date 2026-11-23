@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 20.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-18 17:39+0000\n"
-"PO-Revision-Date: 2026-09-18 17:39+0000\n"
+"POT-Creation-Date: 2026-10-30 17:39+0000\n"
+"PO-Revision-Date: 2026-10-30 17:39+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -40,6 +40,12 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/html_editor/static/src/main/media/media_dialog/video_selector.xml:0
 msgid "(URL or Embed)"
+msgstr ""
+
+#. module: html_editor
+#. odoo-javascript
+#: code:addons/html_editor/static/src/main/media/media_dialog/video_selector.xml:0
+msgid ", as well as a direct link to an"
 msgstr ""
 
 #. module: html_editor
@@ -289,12 +295,6 @@ msgstr ""
 
 #. module: html_editor
 #. odoo-javascript
-#: code:addons/html_editor/static/src/main/column_plugin.js:0
-msgid "Back to one column"
-msgstr ""
-
-#. module: html_editor
-#. odoo-javascript
 #: code:addons/html_editor/static/src/main/banner_plugin.js:0
 msgid "Banner"
 msgstr ""
@@ -425,6 +425,12 @@ msgstr ""
 
 #. module: html_editor
 #. odoo-javascript
+#: code:addons/html_editor/static/src/main/media/media_dialog/video_selector.xml:0
+msgid "Checking the video…"
+msgstr ""
+
+#. module: html_editor
+#. odoo-javascript
 #: code:addons/html_editor/static/src/main/list/list_plugin.js:0
 msgid "Checklist"
 msgstr ""
@@ -535,6 +541,12 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/html_editor/static/src/main/translate/translate_dialog.js:0
 msgid "Content generated"
+msgstr ""
+
+#. module: html_editor
+#. odoo-javascript
+#: code:addons/html_editor/static/src/main/column_plugin.js:0
+msgid "Convert columns to regular content"
 msgstr ""
 
 #. module: html_editor
@@ -730,6 +742,12 @@ msgid "Drag to move"
 msgstr ""
 
 #. module: html_editor
+#. odoo-javascript
+#: code:addons/html_editor/static/src/components/history_dialog/history_dialog.js:0
+msgid "Dynamic element"
+msgstr ""
+
+#. module: html_editor
 #. odoo-python
 #: code:addons/html_editor/controllers/main.py:0
 msgid "ERROR: couldn't get download urls from media library."
@@ -770,12 +788,6 @@ msgstr ""
 
 #. module: html_editor
 #. odoo-javascript
-#: code:addons/html_editor/static/src/main/youtube_plugin.js:0
-msgid "Embed Youtube Video"
-msgstr ""
-
-#. module: html_editor
-#. odoo-javascript
 #: code:addons/html_editor/static/src/others/embedded_components/plugins/embedded_whiteboard_plugin/embedded_whiteboard_plugin.js:0
 msgid "Embed a whiteboard or a diagram"
 msgstr ""
@@ -802,12 +814,6 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/html_editor/static/src/main/media/image_plugin.js:0
 msgid "Embed the image in the document."
-msgstr ""
-
-#. module: html_editor
-#. odoo-javascript
-#: code:addons/html_editor/static/src/main/youtube_plugin.js:0
-msgid "Embed the youtube video in the document."
 msgstr ""
 
 #. module: html_editor
@@ -1424,6 +1430,12 @@ msgstr ""
 
 #. module: html_editor
 #. odoo-javascript
+#: code:addons/html_editor/static/src/main/media/media_dialog/video_selector.xml:0
+msgid "MP4"
+msgstr ""
+
+#. module: html_editor
+#. odoo-javascript
 #: code:addons/html_editor/static/src/main/media/media_plugin.js:0
 msgid "Media"
 msgstr ""
@@ -1626,8 +1638,20 @@ msgstr ""
 
 #. module: html_editor
 #. odoo-javascript
+#: code:addons/html_editor/static/src/main/media/media_dialog/video_selector.xml:0
+msgid "Ogg"
+msgstr ""
+
+#. module: html_editor
+#. odoo-javascript
 #: code:addons/html_editor/static/src/main/media/media_dialog/attachment_error.xml:0
 msgid "Ok"
+msgstr ""
+
+#. module: html_editor
+#. odoo-python
+#: code:addons/html_editor/controllers/main.py:0
+msgid "Only internal users can use AI text generation."
 msgstr ""
 
 #. module: html_editor
@@ -1873,7 +1897,7 @@ msgstr ""
 #. module: html_editor
 #. odoo-javascript
 #: code:addons/html_editor/static/src/main/column_plugin.js:0
-msgid "Remove columns"
+msgid "Remove column layout"
 msgstr ""
 
 #. module: html_editor
@@ -2649,6 +2673,12 @@ msgstr ""
 
 #. module: html_editor
 #. odoo-javascript
+#: code:addons/html_editor/static/src/main/media/media_dialog/video_selector.xml:0
+msgid "WebM"
+msgstr ""
+
+#. module: html_editor
+#. odoo-javascript
 #: code:addons/html_editor/static/src/others/embedded_components/plugins/embedded_whiteboard_plugin/embedded_whiteboard_plugin.js:0
 msgid "Whiteboard"
 msgstr ""
@@ -2839,6 +2869,7 @@ msgstr ""
 #. module: html_editor
 #. odoo-javascript
 #: code:addons/html_editor/static/src/main/media/file_plugin.js:0
+#: code:addons/html_editor/static/src/main/media/media_dialog/video_selector.xml:0
 msgid "file"
 msgstr ""
 
@@ -2880,7 +2911,14 @@ msgstr ""
 
 #. module: html_editor
 #. odoo-javascript
+#: code:addons/html_editor/static/src/main/list/list_plugin.js:0
+msgid "list"
+msgstr ""
+
+#. module: html_editor
+#. odoo-javascript
 #: code:addons/html_editor/static/src/main/link/link_popover.xml:0
+#: code:addons/html_editor/static/src/main/media/media_dialog/video_selector.xml:0
 msgid "or"
 msgstr ""
 

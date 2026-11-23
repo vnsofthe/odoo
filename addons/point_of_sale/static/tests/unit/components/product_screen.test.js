@@ -70,6 +70,24 @@ test("fastValidate", async () => {
     expect(order.amount_paid).toBe(115);
 });
 
+test("full slots remain available in POS", async () => {
+    const store = await setupPosEnv();
+    const order = store.addNewOrder();
+    const preset = store.models["pos.preset"].get(2);
+    preset.slots_per_interval = 1;
+
+    await mountWithCleanup(ProductScreen, { props: { orderUuid: order.uuid } });
+    store.selectPreset(preset);
+    await contains(".o_dialog .btn:contains('Tomorrow')").click();
+
+    const fullSlots = queryAll(".preset-slot-button.o_colorlist_item_numpad_color_1");
+    const fullSlot = preset.availabilities["2019-03-12"].find(
+        (s) => s.time === "2019-03-12 12:00:00"
+    );
+    expect(fullSlot.isFull).toBe(true);
+    expect(fullSlots[0].textContent.trim()).toBe("12:00");
+});
+
 test("long press on a product opens the product info popup", async () => {
     const { store } = await mountProductScreen();
 
@@ -186,6 +204,31 @@ test("drag and drop reorders products", async () => {
     expect(reorderedIds.indexOf(6)).toBeLessThan(reorderedIds.indexOf(9));
     expect(reorderedIds.indexOf(9)).toBeLessThan(reorderedIds.indexOf(7));
     expect(products.get(6).pos_sequence).toBe(21);
+});
+
+test("price numpad button follows the restrict price control setting", async () => {
+    const { store, productScreen } = await mountProductScreen();
+    let loggedCashierId = 2; // Administrator
+    patchWithCleanup(store.accessRight, {
+        get loggedCashier() {
+            return this.data.models["res.users"].get(loggedCashierId);
+        },
+    });
+    const isPriceDisabled = () =>
+        Boolean(
+            productScreen.getNumpadButtons().find((button) => button.value === "price").disabled
+        );
+
+    store.config.restrict_price_control = false;
+    expect(isPriceDisabled()).toBe(false);
+    store.config.restrict_price_control = true;
+    expect(isPriceDisabled()).toBe(false);
+
+    loggedCashierId = 3; // User1
+    store.config.restrict_price_control = false;
+    expect(isPriceDisabled()).toBe(false);
+    store.config.restrict_price_control = true;
+    expect(isPriceDisabled()).toBe(true);
 });
 
 test("multiplePrinter using mock records", async () => {

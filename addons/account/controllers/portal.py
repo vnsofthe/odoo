@@ -240,8 +240,16 @@ class PortalAccount(CustomerPortal):
         """Return additional identifiers for a country."""
         if not country:
             return {}
-        partner = request.env['res.partner'].new({'country_id': country.id})
-        metadata = partner.available_additional_identifiers_metadata
+        ResPartner = request.env['res.partner']
+        whitelist = ResPartner._get_portal_additional_identifiers_whitelist(
+            company=request.env.company,
+            country=country,
+        )
+        metadata = {
+            key: ResPartner._lazy_translate_additional_identifiers_metadata(entry)
+            for key, entry in ResPartner._get_all_additional_identifiers_metadata().items()
+            if key in whitelist
+        }
         return {
             key: {
                 'label': entry.get('label') or key,

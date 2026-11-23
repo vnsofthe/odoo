@@ -1074,7 +1074,10 @@ def _get_uid(frame) -> int | None:
     if 'uid' in frame.f_locals:
         return frame.f_locals['uid']
     if 'user' in frame.f_locals:
-        return int(frame.f_locals['user'])      # user may be a record
+        from odoo.models import BaseModel  # noqa: PLC0415
+        user = frame.f_locals['user']           # user may be a record
+        if isinstance(user, int) or (isinstance(user, BaseModel) and user._name == 'res.users'):
+            return int(user)
     if (local_self := frame.f_locals.get('self')) is not None:
         if hasattr(local_self, 'env') and (uid := local_self.env.uid):
             return uid
@@ -1648,7 +1651,13 @@ def _extract_translatable_qweb_terms(element, callback):
             callback(el.text, el.sourceline)
             # heuristic: tags with names starting with an uppercase letter are
             # component nodes
-            is_component = el.tag[0].isupper() or "t-component" in el.attrib or "t-set-slot" in el.attrib
+            is_component = (
+                el.tag[0].isupper()
+                or "t-call" in el.attrib
+                or "t-call-slot" in el.attrib
+                or "t-component" in el.attrib
+                or "t-set-slot" in el.attrib
+            )
             for attr in el.attrib:
                 if (not is_component and attr in OWL_TRANSLATED_ATTRS) or (is_component and attr.endswith(".translate")):
                     callback(el.attrib[attr], el.sourceline)

@@ -28,8 +28,12 @@ class ProductTemplate(models.Model):
     @api.model
     def default_get(self, fields):
         res = super().default_get(fields)
-        if ('uom_id' in fields and not res.get('uom_id')) or self.env.context.get('default_uom_id') is False:
-            res['uom_id'] = self._default_uom_id().id
+        if 'uom_id' in fields and not res.get('uom_id'):
+            clean_ctxt = dict(self.env.context)
+            clean_ctxt.pop('default_uom_id', None)
+            # Since uom is required, always fallback on a default (if any) even when the context
+            # gives an empty default value.
+            res['uom_id'] = self.with_context(clean_ctxt).default_get(['uom_id']).get('uom_id', False)
         return res
 
     @api.ormcache()
@@ -44,7 +48,14 @@ class ProductTemplate(models.Model):
         return categories.browse(category_ids)
 
     def _domain_pricelist_rule_ids(self):
-        return Domain('pricelist_id', '=', False) | Domain('pricelist_id.active', '=', True)
+        return (
+            (Domain('pricelist_id', '=', False) | Domain('pricelist_id.active', '=', True))
+            & (
+                Domain('product_tmpl_id.active', '=', False)
+                | Domain('product_id', '=', False)
+                | Domain('product_id.active', '=', True)
+            )
+        )
 
     @api.model
     def _domain_fixed_pricelist_rule_ids(self):
@@ -471,6 +482,8 @@ class ProductTemplate(models.Model):
         self._set_product_variant_field('standard_price')
 
     def _search_standard_price(self, operator, value):
+        if operator in Domain.NEGATIVE_OPERATORS:
+            return NotImplemented
         return [('product_variant_ids.standard_price', operator, value)]
 
     @api.depends('type')
@@ -503,6 +516,8 @@ class ProductTemplate(models.Model):
         return prod_available
 
     def _search_qty_available(self, operator, value):
+        if operator in Domain.NEGATIVE_OPERATORS:
+            return NotImplemented
         return [('product_variant_ids.qty_available', operator, value)]
 
     def _set_qty_available(self):
@@ -832,7 +847,7 @@ class ProductTemplate(models.Model):
     def write(self, vals):
         if 'uom_id' in vals:
             products = self.filtered(lambda template: template.uom_id.id != vals['uom_id']).product_variant_ids
-            products.with_context(skip_uom_conversion=True)._update_uom(vals['uom_id'])
+            products.sudo().with_context(skip_uom_conversion=True)._update_uom(vals['uom_id'])
         res = super().write(vals)
         if (self.env.context.get("create_product_product", True) and 'attribute_line_ids' in vals) or (vals.get('active') and len(self.product_variant_ids) == 0):
             self._create_variant_ids()

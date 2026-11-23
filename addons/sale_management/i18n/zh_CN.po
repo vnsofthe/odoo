@@ -8,15 +8,16 @@
 # Jeffery CHEN <jeffery9@gmail.com>, 2022
 # "Tiffany Chang (tic)" <tic@odoo.com>, 2025.
 # "Chloe Wang (chwa)" <chwa@odoo.com>, 2026.
+# 张飞虎 <feihu.zhang@live.com>, 2026.
 msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 16.0beta\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-11 17:41+0000\n"
-"PO-Revision-Date: 2026-09-09 13:54+0000\n"
-"Last-Translator: \"Chloe Wang (chwa)\" <chwa@odoo.com>\n"
+"POT-Creation-Date: 2026-09-25 17:37+0000\n"
+"PO-Revision-Date: 2026-10-11 06:34+0000\n"
+"Last-Translator: 张飞虎 <feihu.zhang@live.com>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.odoo.com/"
-"projects/odoo-master/sale_management/zh_Hans/>\n"
+"projects/odoo-20/sale_management/zh_Hans/>\n"
 "Language: zh_CN\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -59,12 +60,38 @@ msgid ""
 "* My Quotations\n"
 "* Monthly Turnover (Graph)\n"
 msgstr ""
+"\n"
+"管理销售报价单和订单\n"
+"==================================\n"
+"\n"
+"此应用让您能够高效地管理销售目标，\n"
+"跟踪所有销售订单及其历史记录。\n"
+"\n"
+"它涵盖完整的销售流程：\n"
 
 #. module: sale_management
 #. odoo-python
 #: code:addons/sale_management/models/sale_order_template_line.py:0
 msgid "%(attribute)s: %(values)s"
 msgstr ""
+
+#. module: sale_management
+#. odoo-python
+#: code:addons/sale_management/models/sale_order_template.py:0
+msgid "Acoustic ceiling"
+msgstr "隔音天花板"
+
+#. module: sale_management
+#. odoo-python
+#: code:addons/sale_management/models/sale_order_template.py:0
+msgid "Acoustic underlay"
+msgstr "隔音垫层"
+
+#. module: sale_management
+#. odoo-python
+#: code:addons/sale_management/models/sale_order_template.py:0
+msgid "Acoustic wall insulation"
+msgstr "隔音墙体保温"
 
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template__active
@@ -116,28 +143,44 @@ msgstr "已归档"
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template_line__product_template_attribute_value_ids
 msgid "Attribute Values"
-msgstr ""
+msgstr "属性值"
 
 #. module: sale_management
 #. odoo-javascript
 #: code:addons/sale_management/static/src/components/product_catalog/kanban_controller.js:0
 msgid "Back to Template"
+msgstr "返回模板"
+
+#. module: sale_management
+#. odoo-python
+#: code:addons/sale_management/models/sale_order_template.py:0
+msgid "Brainstorm Whiteboard"
+msgstr "头脑风暴白板"
+
+#. module: sale_management
+#. odoo-python
+#: code:addons/sale_management/models/sale_order_template.py:0
+msgid ""
+"Camera\n"
+"PTZ conference camera, auto-framing"
 msgstr ""
+"摄像头\n"
+"PTZ 会议摄像头，自动取景"
 
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template__user_has_access
 msgid "Can User access"
-msgstr ""
+msgstr "用户可访问"
 
 #. module: sale_management
 #: model_terms:ir.ui.view,arch_db:sale_management.sale_order_template_view_form
 msgid "Catalog"
-msgstr ""
+msgstr "产品目录"
 
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template_line__collapse_composition
 msgid "Collapse Composition"
-msgstr ""
+msgstr "收起组合"
 
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template_line__collapse_prices
@@ -152,6 +195,17 @@ msgid "Company"
 msgstr "公司"
 
 #. module: sale_management
+#. odoo-python
+#: code:addons/sale_management/models/sale_order_template.py:0
+msgid "Conference Room"
+msgstr "会议室"
+
+#. module: sale_management
+#: model:ir.model,name:sale_management.model_res_config_settings
+msgid "Config Settings"
+msgstr "配置设置"
+
+#. module: sale_management
 #: model_terms:ir.ui.view,arch_db:sale_management.sale_order_template_view_form
 msgid "Confirmation"
 msgstr "确认"
@@ -160,6 +214,12 @@ msgstr "确认"
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template__mail_template_id
 msgid "Confirmation Mail"
 msgstr "确认邮件"
+
+#. module: sale_management
+#. odoo-python
+#: code:addons/sale_management/models/sale_order_template.py:0
+msgid "Connectivity"
+msgstr "连接性"
 
 #. module: sale_management
 #: model_terms:ir.actions.act_window,help:sale_management.sale_order_template_action
@@ -186,7 +246,7 @@ msgstr "货币"
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template_line__product_custom_attribute_value_ids
 msgid "Custom Values"
-msgstr ""
+msgstr "自定义值"
 
 #. module: sale_management
 #. odoo-javascript
@@ -216,8 +276,19 @@ msgid "Discount (%)"
 msgstr "折扣 (%)"
 
 #. module: sale_management
+#. odoo-python
+#: code:addons/sale_management/models/sale_order_template.py:0
+msgid ""
+"Display / TV\n"
+"65\" 4K screen + wall mount + HDMI/USB-C inputs"
+msgstr ""
+"显示器 / 电视\n"
+"65 英寸 4K 屏幕 + 壁挂架 + HDMI/USB-C 接口"
+
+#. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_digest_digest__display_name
 #: model:ir.model.fields,field_description:sale_management.field_product_attribute_custom_value__display_name
+#: model:ir.model.fields,field_description:sale_management.field_res_config_settings__display_name
 #: model:ir.model.fields,field_description:sale_management.field_sale_order__display_name
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_line__display_name
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template__display_name
@@ -233,12 +304,18 @@ msgstr "显示类型"
 #. module: sale_management
 #: model_terms:ir.ui.view,arch_db:sale_management.sale_order_template_view_form
 msgid "Enter a Description"
-msgstr ""
+msgstr "输入说明"
 
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template_line__product_no_variant_attribute_value_ids
 msgid "Extra Values"
-msgstr ""
+msgstr "额外值"
+
+#. module: sale_management
+#. odoo-python
+#: code:addons/sale_management/models/sale_order_template.py:0
+msgid "Flooring parquet"
+msgstr "拼花地板"
 
 #. module: sale_management
 #: model:ir.model.constraint,message:sale_management.constraint_sale_order_template_line_non_accountable_fields_null
@@ -249,12 +326,12 @@ msgstr "在非负责任的销售报价行中禁止的产品，计数和单位"
 #: model:ir.model.constraint,message:sale_management.constraint_sale_order_template_line_section_fields_null
 msgid ""
 "Forbidden section quantity or section UoM on non section sale quote line"
-msgstr ""
+msgstr "非节类型的销售报价明细行上不允许设置节的计量单位或数量"
 
 #. module: sale_management
 #: model:ir.module.module,summary:base.module_sale_management
 msgid "From quotations to invoices"
-msgstr ""
+msgstr "从报价单到发票"
 
 #. module: sale_management
 #: model:ir.model.fields,help:sale_management.field_sale_order_template_line__sequence
@@ -264,23 +341,12 @@ msgstr "在显示销售报价行列表时给出序列顺序。"
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template__has_productless_lines
 msgid "Has Productless Lines"
-msgstr ""
-
-#. module: sale_management
-#. odoo-python
-#: code:addons/sale_management/models/sale_order_template.py:0
-msgid "Hidden Composition Section"
-msgstr "隐藏的写作部分"
-
-#. module: sale_management
-#. odoo-python
-#: code:addons/sale_management/models/sale_order_template.py:0
-msgid "Hidden Prices Section"
-msgstr "隐藏价格部分"
+msgstr "包含无产品的明细行"
 
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_digest_digest__id
 #: model:ir.model.fields,field_description:sale_management.field_product_attribute_custom_value__id
+#: model:ir.model.fields,field_description:sale_management.field_res_config_settings__id
 #: model:ir.model.fields,field_description:sale_management.field_sale_order__id
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_line__id
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template__id
@@ -305,6 +371,12 @@ msgid ""
 msgstr "如果未勾选此选项，则允许您隐藏“订单”模板而不将其删除。"
 
 #. module: sale_management
+#. odoo-python
+#: code:addons/sale_management/models/sale_order_template.py:0
+msgid "Individual Work Station"
+msgstr "独立工位"
+
+#. module: sale_management
 #: model_terms:ir.ui.view,arch_db:sale_management.sale_order_template_view_form
 msgid "Invoicing"
 msgstr "发票"
@@ -312,12 +384,12 @@ msgstr "发票"
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template_line__mandatory_product
 msgid "Is Product Mandatory"
-msgstr ""
+msgstr "产品为必填"
 
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template_line__is_configurable_product
 msgid "Is the product configurable?"
-msgstr ""
+msgstr "该产品可配置吗？"
 
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template__journal_id
@@ -332,7 +404,7 @@ msgstr "所有销售总价值KPI"
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template_line__label
 msgid "Label"
-msgstr ""
+msgstr "标签"
 
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template__write_uid
@@ -351,6 +423,16 @@ msgstr "上次更新日期"
 #: model_terms:ir.ui.view,arch_db:sale_management.sale_order_template_view_form
 msgid "Lines"
 msgstr "行"
+
+#. module: sale_management
+#. odoo-python
+#: code:addons/sale_management/models/sale_order_template.py:0
+msgid ""
+"Microphone system\n"
+"Ceiling/table array mic with echo cancellation"
+msgstr ""
+"麦克风系统\n"
+"吊顶/桌面阵列麦克风，带回声消除"
 
 #. module: sale_management
 #: model:ir.model.constraint,message:sale_management.constraint_sale_order_template_line_accountable_product_id_required
@@ -387,6 +469,11 @@ msgid "Number of days for the validity date computation of the quotation"
 msgstr "用于报价有效日期计算的天数"
 
 #. module: sale_management
+#: model:sale.order.template,name:sale_management.sale_order_template_1
+msgid "Office Furniture"
+msgstr "办公家具"
+
+#. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template__require_signature
 msgid "Online Signature"
 msgstr "线上签署"
@@ -396,19 +483,30 @@ msgstr "线上签署"
 msgid ""
 "Only one Custom Value is allowed per Attribute Value per Quotation Template "
 "Line."
-msgstr ""
+msgstr "每个报价模板明细行的每个属性值只允许有一个自定义值。"
+
+#. module: sale_management
+#. odoo-python
+#: code:addons/sale_management/models/sale_order_template.py:0
+msgid "Open Space Renovation"
+msgstr "开放式空间改造"
+
+#. module: sale_management
+#: model_terms:ir.ui.view,arch_db:sale_management.sale_order_form_quote
+msgid "Optional"
+msgstr "可选"
 
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_line__is_optional
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template_line__is_optional
 msgid "Optional Line"
-msgstr ""
+msgstr "可选明细行"
 
 #. module: sale_management
 #. odoo-python
 #: code:addons/sale_management/models/sale_order_template.py:0
-msgid "Optional Section"
-msgstr ""
+msgid "Options"
+msgstr "选项"
 
 #. module: sale_management
 #: model:ir.model,name:sale_management.model_sale_order_template
@@ -418,12 +516,18 @@ msgstr "订单模板"
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template_line__parent_id
 msgid "Parent Section Line"
-msgstr ""
+msgstr "父级节明细行"
+
+#. module: sale_management
+#. odoo-python
+#: code:addons/sale_management/models/sale_order_template.py:0
+msgid "Parquet installation"
+msgstr "拼花地板安装"
 
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template__prepayment_percent
 msgid "Prepayment"
-msgstr ""
+msgstr "预付款"
 
 #. module: sale_management
 #. odoo-python
@@ -440,17 +544,17 @@ msgstr "产品"
 #. module: sale_management
 #: model:ir.model,name:sale_management.model_product_attribute_custom_value
 msgid "Product Attribute Custom Value"
-msgstr ""
+msgstr "产品属性自定义值"
 
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template_line__product_template_id
 msgid "Product Template"
-msgstr ""
+msgstr "产品模板"
 
 #. module: sale_management
 #: model_terms:ir.ui.view,arch_db:sale_management.sale_order_template_view_form
 msgid "Product Variant"
-msgstr ""
+msgstr "产品变体"
 
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template_line__product_uom_qty
@@ -497,12 +601,6 @@ msgstr "报价模板"
 #: model_terms:ir.ui.view,arch_db:sale_management.sale_order_template_view_form
 msgid "Quotation Validity"
 msgstr "报价有效期"
-
-#. module: sale_management
-#. odoo-python
-#: code:addons/sale_management/models/sale_order_template.py:0
-msgid "Regular Section"
-msgstr "常规部分"
 
 #. module: sale_management
 #: model_terms:ir.ui.view,arch_db:sale_management.sale_order_portal_optional_product_quantity
@@ -563,7 +661,7 @@ msgstr "小节"
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template_line__section_qty
 msgid "Section Quantity"
-msgstr ""
+msgstr "节数量"
 
 #. module: sale_management
 #: model_terms:ir.ui.view,arch_db:sale_management.sale_order_template_view_search
@@ -573,7 +671,7 @@ msgstr "章节模板"
 #. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template_line__section_uom_id
 msgid "Section Unit of Measure"
-msgstr ""
+msgstr "节计量单位"
 
 #. module: sale_management
 #. odoo-javascript
@@ -633,6 +731,10 @@ msgstr ""
 #. module: sale_management
 #. odoo-python
 #: code:addons/sale_management/models/sale_order_template.py:0
+msgid "Subfloor preparation"
+msgstr "地面基层处理"
+
+#. module: sale_management
 #: model:ir.model.fields.selection,name:sale_management.selection__sale_order_template_line__display_type__line_subsection
 msgid "Subsection"
 msgstr "小节"
@@ -711,6 +813,11 @@ msgid "Type"
 msgstr "类型"
 
 #. module: sale_management
+#: model_terms:ir.ui.view,arch_db:sale_management.sale_order_template_view_form
+msgid "Type to find a product..."
+msgstr "键入以查找产品..."
+
+#. module: sale_management
 #: model:ir.model.fields,field_description:sale_management.field_sale_order_template_line__product_uom_id
 msgid "Unit"
 msgstr "单元"
@@ -742,6 +849,18 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:sale_management.sale_order_template_view_form
 msgid "Visible to all"
 msgstr "对所有人可见"
+
+#. module: sale_management
+#. odoo-python
+#: code:addons/sale_management/models/sale_order_template.py:0
+msgid "Whiteboard"
+msgstr "白板"
+
+#. module: sale_management
+#. odoo-python
+#: code:addons/sale_management/models/sale_order_template.py:0
+msgid "Whiteboard Pen"
+msgstr "白板笔"
 
 #. module: sale_management
 #. odoo-python
@@ -806,8 +925,14 @@ msgstr "天"
 msgid "e.g. Standard Consultancy Package"
 msgstr "例如标准咨询套餐"
 
-#~ msgid "Config Settings"
-#~ msgstr "配置设置"
+#~ msgid "Hidden Composition Section"
+#~ msgstr "隐藏的写作部分"
+
+#~ msgid "Hidden Prices Section"
+#~ msgstr "隐藏价格部分"
+
+#~ msgid "Regular Section"
+#~ msgstr "常规部分"
 
 #~ msgid "Create standardized offers with default products"
 #~ msgstr "使用默认产品创建标准化优惠"

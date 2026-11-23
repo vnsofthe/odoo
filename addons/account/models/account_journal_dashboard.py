@@ -171,6 +171,7 @@ class AccountJournal(models.Model):
             ('company_id', 'in', self.env.companies.ids),
             ('journal_id.type', 'in', ('bank', 'cash', 'credit')),
             ('date', '>=', date_from),
+            ('account_type', 'in', ('asset_cash', 'liability_credit_card')),
         ])
         table = query.table
 
@@ -182,7 +183,7 @@ class AccountJournal(models.Model):
 
     @api.model
     def get_account_dashboard_kpis(self):
-        if not self.env.user.has_group('account.group_account_basic'):
+        if not self.env.user.has_groups('account.group_account_basic,account.group_account_readonly'):
             raise AccessError(self.env._("You do not have access to the Accounting Dashboard."))
         if self.env['ir.config_parameter'].sudo().get_bool('account.disable_dashboard_kpis'):
             return []
@@ -939,7 +940,7 @@ class AccountJournal(models.Model):
             SQL("currency_id AS currency"),
             SQL("invoice_date_due < %s AS late", fields.Date.context_today(self)),
             SQL("SUM(amount_residual_signed) AS amount_total_company"),
-            SQL("SUM((CASE WHEN move_type = 'in_invoice' THEN -1 ELSE 1 END) * amount_residual) AS amount_total"),
+            SQL("SUM((CASE WHEN move_type IN ('out_refund', 'in_invoice', 'in_receipt') THEN -1 ELSE 1 END) * amount_residual) AS amount_total"),
             SQL("COUNT(*)"),
             self._get_to_pay_select(),
         ]
@@ -959,7 +960,7 @@ class AccountJournal(models.Model):
             SQL("currency_id AS currency"),
             SQL("invoice_date_due < %s AS late", fields.Date.context_today(self)),
             SQL("SUM(amount_total_signed) AS amount_total_company"),
-            SQL("SUM((CASE WHEN move_type = 'in_invoice' THEN -1 ELSE 1 END) * amount_total) AS amount_total"),
+            SQL("SUM((CASE WHEN move_type IN ('out_refund', 'in_invoice', 'in_receipt') THEN -1 ELSE 1 END) * amount_total) AS amount_total"),
             SQL("COUNT(*)"),
             SQL("TRUE AS to_pay")
         ]

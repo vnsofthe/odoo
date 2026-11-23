@@ -450,7 +450,9 @@ class WebsiteSale(payment_portal.PaymentPortal):
             display_currency=website.currency_id,
             extra_domain=Domain.OR([
                 Domain("public_categ_ids", "=", False),
-                Domain("public_categ_ids.not_in_shop", "=", False),
+                # Use "any!" to bypass `empty_public_categories_rule` which is
+                # redundant in this context and costly with a lot of products.
+                Domain("public_categ_ids", "any!", Domain("not_in_shop", "=", False)),
             ])
             if not (category or search)
             else None,
@@ -467,10 +469,27 @@ class WebsiteSale(payment_portal.PaymentPortal):
             attribute_value_dict,
             tags=tags if filter_by_tags_enabled else None,
         )
-        shop_query = request.env["product.template"]._search(shop_domain)
-
         filters_domain = self._get_shop_domain(search_term, category, attribute_value_dict={})
-        filters_query = request.env["product.template"]._search(filters_domain)
+        # Match the costly search domain once for all the facet queries, unless there are
+        # too many ids, which would make those queries slower than the subqueries.
+        IN_MAX = 10_000
+        if search_term and product_count <= IN_MAX:
+            filters_ids = (
+                self.env["product.template"]
+                ._search(filters_domain, limit=IN_MAX + 1)
+                .get_result_ids()
+            )
+            if len(filters_ids) <= IN_MAX:
+                filters_domain = Domain("id", "in", filters_ids)
+                # `shop_domain` is `filters_domain` restricted to the attributes and tags
+                shop_domain = filters_domain & self._get_shop_domain(
+                    search=None,
+                    category=None,
+                    attribute_value_dict=attribute_value_dict,
+                    tags=tags if filter_by_tags_enabled else None,
+                )
+        shop_query = self.env["product.template"]._search(shop_domain)
+        filters_query = self.env["product.template"]._search(filters_domain)
 
         filter_by_price_enabled = website.is_view_active("website_sale.filter_products_price")
         if filter_by_price_enabled:
@@ -569,9 +588,11 @@ class WebsiteSale(payment_portal.PaymentPortal):
         # categories
 
         Category = self.env["product.public.category"]
-        categs_domain = (
-            Domain("parent_id", "=", False) & Domain("not_in_shop", "=", False) & website_domain
-        )
+        categs_domain = Domain("not_in_shop", "=", False) & website_domain
+        # The sidebar renders the whole category tree: fetch it at once rather than level by level
+        show_category_tree = website.is_view_active("website_sale.products_categories")
+        if not show_category_tree:
+            categs_domain &= Domain("parent_id", "=", False)
         if search:
             # using a sub-query is more efficient than using a query in the shape of "ids in (...)"
             # when there are 100k product ids to match.
@@ -582,6 +603,9 @@ class WebsiteSale(payment_portal.PaymentPortal):
         else:
             search_categories = Category
         categs = Category.search_fetch(categs_domain)
+        if show_category_tree:
+            # `filtered` keeps the whole tree as prefetch ids
+            categs = categs.filtered(lambda c: not c.parent_id)
 
         category_entries = Category
         if category:
@@ -1321,6 +1345,14 @@ class WebsiteSale(payment_portal.PaymentPortal):
             "discard_url": callback or (is_anonymous_cart and "/shop/cart") or "/shop/checkout",
         }
 
+    @route()
+    def portal_address_country_info(self, country, address_type, **kwargs):
+        """Override of `portal` to compute the required fields with the cart, which may not need a
+        full address."""
+        return super().portal_address_country_info(
+            country, address_type, order_sudo=request.cart, **kwargs
+        )
+
     def _get_default_country(self, order_sudo=False, **kwargs):
         """Override `portal` to return country of customer if customer is not logged in."""
         is_anonymous_cart = order_sudo and order_sudo._is_anonymous_cart()
@@ -1852,6 +1884,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         if (
             self.env["res.users"]._get_signup_invitation_scope() == "b2c"
             and self.env.website.is_public_user()
+            and not order.partner_id.user_ids
         ):
             order.partner_id.signup_prepare()
             signup_url = urlparse(

@@ -1,4 +1,3 @@
-import json
 import logging
 import re
 from collections import defaultdict
@@ -94,6 +93,7 @@ class AccountMoveLine(models.Model):
     is_storno = fields.Boolean(
         string="Company Storno Accounting",
         compute='_compute_is_storno', store=True, readonly=False, precompute=True,
+        copy=False,
         help="Utility field to express whether the journal item is subject to storno accounting",
     )
     sequence = fields.Integer(compute='_compute_sequence', store=True, readonly=False, precompute=True)
@@ -206,11 +206,11 @@ class AccountMoveLine(models.Model):
         help="The payment that created this entry")
     statement_line_id = fields.Many2one(
         comodel_name='account.bank.statement.line',
-        string="Originator Statement Line",
+        string="Originator Bank Transaction",
         related='move_id.statement_line_id', store=True,
         bypass_search_access=True,
         index='btree_not_null',
-        help="The statement line that created this entry")
+        help="The bank transaction that created this entry")
     statement_id = fields.Many2one(
         related='statement_line_id.statement_id', store=True,
         bypass_search_access=True,
@@ -471,7 +471,7 @@ class AccountMoveLine(models.Model):
     )
     discount = fields.Float(
         string='Discount (%)',
-        digits='Discount',
+        min_display_digits='Discount',
         default=0.0,
     )
     tax_calculation_rounding_method = fields.Selection(
@@ -689,7 +689,7 @@ class AccountMoveLine(models.Model):
             if not line.product_id or line.display_type in ('line_section', 'line_subsection', 'line_note'):
                 continue
 
-            if not line.name or line._origin.name == get_name(line._origin) or line.product_id != line._origin.product_id:
+            if not line.name or not line._origin or line._origin.name == get_name(line._origin) or line.product_id and line.product_id != line._origin.product_id:
                 line.name = get_name(line)
 
     @api.depends_context("display_default_code")
@@ -797,7 +797,8 @@ class AccountMoveLine(models.Model):
                 if len(previous_two_accounts) == 1 and len(line.move_id.line_ids) > 2:
                     line.account_id = previous_two_accounts
                 else:
-                    line.account_id = line.move_id.journal_id.default_account_id
+                    base_account = line.move_id.journal_id.default_account_id
+                    line.account_id = line.move_id.fiscal_position_id.map_account(base_account)
 
     @api.model
     def _search_account_id(self, operator, value):
@@ -824,7 +825,7 @@ class AccountMoveLine(models.Model):
 
         return [('account_id', operator, value)]
 
-    @api.depends('move_id.is_storno', 'price_unit', 'quantity')
+    @api.depends('move_id.is_storno', 'display_type', 'price_unit', 'quantity')
     def _compute_is_storno(self):
         for line in self:
             if not line.company_id.account_storno:
@@ -833,7 +834,7 @@ class AccountMoveLine(models.Model):
 
             # For invoice lines, we want to set is_storno based on the sign of the line if the entire move is not storno (not refund)
             # This allows setting is_storno to true or false depending on quantity and price_unit
-            if not line.move_id.is_storno and line in line.move_id.invoice_line_ids and line.quantity * line.price_unit:
+            if not line.move_id.is_storno and line.move_id.is_invoice(True) and line.display_type == 'product' and line.quantity * line.price_unit:
                 line.is_storno = line.quantity * line.price_unit < 0
 
     @api.depends('move_id')
@@ -868,7 +869,9 @@ class AccountMoveLine(models.Model):
     @api.depends('currency_id', 'company_id', 'move_id.invoice_currency_rate', 'move_id.date')
     def _compute_currency_rate(self):
         for line in self:
-            if line.move_id.is_invoice(include_receipts=True):
+            if line.display_type == 'cogs':
+                line.currency_rate = 1.0
+            elif line.move_id.is_invoice(include_receipts=True):
                 line.currency_rate = line.move_id.invoice_currency_rate or 1.0
             elif line.currency_id:
                 line.currency_rate = self.env['res.currency']._get_conversion_rate(
@@ -900,44 +903,44 @@ class AccountMoveLine(models.Model):
 
         date_from = self.env.context.get('date_from')
         date_to = self.env.context.get('date_to')
-        historical, average, current = self.env['res.currency']._get_parsed_rates(self.env.companies - self.env.company, date_from, date_to)
+        rates, current = self.env['res.currency']._get_parsed_rates(
+            self.env.companies - self.env.company, date_from, date_to, current_date=self.env.context.get('cta_date_to'),
+        )
 
         raw_rates_alias = table._make_alias(f'raw_{currency_translation}')
-        raw_rates_table = SQL(
-            """(
-                SELECT %(historical)s::jsonb AS historical,
-                       %(average)s::jsonb AS average,
-                       %(current)s::jsonb AS current
-            )""",
-            historical=json.dumps(historical),
-            average=json.dumps(average),
-            current=json.dumps(current),
-        )
-        cta_alias = table._make_alias(currency_translation)
-        if currency_translation == 'cta':
-            conversion_table = SQL(
-                """(
-                    SELECT CASE WHEN %(base_line_account_type)s = 'equity' THEN (%(historical)s->>(%(base_line_company)s::text))::jsonb->>(%(base_line_date)s::text)
-                                WHEN %(base_line_account_type)s LIKE ANY (ARRAY['income%%', 'expense%%', 'equity_unaffected']) THEN %(average)s->>(%(base_line_company)s::text)
-                                ELSE %(current)s->>(%(base_line_company)s::text)
-                           END::numeric AS rate
-                )""",
-                base_line_date=table.date,
-                base_line_company=table.company_id,
-                base_line_account_type=table.account_id.account_type,
-                historical=raw_rates_alias.historical,
-                average=raw_rates_alias.average,
-                current=raw_rates_alias.current,
-            )
-        else:
-            conversion_table = SQL(
-                "(SELECT (%(current)s->>(%(base_line_company)s::text))::numeric AS rate)",
-                base_line_company=table.company_id,
-                current=raw_rates_alias.current,
-            )
+        raw_rates_table = SQL("(SELECT %s::jsonb AS current)", current)
         table._query.add_join(kind='JOIN', alias=raw_rates_alias, table=raw_rates_table, condition=SQL("TRUE"))
-        table._query.add_join(kind='LEFT JOIN LATERAL', alias=cta_alias, table=conversion_table, condition=SQL("TRUE"))
-        return SQL("COALESCE(%s, 1)", cta_alias.rate)
+        current_rate = SQL("(%s->>(%s::text))::numeric", raw_rates_alias.current, table.company_id)
+        if currency_translation != 'cta':
+            return SQL("COALESCE(%s, 1)", current_rate)
+
+        cta_alias = table._make_alias(currency_translation)
+        cta_table = SQL(
+            """(
+                SELECT period.company_id,
+                       period.date_from + rate.index::int - 1 AS date,
+                       rate.value AS historical,
+                       period.average,
+                       period.retained
+                  FROM jsonb_to_recordset(%s::jsonb) AS period(company_id int, date_from date, average numeric, retained numeric, historical numeric[]),
+                       unnest(period.historical) WITH ORDINALITY AS rate(value, index)
+            )""",
+            rates,
+        )
+        cta_condition = SQL("%s = %s AND %s = %s", cta_alias.company_id, table.company_id, cta_alias.date, table.date)
+        table._query.add_join(kind='LEFT JOIN', alias=cta_alias, table=cta_table, condition=cta_condition)
+        return SQL(
+            """COALESCE(CASE
+                   WHEN %(account_type)s = 'equity' THEN %(historical)s
+                   WHEN %(account_type)s = 'equity_retained' THEN %(retained)s
+                   WHEN %(account_type)s LIKE ANY (ARRAY['income%%', 'expense%%', 'equity_unaffected']) THEN %(average)s
+               END, %(current)s, 1)""",
+            account_type=table.account_id.account_type,
+            historical=cta_alias.historical,
+            retained=cta_alias.retained,
+            average=cta_alias.average,
+            current=current_rate,
+        )
 
     def _compute_sql_debit_converted(self, table):
         return SQL("(%s * %s)", table.consolidation_rate, table.debit)
@@ -948,7 +951,7 @@ class AccountMoveLine(models.Model):
     def _compute_sql_balance_converted(self, table):
         return SQL("(%s * %s)", table.consolidation_rate, table.balance)
 
-    @api.depends_context('allowed_company_ids', 'currency_translation')
+    @api.depends_context('allowed_company_ids', 'currency_translation', 'date_from', 'date_to', 'cta_date_to')
     def _compute_consolidation_rate(self):
         line2rate = {}
         if len(self.env.companies.currency_id) > 1:
@@ -1357,21 +1360,40 @@ class AccountMoveLine(models.Model):
             else:
                 line.discount_allocation_key = False
 
-    @api.depends('account_id', 'company_id', 'price_unit', 'quantity', 'currency_rate', 'move_id.line_ids.discount', 'move_id.line_ids.analytic_distribution')
+    @api.depends('account_id', 'company_id', 'currency_rate', 'move_id.line_ids.account_id', 'move_id.line_ids.discount', 'move_id.line_ids.analytic_distribution')
     def _compute_discount_allocation_needed(self):
-        line2discounted_amount = {
-            line: [
-                (line.account_id, amount_currency, line.company_currency_id.round(amount_currency / line.currency_rate)),
-                (discount_allocation_account, -amount_currency, -line.company_currency_id.round(amount_currency / line.currency_rate)),
-            ]
-            for line in self.move_id.line_ids
-            if line.display_type == 'product'
-            and (discount_allocation_account := line.move_id._get_discount_allocation_account())
-            and line.account_id != discount_allocation_account
-            and (amount_currency := line.currency_id.round(
-                line.move_id.direction_sign * line.quantity * line.price_unit * line.discount / 100
-            ))
-        }
+        def _get_discount_before_rounding(line):
+            base_line = line.move_id._prepare_product_base_line_for_taxes_computation(line)
+            base_line['discount'] = 0.0
+            self.env['account.tax']._add_tax_details_in_base_line(base_line, line.company_id)
+            price_subtotal = base_line['tax_details']['raw_total_excluded_currency']
+            return line.move_id.direction_sign * price_subtotal * line.discount / 100
+
+        # Round the cumulated discount per account, to avoid summing rounding errors.
+        line2discounted_amount = {}
+        cumulated_discounts = defaultdict(float)
+        for line in self.move_id.line_ids:
+            if not (
+                line.display_type == 'product'
+                and line.discount
+                and (discount_allocation_account := line.move_id._get_discount_allocation_account())
+                and line.account_id != discount_allocation_account
+            ):
+                continue
+            group_key = (line.move_id, line.account_id)
+            previous_amount_currency = line.currency_id.round(cumulated_discounts[group_key])
+            cumulated_discounts[group_key] += _get_discount_before_rounding(line)
+            cumulated_amount_currency = line.currency_id.round(cumulated_discounts[group_key])
+            amount_currency = cumulated_amount_currency - previous_amount_currency
+            amount = (
+                line.company_currency_id.round(cumulated_amount_currency / line.currency_rate)
+                - line.company_currency_id.round(previous_amount_currency / line.currency_rate)
+            )
+            if amount_currency or amount:
+                line2discounted_amount[line] = [
+                    (line.account_id, amount_currency, amount),
+                    (discount_allocation_account, -amount_currency, -amount),
+                ]
 
         distribution_totals = defaultdict(lambda: defaultdict(float))
         for line, discounted_amounts in line2discounted_amount.items():
@@ -1511,7 +1533,7 @@ class AccountMoveLine(models.Model):
                 ]
                 for base_line in aggregated_base_lines:
                     invoice_line = base_line['_invoice_line']
-                    result_per_invoice_line[invoice_line] = {
+                    result_per_invoice_line[invoice_line._origin or invoice_line] = {
                         grouping_key_line: {
                             'name': _("Early Payment Discount (%s)", discount_percentage_name),
                             'amount_currency': 0.0,
@@ -1539,7 +1561,7 @@ class AccountMoveLine(models.Model):
                 )
                 for target_factor, amount_to_distribute in zip(target_factors, amounts_to_distribute):
                     invoice_line = target_factor['base_line']['_invoice_line']
-                    epd_needed = result_per_invoice_line[invoice_line]
+                    epd_needed = result_per_invoice_line[invoice_line._origin or invoice_line]
                     epd_needed[grouping_key_line]['amount_currency'] -= amount_to_distribute
                     epd_needed[grouping_key_counterpart]['amount_currency'] += amount_to_distribute
 
@@ -1550,12 +1572,12 @@ class AccountMoveLine(models.Model):
                 )
                 for target_factor, amount_to_distribute in zip(target_factors, amounts_to_distribute):
                     invoice_line = target_factor['base_line']['_invoice_line']
-                    epd_needed = result_per_invoice_line[invoice_line]
+                    epd_needed = result_per_invoice_line[invoice_line._origin or invoice_line]
                     epd_needed[grouping_key_line]['balance'] -= amount_to_distribute
                     epd_needed[grouping_key_counterpart]['balance'] += amount_to_distribute
 
         for invoice_line in candidate_invoice_lines:
-            epd_needed = result_per_invoice_line[invoice_line]
+            epd_needed = result_per_invoice_line[invoice_line._origin or invoice_line]
             invoice_line.epd_needed = list(epd_needed.items())
 
     @api.depends('move_id.move_type', 'balance', 'tax_repartition_line_id', 'tax_ids')
@@ -2056,8 +2078,11 @@ class AccountMoveLine(models.Model):
             defaults['account_id'] = quick_encode_suggestion['account_id']
             defaults['price_unit'] = quick_encode_suggestion['price_unit']
             defaults['tax_ids'] = [Command.set(quick_encode_suggestion['tax_ids'])]
-        elif (journal := self.env['account.journal'].browse(self.env.context.get('journal_id'))) and journal.default_account_id:
-            defaults['account_id'] = journal.default_account_id
+        elif (
+            (journal := self.env['account.journal'].browse(self.env.context.get('journal_id')))
+            and journal.type not in ('sale', 'purchase')
+            and journal.default_account_id):
+            defaults['account_id'] = journal.default_account_id.id
         return defaults
 
     def _sanitize_vals(self, vals):
@@ -2195,11 +2220,18 @@ class AccountMoveLine(models.Model):
         hashed_moves = self.move_id.filtered('inalterable_hash')
         violated_fields = set(vals) & inalterable_fields
         if hashed_moves and violated_fields:
+            if hashed_moves.company_id == self.env.company:
+                entries = '\n'.join(hashed_moves.mapped('name'))
+            else:
+                entries = '\n'.join(
+                    f"{company.name}: {', '.join(moves.mapped('name'))}"
+                    for company, moves in hashed_moves.grouped('company_id').items()
+                )
             raise UserError(_(
                 "You cannot edit the following fields: %(fields)s.\n"
                 "The following entries are already hashed:\n%(entries)s",
                 fields=[f['string'] for f in self.fields_get(violated_fields).values()],
-                entries='\n'.join(hashed_moves.mapped('name')),
+                entries=entries,
             ))
 
         line_to_write = self
@@ -2594,7 +2626,9 @@ class AccountMoveLine(models.Model):
             other_aml_values=debit_values,
         )
 
-        if debit_currency != company_currency \
+        if self.env.context.get('no_exchange_difference'):
+            recon_currency = company_currency
+        elif debit_currency != company_currency \
             and debit_currency in debit_available_residual_amounts \
             and debit_currency in credit_available_residual_amounts:
             recon_currency = debit_currency
@@ -3374,6 +3408,13 @@ class AccountMoveLine(models.Model):
                 or self._get_exchange_account(company, amount_residual_to_fix).id
             )
 
+            fiscal_position = line.move_id.fiscal_position_id
+            if fiscal_position:
+                original_account = self.env['account.account'].browse(exchange_line_account_id)
+                mapped_account = fiscal_position.map_account(original_account)
+                if mapped_account:
+                    exchange_line_account_id = mapped_account.id
+
             sequence = len(move_vals['line_ids'])
             line_vals = [
                 {
@@ -3470,10 +3511,8 @@ class AccountMoveLine(models.Model):
         return self._reconcile_plan([self])
 
     def remove_move_reconcile(self):
-        """ Undo a reconciliation """
-        all_moves = (self + self.reconciled_lines_ids).move_id.filtered(lambda m: not m.statement_line_id)
-        all_partials = self.matched_debit_ids + self.matched_credit_ids + self.env['account.partial.reconcile'].search([('credit_move_id.move_id', 'in', all_moves.ids), ('debit_move_id.move_id', 'in', all_moves.ids)])
-        all_partials.unlink()
+        """ Undo every reconciliation involving the lines in self, whatever the counterpart is."""
+        (self.matched_debit_ids + self.matched_credit_ids).unlink()
 
     def action_unreconcile_match_entries(self):
         """ This method will do the unreconcile action in the list view of the moves """
@@ -3898,23 +3937,105 @@ class AccountMoveLine(models.Model):
         Intended to be overriden in localization.
         """
         self.ensure_one()
-        return self.move_id.state == 'posted'
+        return self.move_id.state == 'posted' or self.move_id.payment_state == 'invoicing_legacy'
 
-    def _get_child_lines(self):
-        """
-        Return a tax-wise summary of account move lines linked to section.
-        Groups lines by their tax IDs and computes subtotal and total for each group.
-        """
+    def _get_aml_vals(self, hide_taxes):
         self.ensure_one()
-        children_lines = self.move_id.invoice_line_ids.filtered(lambda l: self in {l.parent_id, l.parent_id.parent_id})
-        subsection_lines = children_lines.filtered(lambda l: l.display_type == 'line_subsection')
-        direct_children_lines = children_lines.filtered(lambda l: l.parent_id == self and l.display_type != 'line_subsection')
+        return {
+            'label': self.label,
+            'product': self.product_id,
+            'taxes': [] if hide_taxes else [tax.tax_label for tax in self.tax_ids if tax.tax_label],
+            'price_subtotal': self.price_subtotal,
+            'price_total': self.price_total,
+            'display_type': self.display_type,
+            'quantity': self.quantity,
+            'line_uom': self.product_uom_id,
+            'product_uom': self.product_id.uom_id,
+            'discount': self.discount,
+        }
+
+    def _get_collapsed_lines(self, children_lines):
+        """
+        Return a tax-wise summary when collapse_composition is enabled.
+        Group product lines by their tax IDs and return one entry per group.
+        """
+        product_lines = children_lines.filtered(lambda l: l.display_type == 'product')
+        result = []
+        for taxes, lines_iter in groupby(product_lines, key=lambda l: l.tax_ids):
+            lines = sum(lines_iter, start=self.env['account.move.line'])
+            tax_labels = [tax.tax_label for tax in taxes if tax.tax_label]
+            subtotal = sum(lines.mapped('price_subtotal'))
+            total = sum(lines.mapped('price_total'))
+            if not subtotal and not total and not tax_labels:
+                continue
+            result.append({
+                'label': self.label,
+                'taxes': tax_labels,
+                'price_subtotal': subtotal,
+                'price_total': total,
+                'display_type': 'product',
+                'quantity': 1,
+                'line_uom': False,
+                'product_uom': False,
+                'discount': 0.0,
+            })
+        return result or [{
+            'label': self.label,
+            'taxes': [],
+            'price_subtotal': 0.0,
+            'price_total': 0.0,
+            'display_type': 'product',
+            'quantity': 0,
+            'line_uom': False,
+            'product_uom': False,
+            'discount': 0.0,
+        }]
+
+    def _get_subsection_lines(self, subsection_line, children_lines):
+        result = []
+        lines_in_subsection = children_lines.filtered(lambda l: l.parent_id == subsection_line)
+        for taxes, lines_iter in groupby(lines_in_subsection, key=lambda l: l.tax_ids):
+            lines = sum(lines_iter, start=self.env['account.move.line'])
+            tax_labels = [tax.tax_label for tax in taxes if tax.tax_label]
+            subtotal = sum(l.price_subtotal for l in lines)
+            total = sum(l.price_total for l in lines)
+            if not subtotal and not total and not tax_labels:
+                continue
+            if subsection_line.collapse_composition or self.collapse_composition:
+                result.append({
+                    'label': subsection_line.name,
+                    'product': False,
+                    'taxes': tax_labels,
+                    'price_subtotal': subtotal,
+                    'price_total': total,
+                    'display_type': 'product',
+                    'quantity': 1,
+                    'line_uom': False,
+                    'product_uom': False,
+                    'discount': 0.0,
+                })
+            else:
+                # add the subsection
+                result.append({
+                    **subsection_line._get_aml_vals(hide_taxes=True),
+                    'product': False,
+                    'price_subtotal': subtotal,
+                    'price_total': total,
+                })
+                # add the subsection children lines
+                for line in lines:
+                    result.append(line._get_aml_vals(hide_taxes=False))
+
+        return result
+
+    def _get_detailed_lines(self, children_lines, direct_children_lines, subsection_lines):
         section_subtotal = sum(l.price_subtotal for l in children_lines)
         section_total = sum(l.price_total for l in children_lines)
+        # section summary
         result = [{
             'label': self.label,
             'product': False,
-            'taxes': [tax.tax_label for tax in children_lines.tax_ids if tax.tax_label] if not self.collapse_prices else [],
+            'taxes': [],
             'price_subtotal': section_subtotal,
             'price_total': section_total,
             'display_type': self.display_type,
@@ -3923,59 +4044,13 @@ class AccountMoveLine(models.Model):
             'product_uom': False,
             'discount': 0.0,
         }]
-        if self.collapse_composition:
-            return result
-
+        # direct children
         for line in direct_children_lines:
-            result.append({
-                'label': line.label,
-                'product': line.product_id,
-                'taxes': [tax.tax_label for tax in line.tax_ids if tax.tax_label],
-                'price_subtotal': line.price_subtotal,
-                'price_total': line.price_total,
-                'display_type': line.display_type,
-                'quantity': line.quantity,
-                'line_uom': line.product_uom_id,
-                'product_uom': line.product_id.uom_id,
-                'discount': line.discount,
-            })
-
+            result.append(line._get_aml_vals(hide_taxes=False))
+        # subsection groups
         for subsection_line in subsection_lines:
-            lines_in_subsection = children_lines.filtered(lambda l: l.parent_id == subsection_line)
-            for taxes, lines_for_tax_group in groupby(lines_in_subsection, key=lambda l: l.tax_ids):
-                lines_for_tax_group = sum(lines_for_tax_group, start=self.env['account.move.line'])
-                tax_labels = [tax.tax_label for tax in taxes if tax.tax_label]
-                subtotal = sum(l.price_subtotal for l in lines_for_tax_group)
-                total = sum(l.price_total for l in lines_for_tax_group)
-                if not subtotal and not tax_labels:
-                    continue
-                if subsection_line.collapse_composition:
-                    result.append({
-                        'label': subsection_line.label,
-                        'product': False,
-                        'taxes': tax_labels,
-                        'price_subtotal': subtotal,
-                        'price_total': total,
-                        'display_type': 'product',
-                        'quantity': 1,
-                        'line_uom': False,
-                        'product_uom': False,
-                        'discount': 0.0,
-                    })
-                else:
-                    for line in subsection_line | lines_for_tax_group:
-                        result.append({
-                            'label': line.label,
-                            'product': line.product_id,
-                            'taxes': tax_labels if (line == subsection_line and not self.collapse_prices) or (line != subsection_line and self.collapse_prices) else [],
-                            'price_subtotal': subtotal if line == subsection_line else line.price_subtotal,
-                            'price_total': total if line == subsection_line else line.price_total,
-                            'display_type': line.display_type,
-                            'quantity': line.quantity,
-                            'line_uom': line.product_uom_id,
-                            'product_uom': line.product_id.uom_id,
-                            'discount': line.discount,
-                        })
+            result.extend(self._get_subsection_lines(subsection_line, children_lines))
+
         return result or [{
             'label': self.label,
             'taxes': [],
@@ -3984,6 +4059,19 @@ class AccountMoveLine(models.Model):
             'quantity': 0,
             'display_type': 'product',
         }]
+
+    def _get_child_lines(self):
+        """Return a formatted list of dicts representing the child lines of the given section or subsection."""
+        self.ensure_one()
+
+        children_lines = self.move_id.invoice_line_ids.filtered(lambda l: self in {l.parent_id, l.parent_id.parent_id}).sorted('sequence')
+        subsection_lines = children_lines.filtered(lambda l: l.display_type == 'line_subsection')
+        direct_children_lines = children_lines.filtered(lambda l: l.parent_id == self and l.display_type != 'line_subsection')
+
+        if self.collapse_composition and self.display_type in ('line_section', 'line_subsection'):
+            return self._get_collapsed_lines(children_lines)
+
+        return self._get_detailed_lines(children_lines, direct_children_lines, subsection_lines)
 
     def get_section_subtotal(self):
         section_lines = self._get_section_lines()

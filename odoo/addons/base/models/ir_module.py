@@ -26,6 +26,7 @@ from odoo.tools import SQL, BinaryBytes, config
 from odoo.tools.business_data import get_flag
 from odoo.tools.misc import file_open, topological_sort
 from odoo.tools.parse_version import parse_version
+from odoo.tools.sql import column_exists
 from odoo.tools.translate import (
     TranslationImporter,
     get_datafile_translation_path,
@@ -742,10 +743,20 @@ class IrModuleModule(models.Model):
                 ):
                     todo.append(dep.module_id)
 
-        self.browse(module.id for module in todo).write({'state': 'to upgrade'})
+        to_upgrade_modules = self.browse(module.id for module in todo)
+        # skip imported modules since they cannot be upgraded;
+        # the column 'imported' is defined in base_import_module, hence the SQL
+        if column_exists(self.env.cr, 'ir_module_module', 'imported'):
+            rows = self.env.execute_query(SQL("""
+                SELECT id
+                  FROM ir_module_module
+                 WHERE imported IS NOT TRUE AND id IN %s
+            """, tuple(to_upgrade_modules.ids)))
+            to_upgrade_modules = self.browse(id_ for id_, in rows)
+        to_upgrade_modules.state = 'to upgrade'
 
         to_install = []
-        for module in todo:
+        for module in to_upgrade_modules:
             if not self.get_module_info(module.name).get("installable", True):
                 continue
             for dep in module.dependencies_id:
@@ -1018,6 +1029,11 @@ class IrModuleModule(models.Model):
             translations_by_field = manifest.get_translations(langs)
             if not translations_by_field:
                 continue
+            # the manifest also holds the en_US terms: writing only the translations
+            # would let the ORM fill en_US from one of them when en_US is inactive
+            source_terms = self.get_values_from_terp(manifest)
+            for field_name, translations in translations_by_field.items():
+                translations['en_US'] = source_terms[field_name]
             module.write(translations_by_field)
 
     @api.model

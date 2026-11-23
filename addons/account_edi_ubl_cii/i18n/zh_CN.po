@@ -5,21 +5,22 @@
 # "Tiffany Chang (tic)" <tic@odoo.com>, 2025.
 # Weblate <noreply-mt-weblate@weblate.org>, 2025, 2026.
 # "Chloe Wang (chwa)" <chwa@odoo.com>, 2026.
+# 张飞虎 <feihu.zhang@live.com>, 2026.
 msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server saas~18.4\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-04 17:44+0000\n"
-"PO-Revision-Date: 2026-08-31 19:37+0000\n"
-"Last-Translator: Anonymous <noreply@weblate.org>\n"
+"POT-Creation-Date: 2026-11-13 17:39+0000\n"
+"PO-Revision-Date: 2026-11-16 09:33+0000\n"
+"Last-Translator: \"Chloe Wang (chwa)\" <chwa@odoo.com>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.odoo.com/"
-"projects/odoo-s19-4/account_edi_ubl_cii/zh_Hans/>\n"
+"projects/odoo-20/account_edi_ubl_cii/zh_Hans/>\n"
 "Language: zh_CN\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: \n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 2026.8.1\n"
+"X-Generator: Weblate 2026.11.2\n"
 
 #. module: account_edi_ubl_cii
 #: model:ir.module.module,description:base.module_account_edi_ubl_cii
@@ -43,6 +44,22 @@ msgid ""
 "present in the `EAS list\n"
 "<https://docs.peppol.eu/poacc/billing/3.0/codelist/eas/>`_.\n"
 msgstr ""
+"\n"
+"电子发票模块\n"
+"============\n"
+"\n"
+"支持导出和导入以下格式：E-FFF、UBL Bis 3、EHF3、NLCIUS、Factur-X (CII)、"
+"XRechnung (UBL)。\n"
+"在发票上生成 PDF 时，对所有 UBL 格式来说，PDF 会嵌入到 xml 内部。这样接收方\n"
+"只需 xml 文件即可取得 PDF。请注意，**EHF3 已由 UBL Bis 3 完整实现**（`参考文"
+"档\n"
+"<https://anskaffelser.dev/postaward/g3/spec/current/billing-3.0/norway/"
+"#_implementation>`_）。\n"
+"\n"
+"请注意，E-FFF、NLCIUS 和 XRechnung (UBL) 分别仅适用于比利时、荷兰和德国企"
+"业。\n"
+"UBL Bis 3 仅适用于其国家/地区出现在 `EAS 清单\n"
+"<https://docs.peppol.eu/poacc/billing/3.0/codelist/eas/>`_ 中的企业。\n"
 
 #. module: account_edi_ubl_cii
 #. odoo-python
@@ -136,6 +153,12 @@ msgstr "安道尔增值税"
 
 #. module: account_edi_ubl_cii
 #. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid "At least one Invoice Line is required [IBR-016]."
+msgstr "至少需要一条发票行 [IBR-016]。"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
 #: code:addons/account_edi_ubl_cii/models/account_edi_common.py:0
 msgid ""
 "At least one of the following fields %(field_list)s is required on %"
@@ -187,12 +210,12 @@ msgstr "BIS3 DE（XRechnung）"
 #. module: account_edi_ubl_cii
 #: model:ir.model,name:account_edi_ubl_cii.model_account_edi_cii
 msgid "Base helpers for CII"
-msgstr ""
+msgstr "CII 基础辅助方法"
 
 #. module: account_edi_ubl_cii
 #: model:ir.model,name:account_edi_ubl_cii.model_account_edi_ubl
 msgid "Base helpers for UBL"
-msgstr ""
+msgstr "UBL 基础辅助方法"
 
 #. module: account_edi_ubl_cii
 #: model:ir.model.fields.selection,name:account_edi_ubl_cii.selection__res_partner__routing_scheme__0208
@@ -221,6 +244,30 @@ msgstr "商业注册网络"
 
 #. module: account_edi_ubl_cii
 #. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid "Buyer Country Code is missing [IBR-011]."
+msgstr "缺少买方国家/地区代码 [IBR-011]。"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid "Buyer Electronic Address / Endpoint ID is missing [IBR-080]."
+msgstr "缺少买方电子地址/端点 ID [IBR-080]。"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid "Buyer Electronic Address Scheme Identifier is missing [IBR-063]."
+msgstr "缺少买方电子地址方案标识符 [IBR-063]。"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid "Buyer Name is missing [IBR-007]."
+msgstr "缺少买方名称 [IBR-007]。"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
 #: code:addons/account_edi_ubl_cii/models/account_move.py:0
 msgid "Cannot decode origin file, try by importing it again"
 msgstr "无法解码源文件，请尝试重新导入"
@@ -230,6 +277,13 @@ msgstr "无法解码源文件，请尝试重新导入"
 #: code:addons/account_edi_ubl_cii/models/account_move.py:0
 msgid "Cannot find the origin file, try by importing it again"
 msgstr "找不到源文件，请尝试重新导入"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_common.py:0
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl.py:0
+msgid "Charge"
+msgstr "附加费"
 
 #. module: account_edi_ubl_cii
 #. odoo-python
@@ -275,6 +329,14 @@ msgstr "配置"
 #: model:ir.model,name:account_edi_ubl_cii.model_res_partner
 msgid "Contact"
 msgstr "联系人"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_common.py:0
+msgid ""
+"Could not retrieve a partner corresponding to '%s' with the same VAT and "
+"country. A new partner was created."
+msgstr "无法找到与 '%s' 具有相同增值税号和国家/地区的业务伙伴。已创建新的业务伙伴。"
 
 #. module: account_edi_ubl_cii
 #. odoo-python
@@ -339,6 +401,12 @@ msgid "Croatia VAT"
 msgstr "克罗地亚增值税"
 
 #. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid "Currency Code is missing [IBR-005]."
+msgstr "缺少货币代码 [IBR-005]。"
+
+#. module: account_edi_ubl_cii
 #: model:ir.model.fields.selection,name:account_edi_ubl_cii.selection__res_partner__routing_scheme__9928
 msgid "Cyprus VAT"
 msgstr "塞浦路斯增值税"
@@ -375,6 +443,7 @@ msgstr "欧盟委员会各局"
 
 #. module: account_edi_ubl_cii
 #. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_common.py:0
 #: code:addons/account_edi_ubl_cii/models/account_edi_ubl.py:0
 msgid "Discount"
 msgstr "折扣"
@@ -405,6 +474,38 @@ msgstr "折扣"
 #: model:ir.model.fields,field_description:account_edi_ubl_cii.field_uom_uom__display_name
 msgid "Display Name"
 msgstr "显示名称"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid ""
+"Document Allowance %(charge)s of line %(line)s: Amount is missing [IBR-031]."
+msgstr "单据折让 %(charge)s（第 %(line)s 行）：缺少金额 [IBR-031]。"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid ""
+"Document Allowance %(charge)s of line %(line)s: Reason or Reason Code is "
+"required [IBR-033]."
+msgstr ""
+"单据折让 %(charge)s（第 %(line)s 行）：必须填写原因或原因代码 [IBR-033]。"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid ""
+"Document Charge %(charge)s of line %(line)s: Amount is missing [IBR-036]."
+msgstr "单据附加费 %(charge)s（第 %(line)s 行）：缺少金额 [IBR-036]。"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid ""
+"Document Charge %(charge)s of line %(line)s: Reason or Reason Code is "
+"required [IBR-038]."
+msgstr ""
+"单据附加费 %(charge)s（第 %(line)s 行）：必须填写原因或原因代码 [IBR-038]。"
 
 #. module: account_edi_ubl_cii
 #. odoo-python
@@ -495,7 +596,7 @@ msgstr "出口到欧盟之外"
 #. module: account_edi_ubl_cii
 #: model:ir.model,name:account_edi_ubl_cii.model_account_edi_xml_cii
 msgid "Factur-x/ZUGFeRD CII 2.2.0"
-msgstr ""
+msgstr "Factur-x/ZUGFeRD CII 2.2.0"
 
 #. module: account_edi_ubl_cii
 #: model:ir.model.fields.selection,name:account_edi_ubl_cii.selection__res_partner__routing_scheme__au
@@ -614,7 +715,7 @@ msgstr "常规追加销售"
 #. odoo-python
 #: code:addons/account_edi_ubl_cii/models/account_edi_common.py:0
 msgid "Generated by Odoo"
-msgstr ""
+msgstr "由 Odoo 生成"
 
 #. module: account_edi_ubl_cii
 #: model:ir.model.fields.selection,name:account_edi_ubl_cii.selection__res_partner__routing_scheme__0246
@@ -650,13 +751,13 @@ msgstr "希腊增值税"
 #. odoo-python
 #: code:addons/account_edi_ubl_cii/models/account_move.py:0
 msgid "Grouped lines by tax"
-msgstr ""
+msgstr "已按税项对明细行分组"
 
 #. module: account_edi_ubl_cii
 #: model:ir.model.fields,field_description:account_edi_ubl_cii.field_account_bank_statement_line__has_grouped_lines
 #: model:ir.model.fields,field_description:account_edi_ubl_cii.field_account_move__has_grouped_lines
 msgid "Has Grouped Lines"
-msgstr ""
+msgstr "明细行已分组"
 
 #. module: account_edi_ubl_cii
 #: model:ir.model.fields.selection,name:account_edi_ubl_cii.selection__res_partner__routing_scheme__9910
@@ -704,7 +805,7 @@ msgstr "冰岛身份证号码"
 #. module: account_edi_ubl_cii
 #: model:ir.module.module,shortdesc:base.module_account_edi_ubl_cii
 msgid "Import/Export electronic invoices with UBL/CII"
-msgstr ""
+msgstr "使用 UBL/CII 导入/导出电子发票"
 
 #. module: account_edi_ubl_cii
 #: model:ir.model.fields.selection,name:account_edi_ubl_cii.selection__res_partner__routing_scheme__0202
@@ -728,6 +829,12 @@ msgstr "国际银行账户号码，用作 EDI 标识符。"
 #: code:addons/account_edi_ubl_cii/models/account_edi_common.py:0
 msgid "Intra-Community supply"
 msgstr "共同体内供应"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid "Invoice Issue Date is missing [IBR-003]."
+msgstr "缺少发票开具日期 [IBR-003]。"
 
 #. module: account_edi_ubl_cii
 #: model_terms:ir.ui.view,arch_db:account_edi_ubl_cii.account_invoice_pdfa_3_facturx_metadata
@@ -759,13 +866,13 @@ msgstr "是 Ubl 格式"
 #. module: account_edi_ubl_cii
 #: model:ir.model.fields,field_description:account_edi_ubl_cii.field_uom_uom__is_unece_code_supported
 msgid "Is Unece Code Supported"
-msgstr ""
+msgstr "是否支持 UNECE 代码"
 
 #. module: account_edi_ubl_cii
 #: model:ir.model.fields,help:account_edi_ubl_cii.field_account_bank_statement_line__has_grouped_lines
 #: model:ir.model.fields,help:account_edi_ubl_cii.field_account_move__has_grouped_lines
 msgid "Is move lines Grouped"
-msgstr ""
+msgstr "明细行是否已分组"
 
 #. module: account_edi_ubl_cii
 #: model:ir.model.fields.selection,name:account_edi_ubl_cii.selection__res_partner__routing_scheme__0097
@@ -828,6 +935,48 @@ msgid "Liechtenstein VAT"
 msgstr "列支敦士登增值税"
 
 #. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid "Line %s: Invoice line net amount is missing [IBR-024]."
+msgstr "第 %s 行：缺少发票行净额 [IBR-024]。"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid "Line %s: Invoiced quantity is missing [IBR-022]."
+msgstr "第 %s 行：缺少开票数量 [IBR-022]。"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid "Line %s: Invoiced quantity unit of measure code is missing [IBR-023]."
+msgstr "第 %s 行：缺少开票数量的计量单位代码 [IBR-023]。"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid "Line %s: Item name is missing [IBR-025]."
+msgstr "第 %s 行：缺少项目名称 [IBR-025]。"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid "Line %s: Item net price MUST NOT be negative [IBR-027]."
+msgstr "第 %s 行：项目净价不得为负数 [IBR-027]。"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid "Line %s: Item net price is missing [IBR-026]."
+msgstr "第 %s 行：缺少项目净价 [IBR-026]。"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid "Line %s: Item tax category code is missing [IBR-SR-58]."
+msgstr "第 %s 行：缺少项目税类别代码 [IBR-SR-58]。"
+
+#. module: account_edi_ubl_cii
 #: model:ir.model.fields.selection,name:account_edi_ubl_cii.selection__res_partner__routing_scheme__0200
 msgid "Lithuania JAK"
 msgstr "立陶宛 JAK"
@@ -866,7 +1015,7 @@ msgstr "马耳他增值税"
 #. odoo-python
 #: code:addons/account_edi_ubl_cii/models/account_edi_common.py:0
 msgid "Missing '_title' for multi-level constraints."
-msgstr ""
+msgstr "多级约束缺少 '_title'。"
 
 #. module: account_edi_ubl_cii
 #: model:ir.model.fields.selection,name:account_edi_ubl_cii.selection__res_partner__routing_scheme__9940
@@ -980,6 +1129,8 @@ msgid ""
 "met, the customer will be liable for the payment of the tax, interest, and "
 "penalties due in relation to this condition."
 msgstr ""
+"反向征收：如客户在收到发票后一个月内未提出书面异议，即视为其确认自己是须按期"
+"申报纳税的纳税人。若不符合此条件，客户须承担与此条件相关的税款、利息及罚款。"
 
 #. module: account_edi_ubl_cii
 #: model:ir.model.fields.selection,name:account_edi_ubl_cii.selection__res_partner__routing_scheme__9947
@@ -1054,6 +1205,30 @@ msgstr "SK 税务识别号 (DIČ)"
 #: model:ir.model.fields.selection,name:account_edi_ubl_cii.selection__res_partner__routing_scheme__9951
 msgid "San Marino VAT"
 msgstr "圣马力诺增值税"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid "Seller Country Code is missing [IBR-009]."
+msgstr "缺少卖方国家/地区代码 [IBR-009]。"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid "Seller Electronic Address / Endpoint ID is missing [IBR-081]."
+msgstr "缺少卖方电子地址/端点 ID [IBR-081]。"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid "Seller Electronic Address Scheme Identifier is missing [IBR-062]."
+msgstr "缺少卖方电子地址方案标识符 [IBR-062]。"
+
+#. module: account_edi_ubl_cii
+#. odoo-python
+#: code:addons/account_edi_ubl_cii/models/account_edi_ubl_pint.py:0
+msgid "Seller Name is missing [IBR-006]."
+msgstr "缺少卖方名称 [IBR-006]。"
 
 #. module: account_edi_ubl_cii
 #: model:ir.model,name:account_edi_ubl_cii.model_account_move_send_wizard
@@ -1315,7 +1490,7 @@ msgstr "UBL PINT"
 #. module: account_edi_ubl_cii
 #: model:ir.model,name:account_edi_ubl_cii.model_account_edi_ubl_pint_eu
 msgid "UBL PINT-EU Layer"
-msgstr ""
+msgstr "UBL PINT-EU 层"
 
 #. module: account_edi_ubl_cii
 #: model:ir.model.fields.selection,name:account_edi_ubl_cii.selection__res_partner__routing_scheme__0193
@@ -1345,6 +1520,16 @@ msgid "USA EIN"
 msgstr "美国雇主识别码 EIN"
 
 #. module: account_edi_ubl_cii
+#: model:ir.model.fields,field_description:account_edi_ubl_cii.field_account_tax__ubl_cii_available_tax_category_codes
+msgid "Ubl Cii Available Tax Category Codes"
+msgstr "Ubl Cii 可用税种代码"
+
+#. module: account_edi_ubl_cii
+#: model:ir.model.fields,field_description:account_edi_ubl_cii.field_account_tax__ubl_cii_available_tax_exemption_reason_codes
+msgid "Ubl Cii Available Tax Exemption Reason Codes"
+msgstr ""
+
+#. module: account_edi_ubl_cii
 #: model:ir.model.fields,field_description:account_edi_ubl_cii.field_account_tax__ubl_cii_requires_exemption_reason
 msgid "Ubl Cii Requires Exemption Reason"
 msgstr "Ubl Cii 需要豁免原因"
@@ -1353,7 +1538,7 @@ msgstr "Ubl Cii 需要豁免原因"
 #. odoo-python
 #: code:addons/account_edi_ubl_cii/models/account_move.py:0
 msgid "Ungrouped lines from %s"
-msgstr ""
+msgstr "来自 %s 的明细行已取消分组"
 
 #. module: account_edi_ubl_cii
 #: model:ir.model.fields.selection,name:account_edi_ubl_cii.selection__res_partner__routing_scheme__9932
@@ -1364,7 +1549,7 @@ msgstr "英国增值税"
 #. odoo-python
 #: code:addons/account_edi_ubl_cii/wizard/account_move_send_wizard.py:0
 msgid "Unsupported file type via %s"
-msgstr ""
+msgstr "不支持通过 %s 的文件类型"
 
 #. module: account_edi_ubl_cii
 #: model:ir.model.fields.selection,name:account_edi_ubl_cii.selection__account_tax__ubl_cii_tax_exemption_reason_code__vatex-eu-132
@@ -2061,7 +2246,7 @@ msgstr ""
 #. module: account_edi_ubl_cii
 #: model:ir.model.fields.selection,name:account_edi_ubl_cii.selection__account_tax__ubl_cii_tax_exemption_reason_code__vatex-fr-f
 msgid "VATEX-FR-F - Second-hand sales"
-msgstr ""
+msgstr "VATEX-FR-F - 二手商品销售"
 
 #. module: account_edi_ubl_cii
 #: model:ir.model.fields.selection,name:account_edi_ubl_cii.selection__account_tax__ubl_cii_tax_exemption_reason_code__vatex-fr-franchise
@@ -2071,12 +2256,12 @@ msgstr "VATEX-FR-FRANCHISE - 法国国内增值税起征豁免主体"
 #. module: account_edi_ubl_cii
 #: model:ir.model.fields.selection,name:account_edi_ubl_cii.selection__account_tax__ubl_cii_tax_exemption_reason_code__vatex-fr-i
 msgid "VATEX-FR-I - Sales of works of art"
-msgstr ""
+msgstr "VATEX-FR-I - 艺术品销售"
 
 #. module: account_edi_ubl_cii
 #: model:ir.model.fields.selection,name:account_edi_ubl_cii.selection__account_tax__ubl_cii_tax_exemption_reason_code__vatex-fr-j
 msgid "VATEX-FR-J - Sales of antiques"
-msgstr ""
+msgstr "VATEX-FR-J - 古董销售"
 
 #. module: account_edi_ubl_cii
 #: model:ir.model.fields.selection,name:account_edi_ubl_cii.selection__res_partner__routing_scheme__9953
@@ -2119,7 +2304,7 @@ msgstr "仅可对发票明细行进行分组"
 #. odoo-python
 #: code:addons/account_edi_ubl_cii/models/account_move.py:0
 msgid "You need at least two lines to group them."
-msgstr ""
+msgstr "至少需要两条明细行才能进行分组。"
 
 #. module: account_edi_ubl_cii
 #. odoo-python
@@ -2174,56 +2359,58 @@ msgstr "fx"
 msgid "urn:factur-x:pdfa:CrossIndustryDocument:invoice:1p0#"
 msgstr "urn:factur-x:pdfa:CrossIndustryDocument:invoice:1p0#"
 
-msgid ""
-"%s should have a KVK or OIN number set in Company ID field or as Peppol e-"
-"address (EAS code 0106 or 0190)."
-msgstr ""
-"%s 应在公司 ID 字段中设置 KVK 或 OIN 编号，或作为 Peppol 电子地址（EAS 代码 "
-"0106 或 0190）。"
+#~ msgid ""
+#~ "%s should have a KVK or OIN number set in Company ID field or as Peppol e-"
+#~ "address (EAS code 0106 or 0190)."
+#~ msgstr ""
+#~ "%s 应在公司 ID 字段中设置 KVK 或 OIN 编号，或作为 Peppol 电子地址（EAS 代"
+#~ "码 0106 或 0190）。"
 
-msgid ""
-"Code used to identify the Endpoint for BIS Billing 3.0 and its derivatives.\n"
-"             List available at https://docs.peppol.eu/poacc/billing/3.0/"
-"codelist/eas/"
-msgstr ""
-"用于识别 BIS 账单 3.0及其衍生产品端点的代码。\n"
-"             列表网址：https://docs.peppol.eu/poacc/billing/3.0/codelist/eas/"
+#~ msgid ""
+#~ "Code used to identify the Endpoint for BIS Billing 3.0 and its "
+#~ "derivatives.\n"
+#~ "             List available at https://docs.peppol.eu/poacc/billing/3.0/"
+#~ "codelist/eas/"
+#~ msgstr ""
+#~ "用于识别 BIS 账单 3.0及其衍生产品端点的代码。\n"
+#~ "             列表网址：https://docs.peppol.eu/poacc/billing/3.0/codelist/"
+#~ "eas/"
 
-msgid "Export XML"
-msgstr "导出 XML"
+#~ msgid "Export XML"
+#~ msgstr "导出 XML"
 
-msgid "Is Peppol Edi Format"
-msgstr "是 Peppol Edi 格式"
+#~ msgid "Is Peppol Edi Format"
+#~ msgstr "是 Peppol Edi 格式"
 
-msgid "Peppol Endpoint"
-msgstr "Peppol Endpoint"
+#~ msgid "Peppol Endpoint"
+#~ msgstr "Peppol Endpoint"
 
-msgid "Peppol ID"
-msgstr "Peppol ID"
+#~ msgid "Peppol ID"
+#~ msgstr "Peppol ID"
 
-msgid ""
-"The Peppol endpoint (%s) is not valid. It should contain only letters and "
-"digit."
-msgstr "Peppol 终端（%s）无效。它应只包含字母和数字。"
+#~ msgid ""
+#~ "The Peppol endpoint (%s) is not valid. It should contain only letters and "
+#~ "digit."
+#~ msgstr "Peppol 终端（%s）无效。它应只包含字母和数字。"
 
-msgid ""
-"The Peppol endpoint is not valid. It should contain exactly 10 digits "
-"(Company Registry number).The expected format is: 1234567890"
-msgstr ""
-"Peppol 终端点无效。它应包含正好为 10 位数字（公司注册号）。预期格式如："
-"1234567890"
+#~ msgid ""
+#~ "The Peppol endpoint is not valid. It should contain exactly 10 digits "
+#~ "(Company Registry number).The expected format is: 1234567890"
+#~ msgstr ""
+#~ "Peppol 终端点无效。它应包含正好为 10 位数字（公司注册号）。预期格式如："
+#~ "1234567890"
 
-msgid "The Peppol endpoint is not valid. The expected format is: 0239843188"
-msgstr "Peppol 端点无效。预期格式为：0239843188"
+#~ msgid "The Peppol endpoint is not valid. The expected format is: 0239843188"
+#~ msgstr "Peppol 端点无效。预期格式为：0239843188"
 
-msgid ""
-"The Peppol endpoint is not valid. The expected format is: 73282932000074"
-msgstr "Peppol 端点无效。预期格式为：73282932000074"
+#~ msgid ""
+#~ "The Peppol endpoint is not valid. The expected format is: 73282932000074"
+#~ msgstr "Peppol 端点无效。预期格式为：73282932000074"
 
-msgid ""
-"Unique identifier used by the BIS Billing 3.0 and its derivatives, also "
-"known as 'Endpoint ID'."
-msgstr "BIS 账单 3.0及其衍生产品使用的唯一标识符，也称为 “端点ID”。"
+#~ msgid ""
+#~ "Unique identifier used by the BIS Billing 3.0 and its derivatives, also "
+#~ "known as 'Endpoint ID'."
+#~ msgstr "BIS 账单 3.0及其衍生产品使用的唯一标识符，也称为 “端点ID”。"
 
-msgid "EN 16931"
-msgstr "EN 16931"
+#~ msgid "EN 16931"
+#~ msgstr "EN 16931"

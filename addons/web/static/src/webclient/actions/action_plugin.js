@@ -821,12 +821,14 @@ export function useActionManager(router = _router) {
             "_noBreadcrumbs" in action ? action._noBreadcrumbs : target === "new";
 
         // selecting an embedded action replaces the current action, which isn't
-        // the action of the dialog, so we don't display them in a dialog either
+        // the action of the dialog, so we don't display them in a dialog. A form
+        // view only displays them if it is the view of the action itself, not a
+        // record opened from a multi-record view of the action
         const embeddedActions =
-            view.type === "form" || target === "new"
+            target === "new" || (view.type === "form" && views.some((v) => v.multiRecord))
                 ? []
                 : context.parent_action_embedded_actions || action.embedded_action_ids;
-        const parentActionId = (view.type !== "form" && context.parent_action_id) || false;
+        const parentActionId = (embeddedActions?.length && context.parent_action_id) || false;
         const currentEmbeddedActionId = context.current_embedded_action_id || false;
         return {
             props: viewProps,
@@ -1651,7 +1653,8 @@ export function useActionManager(router = _router) {
             throw new InvalidButtonParamsError("Missing type for doActionButton request");
         }
         if (!isEmbeddedAction && action.embedded_action_ids?.length) {
-            const embeddedActionsKey = `${action.id}+${params.resId || ""}`;
+            const activeId = action.context?.active_id || params.resId;
+            const embeddedActionsKey = `${action.id}+${activeId || ""}`;
             const embeddedActionsOrder =
                 user.settings.embedded_actions_config_ids?.[embeddedActionsKey]
                     ?.embedded_actions_order;
@@ -1675,8 +1678,10 @@ export function useActionManager(router = _router) {
                 const context = {
                     ...action.context,
                     ...(embeddedAction.context ? makeContext([embeddedAction.context]) : {}),
-                    active_id: params.resId,
-                    active_model: params.resModel,
+                    active_id: activeId,
+                    active_model: action.context?.active_id
+                        ? action.context.active_model || embeddedAction.parent_res_model
+                        : params.resModel,
                     current_embedded_action_id: embeddedActionId,
                     parent_action_embedded_actions: embeddedActions,
                     parent_action_id: action.id,
@@ -1687,7 +1692,7 @@ export function useActionManager(router = _router) {
                             embeddedAction.python_method ||
                             embeddedAction.action_id[0] ||
                             embeddedAction.action_id,
-                        resId: params.resId,
+                        resId: activeId,
                         context,
                         type: embeddedAction.python_method ? "object" : "action",
                         resModel: embeddedAction.parent_res_model,

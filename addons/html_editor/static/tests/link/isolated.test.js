@@ -3,9 +3,9 @@ import { deleteBackward, insertText } from "../_helpers/user_actions";
 import { setupEditor, testEditor } from "../_helpers/editor";
 import { descendants } from "@html_editor/utils/dom_traversal";
 import { tick } from "@odoo/hoot-mock";
-import { getContent, setSelection } from "../_helpers/selection";
+import { getContent, moveSelectionOutsideEditor, setSelection } from "../_helpers/selection";
 import { cleanLinkArtifacts } from "../_helpers/format";
-import { animationFrame } from "@odoo/hoot-dom";
+import { animationFrame, press } from "@odoo/hoot-dom";
 import { expectElementCount } from "../_helpers/ui_expectations";
 import { isBlock } from "@html_editor/utils/blocks";
 import { onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
@@ -270,32 +270,25 @@ describe("button", () => {
         });
     });
 
-    test("should not add visual indication to a button", async () => {
-        await testEditor({
-            contentBefore: '<p><a href="http://test.test/" class="btn">[]content</a></p>',
-            contentBeforeEdit:
-                '<p>\ufeff<a href="http://test.test/" class="btn">\ufeff[]content\ufeff</a>\ufeff</p>',
-        });
-    });
-
     test("should type inside button after backspacing into it", async () => {
         const { editor, el } = await setupEditor(
-            '<p>before<a class="btn" href="#/">in</a>x[]after</p>'
+            '<p>before<a class="btn" href="http://test.test/">in</a>x[]after</p>'
         );
         expect(getContent(el)).toBe(
-            '<p>before\ufeff<a class="btn" href="#/">\ufeffin\ufeff</a>\ufeffx[]after</p>'
-        );
-        deleteBackward(editor);
-        expect(getContent(el)).toBe(
-            '<p>before\ufeff<a class="btn" href="#/">\ufeffin\ufeff</a>\ufeff[]after</p>'
+            '<p>before\ufeff<a class="btn" href="http://test.test/">\ufeffin\ufeff</a>\ufeffx[]after</p>'
         );
         deleteBackward(editor);
         expect(getContent(el)).toBe(
-            '<p>before\ufeff<a class="btn" href="#/">\ufeffin[]\ufeff</a>\ufeffafter</p>'
+            '<p>before\ufeff<a class="btn" href="http://test.test/">\ufeffin\ufeff</a>\ufeff[]after</p>'
+        );
+        deleteBackward(editor);
+        await animationFrame();
+        expect(getContent(el)).toBe(
+            '<p>before\ufeff<a class="btn o_link_in_selection" href="http://test.test/">\ufeffin[]\ufeff</a>\ufeffafter</p>'
         );
         await insertText(editor, "side");
         expect(getContent(el)).toBe(
-            '<p>before\ufeff<a class="btn" href="#/">\ufeffinside[]\ufeff</a>\ufeffafter</p>'
+            '<p>before\ufeff<a class="btn o_link_in_selection" href="http://test.test/">\ufeffinside[]\ufeff</a>\ufeffafter</p>'
         );
     });
 
@@ -407,7 +400,7 @@ describe("should position the cursor outside the link", () => {
         await click(a, { clientX, clientY });
         await animationFrame();
         expect(getContent(el)).toBe(
-            '<p>\ufeff<a class="btn btn-primary" href="/test">\ufeff[]test\ufeff</a>\ufeff</p>'
+            '<p>\ufeff<a class="btn btn-primary o_link_in_selection" href="/test">\ufeff[]test\ufeff</a>\ufeff</p>'
         );
     });
 
@@ -453,4 +446,82 @@ describe("should position the cursor outside the link", () => {
             '<p>\ufeff<a href="/fake">\ufeff<strong>link</strong>\ufeff</a>\ufeff</p>'
         );
     });
+    test("clicking at the end of the button when editor is blur", async () => {
+        onRpc("/html_editor/link_preview_internal", () => ({}));
+        onRpc("/test", () => ({}));
+        const { el } = await setupEditor(
+            '<p><a class="btn btn-primary" href="/test">t[]est</a></p>'
+        );
+        const a = el.querySelector("a");
+        const rect = a.getBoundingClientRect();
+        const clientX = rect.right + 1;
+        const clientY = rect.top + rect.height / 2;
+        patchWithCleanup(document, {
+            caretPositionFromPoint: () => ({ offsetNode: a, offset: 3 }),
+        });
+        moveSelectionOutsideEditor();
+        await tick();
+        await click(a.parentElement, { clientX, clientY });
+        await animationFrame();
+        expect(getContent(el)).toBe(
+            '<p>\ufeff<a class="btn btn-primary" href="/test">\ufefftest\ufeff</a>\ufeff[]</p>'
+        );
+    });
+    test("clicking at the start padding of the button when editor is blur", async () => {
+        onRpc("/html_editor/link_preview_internal", () => ({}));
+        onRpc("/test", () => ({}));
+        const { el } = await setupEditor(
+            '<p><a class="btn btn-primary" href="/test">t[]est</a></p>'
+        );
+        const a = el.querySelector("a");
+        const rect = a.getBoundingClientRect();
+        const clientX = rect.left + 1;
+        const clientY = rect.top + rect.height / 2;
+        patchWithCleanup(document, {
+            caretPositionFromPoint: () => ({ offsetNode: a.firstChild, offset: 0 }),
+        });
+        moveSelectionOutsideEditor();
+        await tick();
+        await click(a, { clientX, clientY });
+        await animationFrame();
+        expect(getContent(el)).toBe(
+            '<p>\ufeff<a class="btn btn-primary o_link_in_selection" href="/test">\ufeff[]test\ufeff</a>\ufeff</p>'
+        );
+    });
+});
+
+test("Should properly properly delete characters at link edges (1)", async () => {
+    const { el } = await setupEditor('<p>a<a href="http://test.test/">b[]</a>c</p>');
+    await press(["Backspace"]);
+    expect(getContent(el)).toBe(
+        `<p>a\ufeff<a href="http://test.test/" class="o_link_in_selection">\ufeff[]\ufeff</a>\ufeffc</p>`
+    );
+    await press(["Backspace"]);
+    expect(getContent(el)).toBe("<p>[]c</p>");
+});
+
+test("Should properly properly delete characters at link edges (2)", async () => {
+    const { el } = await setupEditor('<p>a<a href="http://test.test/">[]b</a>c</p>');
+    await press(["Delete"]);
+    expect(getContent(el)).toBe(
+        `<p>a\ufeff<a href="http://test.test/" class="o_link_in_selection">\ufeff[]\ufeff</a>\ufeffc</p>`
+    );
+    await press(["Delete"]);
+    expect(getContent(el)).toBe("<p>a[]</p>");
+});
+
+test("Should properly properly delete characters at link edges (3)", async () => {
+    const { el } = await setupEditor('<p>a<a href="http://test.test/">[]b</a>c</p>');
+    await press(["Backspace"]);
+    expect(getContent(el)).toBe(
+        `<p>\ufeff<a href="http://test.test/" class="o_link_in_selection">\ufeff[]b\ufeff</a>\ufeffc</p>`
+    );
+});
+
+test("Should properly properly delete characters at link edges (4)", async () => {
+    const { el } = await setupEditor('<p>a<a href="http://test.test/">b[]</a>c</p>');
+    await press(["Delete"]);
+    expect(getContent(el)).toBe(
+        `<p>a\ufeff<a href="http://test.test/" class="o_link_in_selection">\ufeffb[]\ufeff</a>\ufeff</p>`
+    );
 });

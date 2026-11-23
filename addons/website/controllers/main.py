@@ -1476,6 +1476,7 @@ class Website(Home):
     def get_new_page_templates(self, **kw):
         View = request.env['ir.ui.view']
         result = []
+        website_lang = self.env.website.default_lang_id.code
         groups_html = self.env.website._render_template("website.new_page_template_groups")
         groups_el = etree.fromstring(f'<data>{groups_html}</data>')
         for group_el in groups_el.getchildren():
@@ -1486,7 +1487,7 @@ class Website(Home):
             }
             if group_el.attrib['id'] == 'custom':
                 for page in self.env.website._get_website_pages(domain=[('is_new_page_template', '=', True)]):
-                    html_tree = html.fromstring(self.env.website.with_context(inherit_branding=False)._render_template(
+                    html_tree = html.fromstring(self.env.website.with_context(inherit_branding=False, lang=website_lang)._render_template(
                         page.key,
                     ))
                     wrap_el = html_tree.xpath('//div[@id="wrap"]')[0]
@@ -1506,7 +1507,7 @@ class Website(Home):
                 self.env.website.website_domain(),
             ], order='key'):
                 try:
-                    html_tree = html.fromstring(self.env.website.with_context(inherit_branding=False)._render_template(
+                    html_tree = html.fromstring(self.env.website.with_context(inherit_branding=False, lang=website_lang)._render_template(
                         template.key,
                     ))
                     for section_el in html_tree.xpath("//section[@data-snippet]"):
@@ -1538,13 +1539,16 @@ class Website(Home):
 
     @http.route('/website/save_xml', type='jsonrpc', auth='user', website=True)
     def save_xml(self, view_id, arch):
+        request.env['ir.ui.view'].browse(view_id).with_context(
+            lang=self.env.website.default_lang_id.code,
+            delay_translations=self._get_delay_translations(),
+        ).arch = arch
+
+    def _get_delay_translations(self):
         disable_delay_translations = self.env['ir.config_parameter'].sudo().get_bool(
             'website.disable_delay_translations'
         )
-        request.env['ir.ui.view'].browse(view_id).with_context(
-            lang=self.env.website.default_lang_id.code,
-            delay_translations=not disable_delay_translations,
-        ).arch = arch
+        return not disable_delay_translations
 
     @http.route("/website/get_switchable_related_views", type="jsonrpc", auth="user", website=True, readonly=True)
     def get_switchable_related_views(self, key):
@@ -1669,19 +1673,19 @@ class Website(Home):
             img['field'] = 'arch_db' if img['field'] == 'arch' else img['field']
             tree = html.fromstring(str(record[img['field']]))
             modified = False
-            for index, element in enumerate(tree.xpath('//img')):
+            for index, element in enumerate(tree.xpath('//img[@src]')):
                 imgId = self._get_image_id(img['res_model'], img['res_id'], img['field'], str(index))
                 if imgId == img['id']:
                     if (img['decorative']):
                         element.set('alt', '')
                         element.set('role', 'presentation')
                     else:
-                        element.set('alt', markup_escape(img['alt']))
+                        element.set('alt', img['alt'])
                         element.attrib.pop('role', None)
                     modified = True
             if modified:
                 new_html_content = html.tostring(tree, encoding='unicode', method='html')
-                record.write({img['field']: new_html_content})
+                record.with_context(delay_translations=self._get_delay_translations()).write({img['field']: new_html_content})
 
     @staticmethod
     def _get_image_id(model, model_id, field, index):
@@ -1704,11 +1708,11 @@ class Website(Home):
                     if link['remove']:
                         element.drop_tag()
                     else:
-                        element.set('href', markup_escape(link['newLink']))
+                        element.set('href', link['newLink'])
                     modified = True
             if modified:
                 new_html_content = html.tostring(tree, encoding='unicode', method='html')
-                record.write({link['field']: new_html_content})
+                record.with_context(delay_translations=self._get_delay_translations()).write({link['field']: new_html_content})
 
     @http.route(['/website/get_seo_data'], type='jsonrpc', auth="user", website=True, readonly=True)
     def get_seo_data(self, res_id, res_model):
@@ -1849,6 +1853,10 @@ class Website(Home):
             'google_maps_api_key': self.env.website.google_maps_api_key or ''
         })
 
+    @http.route('/website/get_allowed_root_attrs', type='jsonrpc', auth="user", readonly=True)
+    def allowed_root_attrs(self):
+        return request.env['ir.ui.view']._get_allowed_root_attrs()
+
     # ------------------------------------------------------
     # Themes
     # ------------------------------------------------------
@@ -1920,6 +1928,7 @@ class Website(Home):
         """
         return {
             'web.assets_frontend': request.env['ir.qweb']._get_asset_link_urls('web.assets_frontend', request.session.debug),
+            'font_urls': self.env.website._get_font_urls(),
         }
 
     @http.route(['/website/update_footer_template'], type='jsonrpc', auth='user', website=True)

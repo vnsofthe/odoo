@@ -1,8 +1,12 @@
 import { test, expect } from "@odoo/hoot";
-import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { animationFrame } from "@odoo/hoot-dom";
+import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { patch } from "@web/core/utils/patch";
+import { mockDate } from "@odoo/hoot-mock";
 import { LandingPage } from "@pos_self_order/app/pages/landing_page/landing_page";
 import { setupSelfPosEnv, getFilledSelfOrder, mockNavigate } from "../utils";
 import { definePosSelfModels } from "../data/generate_model_definitions";
+import { PosConfig } from "@point_of_sale/../tests/unit/data/pos_config.data";
 
 definePosSelfModels();
 
@@ -13,7 +17,7 @@ test("clickMyOrder navigates to cart with fromLanding when a draft order exists"
 
     expect(comp.draftOrder.length).toBeGreaterThan(0);
 
-    patchWithCleanup(comp.router, {
+    patch(comp.router, {
         navigate(route, params, historyState) {
             expect.step(`${route}:${JSON.stringify(params)}:${JSON.stringify(historyState)}`);
         },
@@ -76,6 +80,23 @@ test("handles single and multiple available presets", async () => {
     expect(navigate).toEqual(["location"]);
 });
 
+test("resyncs category availability for the next customer", async () => {
+    const store = await setupSelfPosEnv();
+    const categ1 = store.models["pos.category"].get(1);
+
+    categ1.update({ hour_after: 10, hour_until: 12 });
+    mockDate("2025-11-29 18:00:00");
+    store.computeAvailableCategories();
+    expect(store.isCategoryAvailable(categ1.id)).toBeEmpty();
+    expect(store.currentCategory.id).not.toBe(categ1.id);
+
+    mockDate("2025-11-29 11:00:00");
+    await mountWithCleanup(LandingPage, {});
+
+    expect(!!store.isCategoryAvailable(categ1.id)).toBe(true);
+    expect(store.currentCategory.id).toBe(categ1.id);
+});
+
 test("includes table-service presets in QR/kiosk mode", async () => {
     const store = await setupSelfPosEnv("mobile", "counter", "each", {}, true);
     store.config.use_presets = true;
@@ -93,4 +114,24 @@ test("includes table-service presets in QR/kiosk mode", async () => {
 
     expect(store.currentOrder.preset_id).toBeEmpty();
     expect(navigate).toEqual(["location"]);
+});
+
+test("a single home image stays active when the page re-renders", async () => {
+    patch(PosConfig.prototype, {
+        _load_pos_self_data_read(records) {
+            records = super._load_pos_self_data_read(records);
+            records[0]._self_ordering_image_home_ids =
+                records[0]._self_ordering_image_home_ids.slice(0, 1);
+            return records;
+        },
+    });
+    // the test app already renders the landing page
+    const store = await setupSelfPosEnv("kiosk");
+    await animationFrame();
+    expect(".carousel-item.active").toHaveCount(1);
+
+    // e.g. adding an order will trigger a re-render of the landing page
+    store.createNewOrder();
+    await animationFrame();
+    expect(".carousel-item.active").toHaveCount(1);
 });

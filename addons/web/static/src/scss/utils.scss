@@ -39,13 +39,13 @@
 // ------------------------------------------------------------------
 // Text overflow
 // ------------------------------------------------------------------
-@mixin o-text-overflow($display: inline-block, $max-width: 100%) {
+@mixin o-text-overflow($display: inline-block, $max-width: 100%, $vertical-align: top) {
     display: $display;
     max-width: $max-width;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    vertical-align: top; // To update display context changed by overflow:hidden
+    vertical-align: $vertical-align; // To update display context changed by overflow:hidden
 }
 
 // ------------------------------------------------------------------
@@ -65,6 +65,36 @@
 
 @function luma($color) {
     @return ((red($color) * .299) + (green($color) * .587) + (blue($color) * .114)) / 255 * 100%;
+}
+
+// Function which returns if a color has contrast enough in comparaison to
+// another given color.
+@function has-enough-contrast($color1, $color2, $threshold: 500) {
+    $r: (max(red($color1), red($color2))) - (min(red($color1), red($color2)));
+    $g: (max(green($color1), green($color2))) - (min(green($color1), green($color2)));
+    $b: (max(blue($color1), blue($color2))) - (min(blue($color1), blue($color2)));
+    $sum-rgb: $r + $g + $b;
+    @return ($sum-rgb >= $threshold);
+}
+
+// Function which transforms a color to increase its contrast in comparison to
+// another given color.
+@function increase-contrast($color1, $color2) {
+    @if not $color1 or not $color2 {
+        @return null;
+    }
+    $luma-c1: luma($color1);
+    $luma-c2: luma($color2);
+    $lightness-c1: lightness($color1);
+    $lightness-inc: if($luma-c1 < $luma-c2, -1%, 1%);
+    $i: 0;
+    // Max 25% lightness change even if not contrasted enough
+    @while ($lightness-c1 > 0.1% and $lightness-c1 < 99.9% and $i < 25 and not has-enough-contrast($color1, $color2)) {
+        $color1: adjust-color($color1, $lightness: $lightness-inc);
+        $lightness-c1: $lightness-c1 + $lightness-inc;
+        $i: $i + 1;
+    }
+    @return $color1;
 }
 
 // Extend placeholder which adds a chess-like background below the color and
@@ -264,21 +294,26 @@
     margin-top: 0;
 }
 
+// Emulate a dropdown link
+@mixin o-kanban-dashboard-dropdown-link-style($link-padding-gap: $o-dropdown-hpadding) {
+    margin: auto auto auto (-$link-padding-gap);
+    padding: 3px $link-padding-gap;
+    color: $dropdown-link-color;
+    display: block;
+    border-radius: var(--#{$prefix}dropdown-item-border-radius, 0);
+
+    &:hover {
+        background-color: $dropdown-link-hover-bg;
+        color: $dropdown-link-hover-color;
+    }
+}
+
 // Emulate dropdown links
 @mixin o-kanban-dashboard-dropdown-link($link-padding-gap: $o-dropdown-hpadding) {
     padding: 0;
 
     > a {
-        margin: auto auto auto (-$link-padding-gap);
-        padding: 3px $link-padding-gap;
-        color: $dropdown-link-color;
-        display: block;
-        border-radius: var(--#{$prefix}dropdown-item-border-radius, 0);
-
-        &:hover {
-            background-color: $dropdown-link-hover-bg;
-            color: $dropdown-link-hover-color;
-        }
+        @include o-kanban-dashboard-dropdown-link-style($link-padding-gap);
     }
 
     &:last-child {

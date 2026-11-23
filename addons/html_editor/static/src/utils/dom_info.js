@@ -601,7 +601,8 @@ export function isUnprotecting(node) {
 // This is a list of "paragraph-related elements", defined as elements that
 // behave like paragraphs. It is non-exhaustive and should not be used as a
 // standalone. @see isParagraphRelatedElement
-export const paragraphRelatedElements = ["P", "H1", "H2", "H3", "H4", "H5", "H6", "PRE"];
+export const headingTags = ["H1", "H2", "H3", "H4", "H5", "H6"];
+export const paragraphRelatedElements = ["P", ...headingTags, "PRE"];
 
 /**
  * Return true if the given node allows "paragraph-related elements".
@@ -612,6 +613,10 @@ export const paragraphRelatedElements = ["P", "H1", "H2", "H3", "H4", "H5", "H6"
  */
 export function allowsParagraphRelatedElements(node) {
     return !isParagraphRelatedElement(node) && isBlock(node);
+}
+
+export function isHeadingRelatedElement(node) {
+    return node && headingTags.includes(node.nodeName);
 }
 
 export const phrasingContent = new Set(["#text", ...phrasingTagNames]);
@@ -923,11 +928,11 @@ export function hasSameClasses(node, node2) {
 }
 
 export function isTextNode(node) {
-    return node.nodeType === Node.TEXT_NODE;
+    return node?.nodeType === Node.TEXT_NODE;
 }
 
 export function isElement(node) {
-    return node.nodeType === Node.ELEMENT_NODE;
+    return node?.nodeType === Node.ELEMENT_NODE;
 }
 
 export function isContentEditable(node) {

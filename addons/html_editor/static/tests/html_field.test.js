@@ -31,6 +31,7 @@ import {
 } from "@odoo/hoot";
 import { onWillDestroy, proxy, signal, useProps, xml } from "@odoo/owl";
 import {
+    clickModalButton,
     clickSave,
     contains,
     defineModels,
@@ -42,6 +43,8 @@ import {
     mountViewInDialog,
     onRpc,
     serverState,
+    toggleActionMenu,
+    toggleMenuItem,
 } from "@web/../tests/web_test_helpers";
 import { assets } from "@web/core/assets";
 import { location } from "@web/core/browser/browser";
@@ -366,7 +369,7 @@ test("only external links should always open on a new tab in readonly", async ()
     expect("[name='txt'] p").toHaveText("first");
     for (const link of queryAll("a.external")) {
         expect(link.getAttribute("target")).toBe("_blank");
-        expect(link.getAttribute("rel")).toBe("noreferrer");
+        expect(link.getAttribute("rel")).toBe("noreferrer noopener");
     }
     for (const link of queryAll("a.internal")) {
         expect(link.getAttribute("target")).toBe(null);
@@ -377,7 +380,7 @@ test("only external links should always open on a new tab in readonly", async ()
     expect("[name='txt'] p").toHaveText("second");
     for (const link of queryAll("a.external")) {
         expect(link.getAttribute("target")).toBe("_blank");
-        expect(link.getAttribute("rel")).toBe("noreferrer");
+        expect(link.getAttribute("rel")).toBe("noreferrer noopener");
     }
     for (const link of queryAll("a.internal")) {
         expect(link.getAttribute("target")).toBe(null);
@@ -405,7 +408,7 @@ test("XML-like self-closing elements are fixed in readonly mode", async () => {
     expect(".odoo-editor-editable").toHaveCount(0);
     expect(`[name="txt"] .o_readonly`).toHaveCount(1);
     expect(`[name="txt"] .o_readonly`).toHaveInnerHTML(
-        `<a href="#" target="_blank" rel="noreferrer"></a>outside<a href="#" target="_blank" rel="noreferrer">inside</a>`
+        `<a href="#" target="_blank" rel="noreferrer noopener"></a>outside<a href="#" target="_blank" rel="noreferrer noopener">inside</a>`
     );
 });
 
@@ -1527,6 +1530,48 @@ test("'Upload a file' command is not available when 'allowFile' = false", async 
     expect(queryAllTexts(".o-we-command-name")).not.toInclude("Upload a file");
 });
 
+test.tags("desktop");
+test("'Table wrapper' is not available when 'allowScrollableTables' = false", async () => {
+    await mountView({
+        type: "form",
+        resId: 1,
+        resModel: "partner",
+        arch: `
+            <form>
+                <field name="txt" widget="html" options="{'allowScrollableTables': False}"/>
+            </form>`,
+    });
+    setSelectionInHtmlField();
+    await insertText(htmlEditor, "/table");
+    await expectElementCount(".o-we-powerbox", 1);
+    await press("Enter");
+    await expectElementCount(".o-we-tablepicker", 1);
+    await press("Enter");
+    await expectElementCount("table", 1);
+    await expectElementCount(".o_table_wrapper", 0);
+});
+
+test.tags("mobile");
+test("'Table wrapper' is not available when 'allowScrollableTables' = false (mobile)", async () => {
+    await mountView({
+        type: "form",
+        resId: 1,
+        resModel: "partner",
+        arch: `
+            <form>
+                <field name="txt" widget="html" options="{'allowScrollableTables': False}"/>
+            </form>`,
+    });
+    setSelectionInHtmlField();
+    await insertText(htmlEditor, "/table");
+    await expectElementCount(".o-we-powerbox", 1);
+    await press("Enter");
+    await expectElementCount(".o-we-tablesizepopover", 1);
+    await press("Enter");
+    await expectElementCount("table", 1);
+    await expectElementCount(".o_table_wrapper", 0);
+});
+
 test("codeview is not available by default", async () => {
     await mountView({
         type: "form",
@@ -1687,6 +1732,28 @@ test("edit and save a html field in collaborative should keep the same wysiwyg",
 
     await clickSave();
     expect.verifySteps(["web_save"]);
+});
+
+test("deleting a record with a collaborative html field should not broadcast without peers", async () => {
+    onRpc("/html_editor/get_ice_servers", () => []);
+    onRpc("/html_editor/bus_broadcast", () => expect.step("bus_broadcast"));
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        resIds: [1, 2],
+        actionMenus: {},
+        arch: `
+            <form>
+                <field name="txt" widget="html" options="{'collaborative': true}"/>
+            </form>`,
+    });
+
+    await toggleActionMenu();
+    await toggleMenuItem("Delete");
+    await clickModalButton({ text: "Delete" });
+    expect.verifySteps([]);
 });
 
 test("'checklist' command is not available when 'allowChecklist' = false", async () => {
@@ -2090,7 +2157,7 @@ describe("sandbox", () => {
         expect(readonlyIframe.contentDocument.body.querySelector("p")).toHaveText("first");
         for (const link of readonlyIframe.contentDocument.body.querySelectorAll("a")) {
             expect(link.getAttribute("target")).toBe("_blank");
-            expect(link.getAttribute("rel")).toBe("noreferrer");
+            expect(link.getAttribute("rel")).toBe("noreferrer noopener");
         }
 
         await contains(`.o_pager_next`).click();
@@ -2098,7 +2165,7 @@ describe("sandbox", () => {
         expect(readonlyIframe.contentDocument.body.querySelector("p")).toHaveText("second");
         for (const link of readonlyIframe.contentDocument.body.querySelectorAll("a")) {
             expect(link.getAttribute("target")).toBe("_blank");
-            expect(link.getAttribute("rel")).toBe("noreferrer");
+            expect(link.getAttribute("rel")).toBe("noreferrer noopener");
         }
     });
 
@@ -2700,6 +2767,87 @@ describe("save image", () => {
         expect(savedImg).not.toHaveClass("o_b64_image_to_save");
 
         expect.verifySteps(["add_data-start: partner 1", "add_data-end: partner 1"]);
+    });
+
+    test("Hiding an HtmlField while its images are being saved keeps the change", async () => {
+        Partner._fields.hide = fields.Boolean();
+        Partner._records = [{ id: 1, txt: "<p class='test_target'><br></p>" }];
+        const addData = Promise.withResolvers();
+        onRpc("/html_editor/attachment/add_data", async () => {
+            await addData.promise;
+            return { image_src: "/test_image_url.png", access_token: "1234", public: false };
+        });
+        await mountView({
+            type: "form",
+            resId: 1,
+            resModel: "partner",
+            arch: `
+            <form>
+                <field name="hide"/>
+                <field name="txt" widget="html" invisible="hide"/>
+            </form>`,
+        });
+        setSelectionInHtmlField(".test_target");
+        pasteFile(
+            htmlEditor,
+            createBase64ImageFile(
+                "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII"
+            )
+        );
+        await waitFor("img");
+        await contains(".o_field_widget[name='hide'] input").check();
+        await expectElementCount(".o_field_html", 0);
+        addData.resolve();
+        await contains(".o_field_widget[name='hide'] input").uncheck();
+        await expectElementCount(
+            ".odoo-editor-editable img[src='/test_image_url.png?access_token=1234']",
+            1
+        );
+    });
+
+    test("Hiding the HtmlField of a new record while its images are being saved links them", async () => {
+        Partner._fields.hide = fields.Boolean();
+        Partner._fields.txt = fields.Html({ default: "<p class='test_target'><br></p>" });
+        const addData = Promise.withResolvers();
+        onRpc("/html_editor/attachment/add_data", async () => {
+            await addData.promise;
+            return {
+                id: 42,
+                image_src: "/test_image_url.png",
+                access_token: "1234",
+                public: false,
+            };
+        });
+        onRpc("partner", "web_save", ({ kwargs }) => {
+            expect.step(`web_save: ${JSON.stringify(kwargs.context.pending_attachment_ids)}`);
+        });
+        await mountView({
+            type: "form",
+            resModel: "partner",
+            arch: `
+            <form>
+                <field name="hide"/>
+                <field name="txt" widget="html" invisible="hide"/>
+            </form>`,
+        });
+        setSelectionInHtmlField(".test_target");
+        pasteFile(
+            htmlEditor,
+            createBase64ImageFile(
+                "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII"
+            )
+        );
+        await waitFor("img");
+        await contains(".o_field_widget[name='hide'] input").check();
+        await expectElementCount(".o_field_html", 0);
+        addData.resolve();
+        await contains(".o_field_widget[name='hide'] input").uncheck();
+        await expectElementCount(
+            ".odoo-editor-editable img[src='/test_image_url.png?access_token=1234']",
+            1
+        );
+        await contains(".o_form_button_save").click();
+        expect.verifySteps(["web_save: [42]"]);
     });
 });
 

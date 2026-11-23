@@ -488,7 +488,12 @@ h1, h2, h3, h4, h5, h6,
             filter: $btn-close-white-filter;
         }
     }
-    @include o-add-gradient('menu-gradient');
+    // The menu gradient is designed for the full-width header only. Other
+    // navbar-light bars (blog, eLearning, recruitment, portal) keep the
+    // menu colors but not the gradient.
+    #wrapwrap > header & {
+        @include o-add-gradient('menu-gradient');
+    }
 
     a.nav-link {
         color: var(--#{$variable-prefix}nav-link-color);
@@ -498,7 +503,7 @@ h1, h2, h3, h4, h5, h6,
     }
 }
 
-.navbar-light .o_navbar_mobile {
+#wrapwrap > header .navbar-light .o_navbar_mobile {
     @include o-add-gradient('menu-gradient');
 }
 
@@ -1797,10 +1802,13 @@ $-o-carousel-controllers-size: var(--CarouselControllers-size, #{map-get($spacer
                     margin-right: 0;
                 }
             }
+            .carousel-item-prev:not(.carousel-item-end) {
+                transform: translateX(calc(-100% - var(--o-carousel-gap)));
+            }
             .active.carousel-item-end + .carousel-item-prev.carousel-item-end,
             .carousel-item-prev.carousel-item-end ~ .carousel-item {
-                right: var(--o-carousel-item-width-percentage);
-                transform: translateX(100%);
+                right: calc(var(--o-carousel-item-width-percentage) + var(--o-carousel-gap));
+                transform: translateX(calc(100% + var(--o-carousel-gap)));
                 display: block;
                 margin-right: 0;
             }
@@ -1809,7 +1817,7 @@ $-o-carousel-controllers-size: var(--CarouselControllers-size, #{map-get($spacer
             .carousel-item-start.active,
             .carousel-item-start:not(.active),
             .carousel-item-start:not(.active) ~ .carousel-item {
-                transform: translateX(-100%);
+                transform: translateX(calc(-100% - var(--o-carousel-gap)));
             }
             .carousel-item.active:not(.carousel-item-start):not(.carousel-item-end),
             .carousel-item.active:not(.carousel-item-start):not(.carousel-item-end) ~ .carousel-item {
@@ -2937,6 +2945,13 @@ input[value*="data-oe-translation-source-sha"] {
         transform: none !important;
     }
 }
+// Measure untransformed highlights while preserving Safari's containing block.
+.o_wanim_no_transform .o_animate {
+    &.o_animating, &.o_animate_in_dropdown {
+        transform: none !important;
+        will-change: transform !important;
+    }
+}
 .o_animate_preview {
     visibility: visible;
 }
@@ -3804,6 +3819,14 @@ input[value*="data-oe-translation-source-sha"] {
                     line-height: $-size + $i;
                 }
             }
+        }
+    }
+    // Draw the focus ring on the icon instead of the link so that it follows
+    // the icon layout.
+    a:focus-visible:has(.oi) {
+        outline: none;
+        .oi {
+            outline: $focus-ring-width solid $focus-ring-color;
         }
     }
 

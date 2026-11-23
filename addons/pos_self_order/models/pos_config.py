@@ -10,6 +10,7 @@ import qrcode.image.svg
 
 from odoo import _, api, fields, models, release
 from odoo.exceptions import AccessError, UserError
+from odoo.fields import Domain
 
 
 class PosConfig(models.Model):
@@ -112,7 +113,7 @@ class PosConfig(models.Model):
             'available_preset_ids', 'default_preset_id', 'use_presets', 'iface_tax_included',
             'status', 'self_ordering_image_background_ids', 'preparation_printer_ids',
             'receipt_printer_ids', 'use_order_printer', 'other_devices', 'pos_snooze_ids', 'self_ordering_primary_color',
-            'logo', 'receipt_address', 'phone', 'email', 'website', 'tip_product_id',
+            'logo', 'receipt_address', 'phone', 'email', 'website', 'tip_product_id', 'write_date',
         ]
 
     def _update_access_token(self):
@@ -168,7 +169,11 @@ class PosConfig(models.Model):
     def write(self, vals):
         self._prepare_self_order_splash_screen([vals])
         product_delivery_template = self.env.ref('pos_self_order.product_delivery_template', raise_if_not_found=False)
-        if vals.get('self_ordering_mode') in ('kiosk', 'mobile') and not product_delivery_template.active:
+        if (
+            vals.get('self_ordering_mode') in ('kiosk', 'mobile')
+            and product_delivery_template
+            and not product_delivery_template.active
+        ):
             product_delivery_template.active = True
         for record in self:
             mode = vals.get('self_ordering_mode', record.self_ordering_mode)
@@ -203,7 +208,26 @@ class PosConfig(models.Model):
         res = super().write(vals)
         self._ensure_public_attachments()
         self._prepare_self_order_custom_btn()
+        if vals.keys() & self._get_kiosk_reload_fields():
+            for config in self.filtered(lambda c: c.self_ordering_mode == 'kiosk' and c.has_active_session):
+                config._notify('CONFIG_UPDATED', {'write_date': config.write_date})
         return res
+
+    @api.model
+    def _get_kiosk_reload_fields(self):
+        return {
+            'self_ordering_mode', 'self_ordering_service_mode', 'self_ordering_pay_after',
+            'self_ordering_default_language_id', 'self_ordering_available_language_ids',
+            'self_ordering_image_home_ids', 'self_ordering_image_background_ids',
+            'self_ordering_image_brand', 'self_ordering_image_brand_name',
+            'limit_categories', 'iface_available_categ_ids', 'payment_method_ids',
+            'use_presets', 'available_preset_ids', 'default_preset_id',
+            'use_pricelist', 'pricelist_id', 'available_pricelist_ids', 'iface_tax_included',
+        }
+
+    def _get_paid_orders_config_domain(self):
+        kiosk_domain = Domain('config_id.self_ordering_mode', '=', 'kiosk') & Domain('config_id.company_id', '=', self.company_id.id)
+        return super()._get_paid_orders_config_domain() | kiosk_domain
 
     def _ensure_public_attachments(self):
         attachments = self.self_ordering_image_background_ids | self.self_ordering_image_home_ids
@@ -341,6 +365,7 @@ class PosConfig(models.Model):
         record['_self_ordering_image_home_ids'] = config.self_ordering_image_home_ids.read(['mimetype'])
         record['_self_ordering_image_background_ids'] = config.self_ordering_image_background_ids.ids
         record['_self_order_pos'] = True
+        record['_default_user_lang'] = config.self_ordering_default_user_id.lang
         google_places_api_key = self.env['ir.config_parameter'].sudo().get_str('google_address_autocomplete.google_places_api_key')
         record['_has_google_places_api_key'] = bool(google_places_api_key)
         record['_base_url'] = config.get_base_url()

@@ -5,15 +5,16 @@
 # "Tiffany Chang (tic)" <tic@odoo.com>, 2025.
 # Weblate <noreply-mt-weblate@weblate.org>, 2025.
 # "Chloe Wang (chwa)" <chwa@odoo.com>, 2026.
+# 张飞虎 <feihu.zhang@live.com>, 2026.
 msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 17.1alpha1\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-08-28 17:44+0000\n"
-"PO-Revision-Date: 2026-09-02 03:10+0000\n"
+"PO-Revision-Date: 2026-10-21 07:04+0000\n"
 "Last-Translator: \"Chloe Wang (chwa)\" <chwa@odoo.com>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.odoo.com/"
-"projects/odoo-s19-4/payment_mollie/zh_Hans/>\n"
+"projects/odoo-20/payment_mollie/zh_Hans/>\n"
 "Language: zh_CN\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -24,7 +25,7 @@ msgstr ""
 #. module: payment_mollie
 #: model:ir.module.module,summary:base.module_payment_mollie
 msgid "A Dutch payment provider covering several European countries."
-msgstr ""
+msgstr "覆盖多个欧洲国家的荷兰支付服务商。"
 
 #. module: payment_mollie
 #: model_terms:ir.ui.view,arch_db:payment_mollie.payment_provider_form
@@ -34,32 +35,32 @@ msgstr "API 密钥"
 #. module: payment_mollie
 #: model:payment.method,name:payment_mollie.payment_method_amex
 msgid "American Express"
-msgstr ""
+msgstr "美国运通"
 
 #. module: payment_mollie
 #: model:payment.method,name:payment_mollie.payment_method_apple_pay
 msgid "Apple Pay"
-msgstr ""
+msgstr "Apple Pay"
 
 #. module: payment_mollie
 #: model:payment.method,name:payment_mollie.payment_method_blik
 msgid "BLIK"
-msgstr ""
+msgstr "BLIK"
 
 #. module: payment_mollie
 #: model:payment.method,name:payment_mollie.payment_method_bancontact
 msgid "Bancontact"
-msgstr ""
+msgstr "Bancontact"
 
 #. module: payment_mollie
 #: model:payment.method,name:payment_mollie.payment_method_bank_transfer
 msgid "Bank Transfer"
-msgstr ""
+msgstr "银行转账"
 
 #. module: payment_mollie
 #: model:payment.method,name:payment_mollie.payment_method_belfius
 msgid "Belfius"
-msgstr ""
+msgstr "Belfius"
 
 #. module: payment_mollie
 #. odoo-python
@@ -70,12 +71,12 @@ msgstr "取消付款，状态为：%s"
 #. module: payment_mollie
 #: model:payment.method,name:payment_mollie.payment_method_card
 msgid "Card"
-msgstr ""
+msgstr "卡片"
 
 #. module: payment_mollie
 #: model:payment.method,name:payment_mollie.payment_method_cartes_bancaires
 msgid "Cartes Bancaires"
-msgstr ""
+msgstr "Cartes Bancaires"
 
 #. module: payment_mollie
 #: model:ir.model.fields,field_description:payment_mollie.field_payment_provider__code
@@ -174,7 +175,7 @@ msgstr "支付提供商"
 #. module: payment_mollie
 #: model:ir.module.module,shortdesc:base.module_payment_mollie
 msgid "Payment Provider: Mollie"
-msgstr ""
+msgstr "支付服务商：Mollie"
 
 #. module: payment_mollie
 #: model:ir.model,name:payment_mollie.model_payment_token

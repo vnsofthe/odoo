@@ -59,7 +59,7 @@
     </record>
 
     <record id="generic_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -174,7 +174,7 @@
     </record>
 
     <record id="uae_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -272,7 +272,7 @@
     </record>
 
     <record id="au_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -527,7 +527,7 @@
     </record>
 
     <record id="be_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -548,6 +548,7 @@
         <field name="name">Voluntarily Net-Overtime hours (Horeca)</field>
         <field name="color">4</field>
         <field name="code">039.05</field>
+        <field name="display_code">VNH</field>
         <field name="country_id" ref="base.be"/>
     </record>
 
@@ -555,6 +556,7 @@
         <field name="name">Net-Overtime hours (Horeca)</field>
         <field name="color">4</field>
         <field name="code">039.00</field>
+        <field name="display_code">NOH</field>
         <field name="country_id" ref="base.be"/>
     </record>
 
@@ -590,7 +592,7 @@
     <record id="l10n_be_work_entry_type_overtime_recoverable" model="hr.work.entry.type">
         <field name="name">Overtime hours (recoverable) - 50%</field>
         <field name="code">026.00</field>
-        <field name="display_code">OT26</field>
+        <field name="display_code">OT5</field>
         <field name="color">4</field>
         <field name="country_id" ref="base.be"/>
         <field name="count_as">working_time</field>
@@ -610,6 +612,15 @@
         <field name="name">Public holiday after termination</field>
         <field name="code">202.00</field>
         <field name="display_code">UPH</field>
+        <field name="color">3</field>
+        <field name="country_id" ref="base.be"/>
+        <field name="count_as">absence</field>
+    </record>
+
+    <record id="l10n_be_work_entry_type_public_holiday_variable_schedule" model="hr.work.entry.type">
+        <field name="name">Public holiday pay (variable schedule)</field>
+        <field name="code">203.49</field>
+        <field name="display_code">PHV</field>
         <field name="color">3</field>
         <field name="country_id" ref="base.be"/>
         <field name="count_as">absence</field>
@@ -721,6 +732,7 @@
     <record id="l10n_be_work_entry_type_death_close_family" model="hr.work.entry.type">
         <field name="name">Bereavement leave-Spouse/Child</field>
         <field name="code">007.21</field>
+        <field name="display_code">BER</field>
         <field name="count_as">absence</field>
         <field name="country_id" ref="base.be"/>
     </record>
@@ -783,7 +795,7 @@
         <field name="name">Work accident or occupational illness with employer supplement from the 2nd week of CCT 12bis/13bis (Short Term Employee)</field>
         <field name="code">082.01</field>
         <field name="color">5</field>
-        <field name="display_code">WASEMP</field>
+        <field name="display_code">W2A</field>
         <field name="amount_rate">0.8693</field>
         <field name="country_id" ref="base.be"/>
         <field name="count_as">absence</field>
@@ -794,7 +806,7 @@
         <field name="code">072.01</field>
         <field name="color">5</field>
         <field name="amount_rate">0.8693</field>
-        <field name="display_code">IW2EMP</field>
+        <field name="display_code">I2W</field>
         <field name="country_id" ref="base.be"/>
         <field name="count_as">absence</field>
     </record>
@@ -1052,7 +1064,7 @@
     </record>
 
     <record id="l10n_be_work_entry_type_guaranteed_wage_interrupted_day_illness" model="hr.work.entry.type">
-        <field name="name">Guaranted wage interrupted day illness</field>
+        <field name="name">Guaranteed wage interrupted day illness</field>
         <field name="code">017.42</field>
         <field name="color">5</field>
         <field name="display_code">GWI</field>
@@ -1067,6 +1079,7 @@
         <field name="display_code">SDY</field>
         <field name="country_id" ref="base.be"/>
         <field name="count_as">absence</field>
+        <field name="resource_calendar_selectable" eval="True"/>
     </record>
 
     <record id="l10n_be_work_entry_type_paid_absence" model="hr.work.entry.type">
@@ -1167,7 +1180,7 @@
     </record>
 
     <record id="l10n_be_work_entry_type_work_incapacity_first_week" model="hr.work.entry.type">
-        <field name="name">Guaranted weekly wage illness</field>
+        <field name="name">Guaranteed weekly wage illness</field>
         <field name="code">010.00</field>
         <field name="color">5</field>
         <field name="display_code">IW1</field>
@@ -1263,7 +1276,7 @@
     </record>
 
     <record id="l10n_be_work_entry_type_work_accident_first_week" model="hr.work.entry.type">
-        <field name="name">Guaranted weekly wage industrial accident</field>
+        <field name="name">Guaranteed weekly wage industrial accident</field>
         <field name="code">009.00</field>
         <field name="color">5</field>
         <field name="display_code">WA1</field>
@@ -1272,7 +1285,7 @@
     </record>
 
     <record id="l10n_be_work_entry_type_work_accident_guaranteed_monthly" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage accident</field>
+        <field name="name">Guaranteed monthly wage accident</field>
         <field name="code">012.00</field>
         <field name="color">5</field>
         <field name="display_code">WAM</field>
@@ -1682,7 +1695,7 @@
     </record>
 
     <record id="bd_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -1773,7 +1786,7 @@
     </record>
 
     <record id="ch_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -2176,7 +2189,7 @@
     </record>
 
     <record id="fr_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -2200,6 +2213,148 @@
         <field name="color">3</field>
         <field name="count_as">absence</field>
         <field name="country_id" ref="base.fr"/>
+    </record>
+
+<!-- GE : Georgia -->
+
+    <record id="ge_work_entry_type_attendance" model="hr.work.entry.type">
+        <field name="name">Work</field>
+        <field name="color">0</field>
+        <field name="display_code">A</field>
+        <field name="code">002.00</field>
+        <field name="count_as">working_time</field>
+        <field name="country_id" ref="base.ge"/>
+    </record>
+
+    <record id="ge_work_entry_type_overtime" model="hr.work.entry.type">
+        <field name="name">Overtime</field>
+        <field name="color">4</field>
+        <field name="display_code">OT</field>
+        <field name="code">040.00</field>
+        <field name="count_as">working_time</field>
+        <field name="country_id" ref="base.ge"/>
+    </record>
+
+    <record id="ge_hr_work_entry_type_out_of_contract" model="hr.work.entry.type">
+        <field name="name">Out Of Contract</field>
+        <field name="color">0</field>
+        <field name="display_code">OoC</field>
+        <field name="code">000.00</field>
+        <field name="country_id" ref="base.ge"/>
+        <field name="amount_rate">0.0</field>
+    </record>
+
+    <record id="ge_work_entry_type_leave" model="hr.work.entry.type">
+        <field name="name">Generic Time Off</field>
+        <field name="color">3</field>
+        <field name="display_code">GTO</field>
+        <field name="code">LEAVE100</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.ge"/>
+    </record>
+
+    <record id="ge_work_entry_type_compensatory" model="hr.work.entry.type">
+        <field name="name">Time Off in Lieu of Overtime</field>
+        <field name="color">3</field>
+        <field name="display_code">TOIL</field>
+        <field name="code">LEAVE105</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.ge"/>
+    </record>
+
+    <record id="ge_work_entry_type_home_working" model="hr.work.entry.type">
+        <field name="name">Work from home</field>
+        <field name="color">2</field>
+        <field name="display_code">HW</field>
+        <field name="code">002.08</field>
+        <field name="count_as">working_time</field>
+        <field name="country_id" ref="base.ge"/>
+    </record>
+
+    <record id="ge_work_entry_type_unpaid_leave" model="hr.work.entry.type">
+        <field name="name">Leave without pay</field>
+        <field name="color">5</field>
+        <field name="display_code">UN</field>
+        <field name="code">158.00</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.ge"/>
+        <field name="amount_rate">0.0</field>
+    </record>
+
+    <record id="ge_work_entry_type_sick_leave" model="hr.work.entry.type">
+        <field name="name">Sick Leave</field>
+        <field name="color">5</field>
+        <field name="display_code">SL</field>
+        <field name="code">013.00</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.ge"/>
+    </record>
+
+    <record id="ge_work_entry_type_legal_leave" model="hr.work.entry.type">
+        <field name="name">Annual Leave</field>
+        <field name="color">5</field>
+        <field name="display_code">AL</field>
+        <field name="code">016.00</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.ge"/>
+    </record>
+
+    <record id="ge_work_entry_type_public_holiday" model="hr.work.entry.type">
+        <field name="name">Public Holiday</field>
+        <field name="color">3</field>
+        <field name="display_code">PH</field>
+        <field name="code">006.00</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.ge"/>
+    </record>
+
+    <record id="l10n_ge_work_entry_type_additional_leave" model="hr.work.entry.type">
+        <field name="name">Additional Paid Leave</field>
+        <field name="color">5</field>
+        <field name="display_code">APL</field>
+        <field name="code">GELEAVE100</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.ge"/>
+    </record>
+
+    <record id="l10n_ge_work_entry_type_maternity_leave" model="hr.work.entry.type">
+        <field name="name">Maternity Leave</field>
+        <field name="color">5</field>
+        <field name="display_code">ML</field>
+        <field name="code">GELEAVE110</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.ge"/>
+        <field name="amount_rate">0.0</field>
+    </record>
+
+    <record id="l10n_ge_work_entry_type_parental_leave" model="hr.work.entry.type">
+        <field name="name">Parental Leave</field>
+        <field name="color">5</field>
+        <field name="display_code">PL</field>
+        <field name="code">GELEAVE120</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.ge"/>
+        <field name="amount_rate">0.0</field>
+    </record>
+
+    <record id="l10n_ge_work_entry_type_adoption_leave" model="hr.work.entry.type">
+        <field name="name">Adoption Leave</field>
+        <field name="color">5</field>
+        <field name="display_code">ADL</field>
+        <field name="code">GELEAVE130</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.ge"/>
+        <field name="amount_rate">0.0</field>
+    </record>
+
+    <record id="l10n_ge_work_entry_type_additional_parental_leave" model="hr.work.entry.type">
+        <field name="name">Additional Parental Leave</field>
+        <field name="color">5</field>
+        <field name="display_code">APA</field>
+        <field name="code">GELEAVE140</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.ge"/>
+        <field name="amount_rate">0.0</field>
     </record>
 
 <!-- HK : Hong Kong -->
@@ -2268,7 +2423,7 @@
     </record>
 
     <record id="hk_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -2451,7 +2606,7 @@
     </record>
 
     <record id="id_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -2594,7 +2749,7 @@
     </record>
 
     <record id="in_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -2686,7 +2841,7 @@
     </record>
 
     <record id="it_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -2798,7 +2953,7 @@
     </record>
 
     <record id="iq_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -2944,7 +3099,7 @@
     </record>
 
     <record id="ke_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -3028,7 +3183,7 @@
     </record>
 
     <record id="l10n_kw_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="count_as">absence</field>
@@ -3163,7 +3318,7 @@
     </record>
 
     <record id="lt_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -3255,7 +3410,7 @@
     </record>
 
     <record id="jo_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -3353,6 +3508,148 @@
         <field name="country_id" ref="base.jo"/>
     </record>
 
+<!-- LB : Lebanon -->
+
+    <record id="lb_work_entry_type_attendance" model="hr.work.entry.type">
+        <field name="name">Work</field>
+        <field name="color">0</field>
+        <field name="display_code">A</field>
+        <field name="code">002.00</field>
+        <field name="count_as">working_time</field>
+        <field name="country_id" ref="base.lb"/>
+    </record>
+
+    <record id="lb_work_entry_type_overtime" model="hr.work.entry.type">
+        <field name="name">Overtime</field>
+        <field name="color">4</field>
+        <field name="display_code">OT</field>
+        <field name="code">040.00</field>
+        <field name="count_as">working_time</field>
+        <field name="country_id" ref="base.lb"/>
+        <field name="amount_rate">1.5</field>
+    </record>
+
+    <record id="l10n_lb_work_entry_type_overtime_public_holiday" model="hr.work.entry.type">
+        <field name="name">Work on a Public Holiday</field>
+        <field name="color">4</field>
+        <field name="display_code">OTH</field>
+        <field name="code">LBOT100</field>
+        <field name="count_as">working_time</field>
+        <field name="country_id" ref="base.lb"/>
+        <field name="amount_rate">1.0</field>
+    </record>
+
+    <record id="lb_hr_work_entry_type_out_of_contract" model="hr.work.entry.type">
+        <field name="name">Out Of Contract</field>
+        <field name="color">0</field>
+        <field name="display_code">OoC</field>
+        <field name="code">000.00</field>
+        <field name="country_id" ref="base.lb"/>
+        <field name="amount_rate">0.0</field>
+    </record>
+
+    <record id="lb_work_entry_type_leave" model="hr.work.entry.type">
+        <field name="name">Generic Time Off</field>
+        <field name="color">3</field>
+        <field name="display_code">GTO</field>
+        <field name="code">LEAVE100</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.lb"/>
+    </record>
+
+    <record id="lb_work_entry_type_compensatory" model="hr.work.entry.type">
+        <field name="name">Compensatory Rest</field>
+        <field name="color">3</field>
+        <field name="display_code">CR</field>
+        <field name="code">LEAVE105</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.lb"/>
+    </record>
+
+    <record id="lb_work_entry_type_home_working" model="hr.work.entry.type">
+        <field name="name">Work from home</field>
+        <field name="color">2</field>
+        <field name="display_code">HW</field>
+        <field name="code">002.08</field>
+        <field name="count_as">working_time</field>
+        <field name="country_id" ref="base.lb"/>
+    </record>
+
+    <record id="lb_work_entry_type_unpaid_leave" model="hr.work.entry.type">
+        <field name="name">Leave without pay</field>
+        <field name="color">5</field>
+        <field name="display_code">UN</field>
+        <field name="code">158.00</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.lb"/>
+        <field name="amount_rate">0.0</field>
+    </record>
+
+    <record id="lb_work_entry_type_sick_leave" model="hr.work.entry.type">
+        <field name="name">Sick Leave (Full Pay)</field>
+        <field name="color">5</field>
+        <field name="display_code">SL</field>
+        <field name="code">013.00</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.lb"/>
+    </record>
+
+    <record id="lb_work_entry_type_legal_leave" model="hr.work.entry.type">
+        <field name="name">Annual Leave</field>
+        <field name="color">5</field>
+        <field name="display_code">AL</field>
+        <field name="code">016.00</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.lb"/>
+    </record>
+
+    <record id="lb_work_entry_type_public_holiday" model="hr.work.entry.type">
+        <field name="name">Public Holiday</field>
+        <field name="color">3</field>
+        <field name="display_code">PH</field>
+        <field name="code">006.00</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.lb"/>
+    </record>
+
+    <record id="l10n_lb_work_entry_type_sick_leave_half" model="hr.work.entry.type">
+        <field name="name">Sick Leave (Half Pay)</field>
+        <field name="color">5</field>
+        <field name="display_code">SH</field>
+        <field name="code">LBLEAVE100</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.lb"/>
+        <field name="amount_rate">0.5</field>
+    </record>
+
+    <record id="l10n_lb_work_entry_type_sick_leave_unpaid" model="hr.work.entry.type">
+        <field name="name">Sick Leave (Unpaid)</field>
+        <field name="color">5</field>
+        <field name="display_code">SU</field>
+        <field name="code">LBLEAVE101</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.lb"/>
+        <field name="amount_rate">0.0</field>
+    </record>
+
+    <record id="l10n_lb_work_entry_type_maternity_leave" model="hr.work.entry.type">
+        <field name="name">Maternity Leave</field>
+        <field name="color">5</field>
+        <field name="display_code">ML</field>
+        <field name="code">LBLEAVE110</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.lb"/>
+    </record>
+
+    <record id="l10n_lb_work_entry_type_bereavement_leave" model="hr.work.entry.type">
+        <field name="name">Bereavement Leave</field>
+        <field name="color">5</field>
+        <field name="display_code">BL</field>
+        <field name="code">LBLEAVE120</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.lb"/>
+    </record>
+
 <!-- LU : Luxemburg -->
     <record id="lu_work_entry_type_attendance" model="hr.work.entry.type">
         <field name="name">Work</field>
@@ -3418,7 +3715,7 @@
     </record>
 
     <record id="lu_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -3568,7 +3865,7 @@
     </record>
 
     <record id="ma_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -3660,7 +3957,7 @@
     </record>
 
     <record id="mx_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -3798,7 +4095,7 @@
     </record>
 
     <record id="my_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -3890,7 +4187,7 @@
     </record>
 
     <record id="nl_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -3982,7 +4279,7 @@
     </record>
 
     <record id="pk_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -4074,7 +4371,7 @@
     </record>
 
     <record id="pl_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -4175,7 +4472,7 @@
     </record>
 
     <record id="ro_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -4267,7 +4564,7 @@
     </record>
 
     <record id="om_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -4495,7 +4792,7 @@
     </record>
 
     <record id="sa_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -4671,7 +4968,7 @@
     </record>
 
     <record id="sk_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -4807,7 +5104,7 @@
     </record>
 
     <record id="tr_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -4899,7 +5196,7 @@
     </record>
 
     <record id="us_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -5001,7 +5298,7 @@
         <field name="country_id" ref="base.ph"/>
     </record>
     <record id="ph_work_entry_type_sick_leave" model="hr.work.entry.type">
-        <field name="name">Guaranted monthly wage illness</field>
+        <field name="name">Guaranteed monthly wage illness</field>
         <field name="display_code">STO</field>
         <field name="code">013.00</field>
         <field name="color">5</field>
@@ -5073,6 +5370,7 @@
         <field name="code">RH_LEAVE</field>
         <field name="country_id" ref="base.ph"/>
         <field name="count_as">absence</field>
+        <field name="resource_calendar_selectable" eval="True"/>
     </record>
     <record id="l10n_ph_hr_payroll_dh_leave" model="hr.work.entry.type">
         <field name="name">Double Holiday</field>
@@ -5080,6 +5378,7 @@
         <field name="code">DH_LEAVE</field>
         <field name="country_id" ref="base.ph"/>
         <field name="count_as">absence</field>
+        <field name="resource_calendar_selectable" eval="True"/>
     </record>
     <record id="l10n_ph_hr_payroll_snwh_leave" model="hr.work.entry.type">
         <field name="name">Special Non-Working Holiday</field>
@@ -5087,6 +5386,7 @@
         <field name="code">SNWH_LEAVE</field>
         <field name="country_id" ref="base.ph"/>
         <field name="count_as">absence</field>
+        <field name="resource_calendar_selectable" eval="True"/>
         <field name="amount_rate">0.0</field>
     </record>
 
@@ -5376,4 +5676,395 @@
         <field name="country_id" ref="base.ph"/>
         <field name="amount_rate">0.0</field>
     </record>
+
+    <!-- UZ : Uzbekistan -->
+    <!-- Generic Redefinitions -->
+    <record id="uz_work_entry_type_attendance" model="hr.work.entry.type">
+        <field name="name">Work</field>
+        <field name="color">0</field>
+        <field name="display_code">A</field>
+        <field name="code">002.00</field>
+        <field name="count_as">working_time</field>
+        <field name="country_id" ref="base.uz"/>
+    </record>
+
+    <record id="uz_work_entry_type_overtime" model="hr.work.entry.type">
+        <field name="name">Overtime hours non recoverable - 150%</field>
+        <field name="color">4</field>
+        <field name="display_code">OT</field>
+        <field name="code">040.00</field>
+        <field name="country_id" ref="base.uz"/>
+    </record>
+
+    <record id="uz_hr_work_entry_type_out_of_contract" model="hr.work.entry.type">
+        <field name="name">Out Of Contract</field>
+        <field name="color">0</field>
+        <field name="display_code">OoC</field>
+        <field name="code">000.00</field>
+        <field name="country_id" ref="base.uz"/>
+        <field name="amount_rate">0.0</field>
+    </record>
+
+    <record id="uz_work_entry_type_leave" model="hr.work.entry.type">
+        <field name="name">Generic Time Off</field>
+            <field name="display_code">GTO</field>
+        <field name="code">LEAVE100</field>
+        <field name="color">3</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.uz"/>
+    </record>
+
+    <record id="uz_work_entry_type_compensatory" model="hr.work.entry.type">
+        <field name="name">Compensatory Time Off</field>
+        <field name="display_code">CTO</field>
+        <field name="code">LEAVE105</field>
+        <field name="color">3</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.uz"/>
+    </record>
+
+    <record id="uz_work_entry_type_home_working" model="hr.work.entry.type">
+        <field name="name">Work from home</field>
+        <field name="display_code">HW</field>
+        <field name="code">002.08</field>
+        <field name="color">2</field>
+        <field name="count_as">working_time</field>
+        <field name="country_id" ref="base.uz"/>
+    </record>
+
+    <record id="uz_work_entry_type_unpaid_leave" model="hr.work.entry.type">
+        <field name="name">Leave without pay</field>
+        <field name="color">5</field>
+        <field name="display_code">UN</field>
+        <field name="code">158.00</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.uz"/>
+        <field name="amount_rate">0.0</field>
+    </record>
+
+    <record id="uz_work_entry_type_sick_leave" model="hr.work.entry.type">
+        <field name="name">Guaranteed monthly wage illness</field>
+        <field name="display_code">STO</field>
+        <field name="code">013.00</field>
+        <field name="color">5</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.uz"/>
+    </record>
+
+    <record id="uz_work_entry_type_public_holiday" model="hr.work.entry.type">
+        <field name="name">Public Holiday</field>
+        <field name="code">006.00</field>
+        <field name="display_code">PH</field>
+        <field name="color">3</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.uz"/>
+    </record>
+
+    <record id="l10n_uz_work_entry_type_annual_labor_leave" model="hr.work.entry.type">
+        <field name="name">Annual Labor Leave</field>
+        <field name="sequence">1</field>
+        <field name="display_code">LL</field>
+        <field name="code">016.00</field>
+        <field name="color">2</field>
+        <field name="country_id" ref="base.uz"/>
+        <field name="count_as">absence</field>
+        <field name="amount_rate">1.0</field>
+    </record>
+
+    <!-- Uzbekistan Specific Leaves -->
+    <record id="l10n_uz_work_entry_type_annual_labor_leave_sunday" model="hr.work.entry.type">
+        <field name="name">Annual Labor Leave (Sunday)</field>
+        <field name="display_code">LLS</field>
+        <field name="code">016.00SUN</field>
+        <field name="color">2</field>
+        <field name="country_id" ref="base.uz"/>
+        <field name="count_as">absence</field>
+        <field name="amount_rate">0.0</field>
+    </record>
+
+    <record id="l10n_uz_work_entry_type_social_leave" model="hr.work.entry.type">
+        <field name="name">Social Leave</field>
+        <field name="display_code">SOC</field>
+        <field name="code">UZSOCIAL</field>
+        <field name="color">3</field>
+        <field name="country_id" ref="base.uz"/>
+        <field name="count_as">absence</field>
+        <field name="amount_rate">1.0</field>
+    </record>
+
+    <record id="l10n_uz_work_entry_type_partially_paid_leave" model="hr.work.entry.type">
+        <field name="name">Partially Paid Leave</field>
+        <field name="display_code">PPL</field>
+        <field name="code">UZPARTIALLYPAID</field>
+        <field name="color">4</field>
+        <field name="country_id" ref="base.uz"/>
+        <field name="count_as">absence</field>
+        <field name="amount_rate">0.0</field>
+    </record>
+
+    <record id="l10n_uz_work_entry_type_study_leave" model="hr.work.entry.type">
+        <field name="name">Study Leave</field>
+        <field name="display_code">STL</field>
+        <field name="code">UZSTUDY</field>
+        <field name="color">6</field>
+        <field name="country_id" ref="base.uz"/>
+        <field name="count_as">absence</field>
+        <field name="amount_rate">0.0</field>
+    </record>
+
+    <record id="l10n_uz_work_entry_type_child_support_leave" model="hr.work.entry.type">
+        <field name="name">Child Support Leave</field>
+        <field name="display_code">CSL</field>
+        <field name="code">UZCHILDSUPPORT</field>
+        <field name="color">3</field>
+        <field name="country_id" ref="base.uz"/>
+        <field name="count_as">absence</field>
+        <field name="amount_rate">1.0</field>
+    </record>
+
+<!-- VN : Vietnam -->
+    <record id="vn_work_entry_type_attendance" model="hr.work.entry.type">
+        <field name="name">Work</field>
+        <field name="color">0</field>
+        <field name="display_code">A</field>
+        <field name="code">002.00</field>
+        <field name="count_as">working_time</field>
+        <field name="country_id" ref="base.vn"/>
+    </record>
+
+    <record id="vn_work_entry_type_overtime" model="hr.work.entry.type">
+        <field name="name">Overtime</field>
+        <field name="color">4</field>
+        <field name="display_code">OT</field>
+        <field name="code">040.00</field>
+        <field name="count_as">working_time</field>
+        <field name="country_id" ref="base.vn"/>
+    </record>
+
+    <record id="vn_hr_work_entry_type_out_of_contract" model="hr.work.entry.type">
+        <field name="name">Out Of Contract</field>
+        <field name="color">0</field>
+        <field name="display_code">OoC</field>
+        <field name="code">000.00</field>
+        <field name="country_id" ref="base.vn"/>
+        <field name="amount_rate">0.0</field>
+    </record>
+
+    <record id="vn_work_entry_type_leave" model="hr.work.entry.type">
+        <field name="name">Generic Time Off</field>
+        <field name="display_code">GTO</field>
+        <field name="code">LEAVE100</field>
+        <field name="color">3</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.vn"/>
+    </record>
+
+    <record id="vn_work_entry_type_compensatory" model="hr.work.entry.type">
+        <field name="name">Compensatory Time Off</field>
+        <field name="display_code">CTO</field>
+        <field name="code">LEAVE105</field>
+        <field name="color">3</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.vn"/>
+    </record>
+
+    <record id="vn_work_entry_type_home_working" model="hr.work.entry.type">
+        <field name="name">Work from home</field>
+        <field name="display_code">HW</field>
+        <field name="code">002.08</field>
+        <field name="color">2</field>
+        <field name="count_as">working_time</field>
+        <field name="country_id" ref="base.vn"/>
+    </record>
+
+    <record id="vn_work_entry_type_unpaid_leave" model="hr.work.entry.type">
+        <field name="name">Leave without pay</field>
+        <field name="color">5</field>
+        <field name="display_code">UN</field>
+        <field name="code">158.00</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.vn"/>
+        <field name="amount_rate">0.0</field>
+    </record>
+
+    <!-- Sickness is compensated by the social insurance fund (75% of the contribution wage),
+         not by the employer: the days are unpaid on the payslip. -->
+    <record id="vn_work_entry_type_sick_leave" model="hr.work.entry.type">
+        <field name="name">Sick Leave (Social Insurance)</field>
+        <field name="display_code">STO</field>
+        <field name="code">013.00</field>
+        <field name="color">5</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.vn"/>
+        <field name="amount_rate">0.0</field>
+    </record>
+
+    <record id="vn_work_entry_type_legal_leave" model="hr.work.entry.type">
+        <field name="name">Annual Leave</field>
+        <field name="display_code">PTO</field>
+        <field name="code">016.00</field>
+        <field name="color">5</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.vn"/>
+    </record>
+
+    <record id="vn_work_entry_type_public_holiday" model="hr.work.entry.type">
+        <field name="name">Public Holiday</field>
+        <field name="code">006.00</field>
+        <field name="display_code">PH</field>
+        <field name="color">3</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.vn"/>
+    </record>
+
+    <record id="l10n_vn_work_entry_type_maternity_leave" model="hr.work.entry.type">
+        <field name="name">Maternity Leave (Social Insurance)</field>
+        <field name="code">VNLEAVE120</field>
+        <field name="color">5</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.vn"/>
+        <field name="amount_rate">0.0</field>
+    </record>
+
+    <record id="l10n_vn_work_entry_type_paternity_leave" model="hr.work.entry.type">
+        <field name="name">Paternity Leave (Social Insurance)</field>
+        <field name="code">VNLEAVE130</field>
+        <field name="color">5</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.vn"/>
+        <field name="amount_rate">0.0</field>
+    </record>
+
+    <record id="l10n_vn_work_entry_type_marriage_leave" model="hr.work.entry.type">
+        <field name="name">Marriage Leave</field>
+        <field name="code">VNLEAVE110</field>
+        <field name="color">5</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.vn"/>
+    </record>
+
+    <record id="l10n_vn_work_entry_type_bereavement_leave" model="hr.work.entry.type">
+        <field name="name">Bereavement Leave</field>
+        <field name="code">VNLEAVE100</field>
+        <field name="color">5</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.vn"/>
+    </record>
+
+<!-- ZA : South Africa -->
+    <record id="za_work_entry_type_attendance" model="hr.work.entry.type">
+        <field name="name">Attendance</field>
+        <field name="color">0</field>
+        <field name="display_code">A</field>
+        <field name="code">002.00</field>
+        <field name="count_as">working_time</field>
+        <field name="country_id" ref="base.za"/>
+    </record>
+
+    <record id="za_work_entry_type_overtime_work_days" model="hr.work.entry.type">
+        <field name="name">Overtime - Work Days</field>
+        <field name="color">4</field>
+        <field name="code">040.00</field>
+        <field name="amount_rate">1.5</field>
+        <field name="country_id" ref="base.za"/>
+    </record>
+
+    <record id="za_work_entry_type_overtime_public_holidays" model="hr.work.entry.type">
+        <field name="name">Overtime - Public Holidays</field>
+        <field name="color">4</field>
+        <field name="code">OVERTIME_PH</field>
+        <field name="amount_rate">2.0</field>
+        <field name="country_id" ref="base.za"/>
+    </record>
+
+    <record id="za_hr_work_entry_type_out_of_contract" model="hr.work.entry.type">
+        <field name="name">Out of Contract</field>
+        <field name="color">0</field>
+        <field name="display_code">OoC</field>
+        <field name="code">000.00</field>
+        <field name="country_id" ref="base.za"/>
+        <field name="amount_rate">0.0</field>
+    </record>
+
+    <record id="za_work_entry_type_leave" model="hr.work.entry.type">
+        <field name="name">Generic Time Off</field>
+        <field name="display_code">GTO</field>
+        <field name="code">LEAVE100</field>
+        <field name="color">3</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.za"/>
+    </record>
+
+    <record id="za_work_entry_type_compensatory" model="hr.work.entry.type">
+        <field name="name">Compensatory Time Off</field>
+        <field name="display_code">CTO</field>
+        <field name="code">LEAVE105</field>
+        <field name="color">3</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.za"/>
+    </record>
+
+    <record id="za_work_entry_type_home_working" model="hr.work.entry.type">
+        <field name="name">Home Working</field>
+        <field name="display_code">HW</field>
+        <field name="code">002.08</field>
+        <field name="color">2</field>
+        <field name="count_as">working_time</field>
+        <field name="country_id" ref="base.za"/>
+    </record>
+
+    <record id="za_work_entry_type_unpaid_leave" model="hr.work.entry.type">
+        <field name="name">Unpaid</field>
+        <field name="color">5</field>
+        <field name="display_code">UN</field>
+        <field name="code">158.00</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.za"/>
+    </record>
+
+    <record id="za_work_entry_type_sick_leave" model="hr.work.entry.type">
+        <field name="name">Sick Time Off</field>
+        <field name="display_code">STO</field>
+        <field name="code">013.00</field>
+        <field name="color">5</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.za"/>
+    </record>
+
+    <record id="za_work_entry_type_public_holiday" model="hr.work.entry.type">
+        <field name="name">Public Holiday</field>
+        <field name="code">006.00</field>
+        <field name="display_code">ZA</field>
+        <field name="color">3</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.za"/>
+    </record>
+
+    <record id="za_work_entry_type_legal_leave" model="hr.work.entry.type">
+        <field name="name">Paid Time Off</field>
+        <field name="display_code">PTO</field>
+        <field name="code">016.00</field>
+        <field name="color">5</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.za"/>
+    </record>
+
+    <record id="za_work_entry_type_maternity_leave" model="hr.work.entry.type">
+        <field name="name">Maternity Leave</field>
+        <field name="display_code">MAT</field>
+        <field name="code">MATERNITY</field>
+        <field name="color">5</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.za"/>
+    </record>
+
+    <record id="za_work_entry_type_paternity_leave" model="hr.work.entry.type">
+        <field name="name">Paternity Leave</field>
+        <field name="display_code">PAT</field>
+        <field name="code">PATERNITY</field>
+        <field name="color">5</field>
+        <field name="count_as">absence</field>
+        <field name="country_id" ref="base.za"/>
+    </record>
+
 </data></odoo>

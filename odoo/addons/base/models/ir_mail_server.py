@@ -55,7 +55,7 @@ smtplib.SMTP._print_debug = _print_debug
 
 # Python 3: workaround for bpo-35805, only partially fixed in Python 3.8.
 RFC5322_IDENTIFICATION_HEADERS = {'message-id', 'in-reply-to', 'references', 'resent-msg-id'}
-USER_DEFINED_HEADERS = {'bcc', 'cc', 'from', 'reply-to', 'subject', 'to'}
+USER_DEFINED_HEADERS = {'bcc', 'cc', 'from', 'reply-to', 'subject', 'to', 'list-unsubscribe'}
 _noFoldPolicy = email.policy.SMTP.clone(max_line_length=None)
 _maxFoldPolicy = email.policy.SMTP.clone(max_line_length=998)  # rfc5322#section-2.1.1
 class IdentificationFieldsNoFoldPolicy(email.policy.EmailPolicy):
@@ -440,8 +440,9 @@ class IrMail_Server(models.Model):
             # we were passed individual smtp parameters or nothing and there is no default server
             smtp_server = host or tools.config.get('smtp_server')
             smtp_port = tools.config.get('smtp_port', 25) if port is None else port
-            smtp_user = user or tools.config.get('smtp_user')
-            smtp_password = password or tools.config.get('smtp_password')
+            is_cli_server = smtp_server == tools.config.get('smtp_server') and smtp_port == tools.config.get('smtp_port', 25)
+            smtp_user = user if (user or not is_cli_server) else tools.config.get('smtp_user')
+            smtp_password = password if (password or not is_cli_server) else tools.config.get('smtp_password')
             if mail_server:
                 from_filter = mail_server.from_filter
             else:
@@ -450,8 +451,8 @@ class IrMail_Server(models.Model):
             smtp_encryption = encryption
             if smtp_encryption is None and tools.config.get('smtp_ssl'):
                 smtp_encryption = 'starttls' # smtp_ssl => STARTTLS as of v7
-            smtp_ssl_certificate_filename = ssl_certificate or tools.config.get('smtp_ssl_certificate_filename')
-            smtp_ssl_private_key_filename = ssl_private_key or tools.config.get('smtp_ssl_private_key_filename')
+            smtp_ssl_certificate_filename = ssl_certificate if (ssl_certificate or not is_cli_server) else tools.config.get('smtp_ssl_certificate_filename')
+            smtp_ssl_private_key_filename = ssl_private_key if (ssl_private_key or not is_cli_server) else tools.config.get('smtp_ssl_private_key_filename')
 
             if smtp_ssl_certificate_filename and smtp_ssl_private_key_filename:
                 try:

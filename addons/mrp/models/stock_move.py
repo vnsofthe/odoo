@@ -254,6 +254,7 @@ class StockMove(models.Model):
                     values['location_dest_id'] = mo.production_location_id.id
                     if not values.get('location_id'):
                         values['location_id'] = mo.location_src_id.id
+                    values['warehouse_id'] = self.env['stock.location'].browse(values['location_id']).warehouse_id.id
                     if mo.state in ('progress', 'to_close', 'done') and mo.qty_producing > 0:
                         values['picked'] = True
                     if mo.state == 'done':
@@ -489,9 +490,12 @@ class StockMove(models.Model):
 
     def _prepare_procurement_origin(self):
         self.ensure_one()
-        if self.raw_material_production_id and self.raw_material_production_id.orderpoint_id:
+        if self.raw_material_production_id and self._should_use_production_origin():
             return self.origin
         return super()._prepare_procurement_origin()
+
+    def _should_use_production_origin(self):
+        return True
 
     def _prepare_phantom_move_values(self, bom_line, product_qty, quantity_done):
         return {
@@ -529,6 +533,12 @@ class StockMove(models.Model):
 
     def _is_consuming(self):
         return super()._is_consuming() or self.picking_type_id.code == 'mrp_operation'
+
+    def _get_quantity_to_assign(self):
+        res = super()._get_quantity_to_assign()
+        if self.raw_material_production_id and self.raw_material_production_id.qty_producing:
+            return self.uom_id._compute_quantity(self.should_consume_qty, self.product_id.uom_id)
+        return res
 
     def _get_backorder_move_vals(self):
         self.ensure_one()

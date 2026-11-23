@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import json
+from datetime import timedelta
 from zoneinfo import ZoneInfo
 
 from markupsafe import Markup
@@ -228,6 +229,9 @@ class DiscussChannel(models.Model):
     _livechat_end_dt_idx = models.Index("(livechat_end_dt) WHERE livechat_end_dt IS NULL")
     _livechat_failure_idx = models.Index(
         "(livechat_failure) WHERE livechat_failure IN ('no_answer', 'no_agent')",
+    )
+    _livechat_status_need_help_idx = models.Index(
+        "(livechat_status) WHERE livechat_status = 'need_help'",
     )
     _livechat_is_escalated_idx = models.Index(
         "(livechat_is_escalated) WHERE livechat_is_escalated IS TRUE",
@@ -581,7 +585,7 @@ class DiscussChannel(models.Model):
         stale_sessions = self.search([
             ("channel_type", "=", "livechat"),
             ("livechat_end_dt", "=", False),
-            ("last_interest_dt", "<=", "-1d"),
+            ("last_interest_dt", "<=", fields.Datetime.now() - timedelta(days=1)),
             ("livechat_agent_partner_ids", "=", False),
         ])
         stale_sessions.livechat_end_dt = fields.Datetime.now()

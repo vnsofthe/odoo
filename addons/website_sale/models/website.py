@@ -818,7 +818,7 @@ class Website(models.Model):
             fpos_sudo = AccountFiscalPositionSudo.browse(
                 request.session[FISCAL_POSITION_SESSION_CACHE_KEY]
             )
-            if fpos_sudo and fpos_sudo.exists():
+            if not fpos_sudo or fpos_sudo.exists():
                 return fpos_sudo
 
         partner_sudo = self.env.user.partner_id
@@ -835,7 +835,10 @@ class Website(models.Model):
         if not fpos_sudo:
             fpos_sudo = AccountFiscalPositionSudo._get_fiscal_position(partner_sudo)
 
-        request.session[FISCAL_POSITION_SESSION_CACHE_KEY] = fpos_sudo.id
+        if not request.session.is_new or request.session.is_dirty:
+            # Only cache in a session that will be persisted anyway. Otherwise, it
+            # would force the session to be saved on disk
+            request.session[FISCAL_POSITION_SESSION_CACHE_KEY] = fpos_sudo.id
 
         return fpos_sudo
 
@@ -1249,11 +1252,10 @@ class Website(models.Model):
         return "64px"
 
     def _get_basic_feed_product_domain(self):
-        return Domain.AND([
-            Domain("is_published", "=", True),
-            Domain("type", "in", ("consu", "combo")),
-            self.website_domain(),
-        ])
+        return (
+            Domain("type", "in", {"consu", "combo"})
+            & self.with_user(self.user_id).sale_product_domain()
+        )
 
     def _default_feed_is_valid(self):
         self.ensure_one()

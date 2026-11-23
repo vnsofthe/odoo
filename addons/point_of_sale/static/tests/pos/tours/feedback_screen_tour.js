@@ -17,9 +17,11 @@ registry.category("web_tour.tours").add("FeedbackScreenTour", {
             Chrome.startPoS(),
             Dialog.confirm("Open Register"),
             OfflineUtil.setOfflineMode(),
+            Dialog.cancel(), // Offline mode after opening register will trigger the offline popup since the device try to sync
             ProductScreen.addOrderline("Letter Tray", "10", "5"),
             ProductScreen.clickPartnerButton(),
-            ProductScreen.clickCustomer("APartner Full"),
+            // Offline: no server search, the partner is already loaded locally.
+            ProductScreen.clickCustomer("APartner Full", false),
             ProductScreen.clickPayButton(),
             PaymentScreen.clickPaymentMethod("Bank"),
             PaymentScreen.validateButtonIsHighlighted(true),
@@ -29,7 +31,6 @@ registry.category("web_tour.tours").add("FeedbackScreenTour", {
                 total_amount: "55.00", // letter tray has 10% tax (search SRC)
                 cashier_name: "A", // A simple PoS man! (Take the first word)
             }),
-            Dialog.confirm("Continue with limited functionality"),
             FeedbackScreen.clickNextOrder(),
 
             // send email in receipt screen

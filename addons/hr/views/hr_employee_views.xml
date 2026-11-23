@@ -69,7 +69,7 @@
                         <filter name="group_department" string="Department" domain="[]" context="{'group_by': 'department_id'}"/>
                         <filter name="group_job" string="Job Position" domain="[]" context="{'group_by': 'job_id'}"/>
                         <filter name="group_category_ids" string="Tags" domain="[]" context="{'group_by': 'category_ids'}"/>
-                        <filter name="group_employee_type" string="Employee Type" domain="[]" context="{'group_by': 'employee_type_id'}"/>
+                        <filter name="group_employee_type" string="Employee Type" domain="[]" context="{'group_by': 'employee_type_id'}" groups="hr.group_hr_manager"/>
                         <separator name="main_groupby_separator"/>
                         <filter name="_search_today_location" string="Work location" domain="[]" context="{'group_by':'today_location_name'}"/>
                         <filter name="group_birthday" domain="[]" context="{'group_by': 'birthday_month'}" invisible="1"/>
@@ -110,8 +110,6 @@
                     <header groups="hr.group_hr_user">
                         <button string="Invite" name="action_send_invitation" type="object"
                                 class="btn btn-primary" invisible="user_id" groups="base.group_erp_manager"/>
-                        <button name="%(plan_wizard_action)d" string="Launch Plan" type="action" class="o_button_plan_wizard_action"
-                            groups="hr.group_hr_user" invisible="not active or not id" context="{'sort_by_responsible': True}"/>
                         <field name="user_state" widget="employee_user_status"/>
                         <field name="version_id" widget="versions_timeline" context="{'version_revision': version_revision}" invisible="not id" options="{'clickable': True}" readonly="False"/>
                         <field name="version_revision" invisible="1"/>
@@ -171,6 +169,7 @@
                                 </div>
                             </group>
                         </div>
+                        <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
                         <field name="employee_properties" columns="2"/>
                         <notebook>
                             <page name="payroll_information" string="Payroll" groups="hr.group_hr_manager">
@@ -222,7 +221,6 @@
                                                 context="{'show_address': 1}"
                                                 options='{"highlight_first_line": True}' invisible="1"/>
                                             <field name="work_location_id"
-                                                required="1"
                                                 string="Usual Work Location"
                                                 context="{'default_address_id': address_id}"
                                                 placeholder="e.g. Building 2, Remote, etc."/>
@@ -625,7 +623,7 @@
                         <button name="%(plan_wizard_action)d" string="Launch Plan" type="action" groups="hr.group_hr_user"/>
                     </header>
                     <field name="show_hr_icon_display"/>
-                    <field name="image_128" />
+                    <field name="image_256" />
                     <field name="company_id"/>
                     <field name="work_phone_sanitized"/>
                     <field name="work_phone_formatted"/>
@@ -633,10 +631,10 @@
                         <t t-name="card" class="flex-row">
                             <aside class="o_card_aside_full">
                                 <t t-if="record.image_1024.raw_value">
-                                    <field name="image_1024" widget="background_image" options="{'zoom': true, 'zoom_delay': 1000, 'preview_image':'image_128'}" class="d-block position-relative"/>
+                                    <field name="image_1024" widget="background_image" options="{'zoom': true, 'zoom_delay': 1000, 'preview_image':'image_256'}" class="d-block position-relative"/>
                                 </t>
-                                <t t-elif="record.image_128.raw_value">
-                                    <field name="avatar_128" widget="background_image" options="{'zoom': true, 'zoom_delay': 1000}" class="d-block position-relative"/>
+                                <t t-elif="record.image_256.raw_value">
+                                    <field name="avatar_256" widget="background_image" options="{'zoom': true, 'zoom_delay': 1000}" class="d-block position-relative"/>
                                 </t>
                                 <div t-else="" class="d-flex align-items-center justify-content-center bg-100 bg-gradient">
                                     <svg class="w-75 h-75 opacity-50" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
@@ -666,12 +664,10 @@
                                     <i class="oi oi-fw oi-filled me-2 text-primary" data-icon="phone" title="Phone"/>
                                     <field name="work_phone" widget="phone"/>
                                 </div>
-                                <div t-if="record.first_contract_date.raw_value" groups="hr.group_hr_user" t-att-class="{'text-danger': record.contract_date_end.raw_value &lt; luxon.DateTime.now().toISO()}">
-                                    <i class="oi oi-fw oi-filled me-2 text-primary" data-icon="contract" title="Contract"/>
-                                    <field name="first_contract_date"/>
-                                    <span t-if="record.contract_date_end.raw_value"> - </span>
-                                    <field t-if="record.contract_date_end.raw_value" name="contract_date_end"/>
-                                </div>
+                                <field name="version_ids" widget="contract_period" groups="hr.group_hr_user"/>
+                                <!-- first_contract_date and contract_date_end will be dropped in master -->
+                                <field name="first_contract_date" invisible="1" groups="hr.group_hr_user"/>
+                                <field name="contract_date_end" invisible="1" groups="hr.group_hr_user"/>
                                 <div invisible="not birthday or not birthday_public_display" groups="hr.group_hr_user">
                                     <i class="oi oi-fw me-2 text-primary" data-icon="cake" title="Birthday"/>
                                     <field name="birthday"/>

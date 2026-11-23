@@ -76,14 +76,14 @@
             }">
             <div class="total text-center text-dark"
                 t-att-style="!this.ui.isSmall? 'font-size: 125px;' : ''" >
-                <PriceFormatter price="this.pos.formatCurrency(this.currentOrder.totalDue)" />
+                <PriceFormatter price="this.orderTotalDue" />
             </div>
         </section>
     </t>
 
     <t t-name="point_of_sale.PaymentScreenValidate">
         <button class="validation-button next btn btn-primary btn-lg py-3 lh-lg"
-            t-att-disabled="!this.pos.accessRight.disableValidateOrder"
+            t-att-disabled="this.pos.accessRight.disableValidateOrder"
             t-on-click="() => this.onClickValidate()"
             t-attf-class="
                 {{ this.ui.isSmall ? 'btn-switchpane flex-fill' : 'button next w-50' }}
@@ -94,7 +94,7 @@
                 <span>Validate</span>
             </t>
             <t t-else="">
-                <span t-out="this.payment_methods_from_config[0].name"/>
+                <span t-out="this.pos.configFastPaymentMethod[0].name"/>
             </t>
         </button>
     </t>
@@ -131,7 +131,7 @@
                 </button>
                 <button class="button js_invoice btn btn-secondary btn-lg d-flex justify-content-between align-items-baseline w-100 w-md-50 lh-lg"
                     t-att-class="{ 'highlight active': this.currentOrder.isToInvoice(), 'active disabled': this.isForcedToInvoice }"
-                    t-on-click="this.toggleIsToInvoice" t-att-disabled="this.currentOrder.lines[0]?.refunded_orderline_id?.order_id?.isToInvoice()">
+                    t-on-click="this.toggleIsToInvoice" t-att-disabled="this.currentOrder?.refunded_order_id?.isToInvoice()">
                     <span>
                         <i class="oi me-2" data-icon="article"/> Invoice
                     </span>
@@ -147,7 +147,7 @@
                     </t>
                 </button>
                 <button t-if="this.pos.canOpenCashdrawer" class="button js_cashdrawer btn btn-secondary btn-lg py-3 rounded"
-                    t-on-click="() => this.pos.openCashbox()">
+                    t-on-click="() => this.pos.openCashboxManually()">
                     <i class="oi me-2" data-icon="archive"/>Open Cashbox
                 </button>
             </div>
@@ -158,17 +158,27 @@
         <div class="paymentmethods-container" t-att-class="this.ui.isSmall ? 'rounded-3' : 'flex-grow-1'">
         <!-- Add scrollbar if more than 4 payment methods are configured -->
             <div class="paymentmethods gap-1 gap-lg-2" t-att-class="{ 'd-grid p-1 gap-1 overflow-y-auto rounded-3 bg-200': this.ui.isSmall, 'd-flex flex-column gap-lg-2': !this.ui.isSmall }" t-att-style="this.ui.isSmall ? 'max-height: 120px;' : ''">
-                <t t-foreach="this.payment_methods_from_config" t-as="paymentMethod" t-key="paymentMethod.id">
-                    <div t-if="this.showPaymentMethod(paymentMethod)">
+                <t t-foreach="this.displayedPaymentMethods" t-as="paymentMethod" t-key="paymentMethod.id">
+                    <div t-if="paymentMethod.isProvider">
                         <div class="d-flex paymentmethod justify-content-between align-items-center button btn btn-secondary btn-lg lh-lg flex-fill"
-                            t-att-class="{ 'opacity-50': !paymentMethod.getPaymentInterfaceStates().status }"
+                            t-on-click="() => this.onClickProvider(paymentMethod.provider)"
+                            role="button">
+                            <div class="payment-method-display d-flex align-items-center gap-2 text-wrap text-start lh-sm">
+                                <img class="payment-method-icon" t-att-src="this.paymentMethodImage(paymentMethod.paymentMethod)" />
+                                <span class="payment-name" t-out="paymentMethod.name" />
+                            </div>
+                        </div>
+                    </div>
+                    <div t-else="">
+                        <div class="d-flex paymentmethod justify-content-between align-items-center button btn btn-secondary btn-lg lh-lg flex-fill"
+                            t-att-class="{ 'opacity-50': !paymentMethod.getPaymentInterfaceStates({ order: this.currentOrder }).status }"
                             t-on-click="() => this.addNewPaymentLine(paymentMethod)"
                             role="button">
                             <div class="payment-method-display d-flex align-items-center gap-2 text-wrap text-start lh-sm">
                                 <img class="payment-method-icon" t-att-src="this.paymentMethodImage(paymentMethod)" />
                                 <span class="payment-name" t-out="paymentMethod.name" />
                                 <span t-if="paymentMethod.availableCurrencies.length > 1"
-                                    t-out="this.pos.config.company_id.currency_id.name" />
+                                    t-out="this.pos.config.currency_id.name" />
                             </div>
                             <span class="text-muted" t-out="this.pos.getPaymentMethodFmtAmount(paymentMethod, this.currentOrder)"/>
                         </div>
@@ -177,10 +187,10 @@
                                 t-as="currency"
                                 t-key="currency.id"
                                 t-on-click="() => this.addNewPaymentLine(paymentMethod, { currency })"
-                                class="btn btn-secondary d-flex justify-content-between w-100 mt-1"
-                                t-att-class="{ 'opacity-50': !paymentMethod.getPaymentInterfaceStates().status }">
+                                class="currency-wise-method btn btn-secondary d-flex justify-content-between w-100 mt-1"
+                                t-att-class="{ 'opacity-50': !paymentMethod.getPaymentInterfaceStates({ order: this.currentOrder }).status }">
                                 <span class="text-muted me-1" t-out="currency.name" />
-                                <span t-out="currency.convertFormatted(this.currentOrder.totalDue)" />
+                                <span t-out="this.currentOrder.formatAmountInCurrency(this.currentOrder.totalDue, currency)" />
                             </button>
                         </div>
                     </div>

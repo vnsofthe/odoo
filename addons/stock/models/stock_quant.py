@@ -25,12 +25,12 @@ class StockQuant(models.Model):
     _rec_names_search = ('location_id', 'lot_id', 'package_id', 'owner_id')
 
     def _domain_location_id(self):
-        if self.env.user.has_group('stock.group_stock_user'):
+        if self._is_inventory_user():
             return "[('usage', 'in', ['internal', 'transit'])] if context.get('inventory_mode') else []"
         return "[]"
 
     def _domain_lot_id(self):
-        if self.env.user.has_group('stock.group_stock_user'):
+        if self._is_inventory_user():
             return ("[] if not context.get('inventory_mode') else"
                 " [('product_id', '=', context.get('active_id', False))] if context.get('active_model') == 'product.product' else"
                 " [('product_id.product_tmpl_id', '=', context.get('active_id', False))] if context.get('active_model') == 'product.template' else"
@@ -116,7 +116,7 @@ class StockQuant(models.Model):
     is_outdated = fields.Boolean('Quantity has been moved since last count', compute='_compute_is_outdated', search='_search_is_outdated')
     user_id = fields.Many2one(
         'res.users', 'Assigned To', help="User assigned to do product count.",
-        domain=lambda self: [('all_group_ids', 'in', self.env.ref('stock.group_stock_user').id)])
+        domain=lambda self: [('all_group_ids', 'in', self._get_inventory_user_groups().ids)])
 
     @api.depends('quantity', 'reserved_quantity')
     def _compute_available_quantity(self):
@@ -284,8 +284,8 @@ class StockQuant(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """ Override to handle the "inventory mode" and create a quant as
-        superuser the conditions are met.
+        """ Override to handle the "inventory mode" and create a quant if
+        the conditions are met.
         """
         def _add_to_cache(quant):
             if 'quants_cache' in self.env.context:
@@ -296,6 +296,7 @@ class StockQuant(models.Model):
         quants = self.env['stock.quant']
         is_inventory_mode = self._is_inventory_mode()
         allowed_fields = self._get_inventory_fields_create()
+        quants_to_apply = self.env['stock.quant']
         for vals in vals_list:
             if is_inventory_mode and any(f in vals for f in ['inventory_quantity', 'inventory_quantity_auto_apply']):
                 if any(field for field in vals if not field.startswith('x_') and field not in allowed_fields):
@@ -310,7 +311,7 @@ class StockQuant(models.Model):
                 package_id = self.env['stock.package'].browse(vals.get('package_id'))
                 owner_id = self.env['res.partner'].browse(vals.get('owner_id'))
                 quant = self.env['stock.quant']
-                if not self.env.context.get('import_file'):
+                if not self.env.context.get('import_quant_lines'):
                     # Merge quants later, to make sure one line = one record during batch import
                     quant = self._gather(product, location, lot_id=lot_id, package_id=package_id, owner_id=owner_id, strict=True)
                 if lot_id:
@@ -323,12 +324,14 @@ class StockQuant(models.Model):
                         vals['lot_id'] = lot_id.id
                     quant = quant.filtered(lambda q: q.lot_id)
                 if quant:
-                    quant = quant[0].sudo()
+                    quant = quant[0]
                 else:
-                    quant = self.sudo().create(vals)
+                    quant = self.create(vals)
                     _add_to_cache(quant)
-                if auto_apply:
-                    quant.write({'inventory_quantity_auto_apply': inventory_quantity})
+                # mimicking the behavior in `_set_inventory_quantity` to prevent empty moves from being generated
+                if auto_apply and quant.quantity != inventory_quantity:
+                    quant.inventory_quantity = inventory_quantity
+                    quants_to_apply |= quant
                 else:
                     # Set the `inventory_quantity` field to create the necessary move.
                     quant.inventory_quantity = inventory_quantity
@@ -343,16 +346,21 @@ class StockQuant(models.Model):
                 quants |= quant
                 if self._is_inventory_mode() and quant.company_id:
                     quant._check_company()
+        if quants_to_apply:
+            quants_to_apply.filtered(lambda q: not q.is_outdated).action_apply_inventory()
         return quants
 
     def _load_records_create(self, values):
-        """ Add default location if import file did not fill it"""
+        """ Add default location if import file did not fill it, and keep one quant
+        per line only when importing quants directly"""
         company_user = self.env.company
         warehouse = self.env['stock.warehouse'].search([('company_id', '=', company_user.id)], limit=1)
         for value in values:
             if 'location_id' not in value:
                 value['location_id'] = warehouse.lot_stock_id.id
-        return super(StockQuant, self.with_context(inventory_mode=True))._load_records_create(values)
+        return super(StockQuant, self.with_context(
+            inventory_mode=True, import_quant_lines=self.env.context.get('import_file'),
+        ))._load_records_create(values)
 
     def _load_records_write(self, values):
         """ Only allowed fields should be modified """
@@ -1265,7 +1273,16 @@ class StockQuant(models.Model):
         "inventory session", meaning a mode where we need to create the stock.move
         record necessary to be consistent with the `inventory_quantity` field.
         """
-        return self.env.context.get('inventory_mode') and self.env.user.has_group('stock.group_stock_user')
+        return self.env.context.get('inventory_mode') and self._is_inventory_user()
+
+    @api.model
+    def _get_inventory_user_groups(self):
+        """ Users of these groups count inventory and can be assigned counts. """
+        return self.env.ref('stock.group_stock_user')
+
+    @api.model
+    def _is_inventory_user(self):
+        return bool(self.env.user.all_group_ids & self._get_inventory_user_groups())
 
     @api.model
     def _get_inventory_fields_create(self):

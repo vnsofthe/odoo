@@ -18,10 +18,8 @@ import { PosSession } from "@point_of_sale/../tests/unit/data/pos_session.data";
 
 function checkPosOrder(deviceType, order) {
     const count = MockServer.env["pos.order"].search_count([]) + 1;
-    const configId = order.config_id || 1;
     const pos_reference = `0001-001-${String(count).padStart(5, "0")}`;
-    const prefix = deviceType === "kiosk" ? `K${configId}-` : "S";
-    const tracking_number = `${prefix}${count}`;
+    const tracking_number = String(count);
 
     if (!order.access_token) {
         order.access_token = uuidv4();
@@ -87,9 +85,8 @@ export function initMockRpc() {
         delete params.access_token;
         delete params.preset_id;
         const partnerId = MockServer.env["res.partner"].create(params);
-        const partnerFields = MockServer.env["res.partner"]._load_pos_data_fields(odoo.config_id);
         return {
-            "res.partner": MockServer.env["res.partner"].read([partnerId], partnerFields, false),
+            "res.partner": MockServer.env["res.partner"].read([partnerId], ["id"], false),
         };
     };
 

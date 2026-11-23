@@ -66,3 +66,24 @@ test("setLinePrice: input is per-unit tax-included price, discount is preserved"
     expect(singleTaxLine.price_unit).toBe(88);
     expect(singleTaxLine.displayPrice).toBe(99);
 });
+
+test("Negate the unit price from the numpad in price mode", async () => {
+    const store = await setupPosEnv();
+    const order = await getFilledOrder(store);
+    const orderSummary = await mountWithCleanup(OrderSummary, {});
+    const line = order.getSelectedOrderline();
+    store.numpadMode = "price";
+    await orderSummary.updateSelectedOrderline({ buffer: "-0", key: "-" });
+    expect(line.price_unit).toBe(-100);
+});
+
+test("Negate the weighed quantity from the numpad in price mode", async () => {
+    const store = await setupPosEnv();
+    const order = await getFilledOrder(store);
+    const orderSummary = await mountWithCleanup(OrderSummary, {});
+    const line = order.getSelectedOrderline();
+    line.product_id.to_weight = true;
+    store.numpadMode = "price";
+    await orderSummary.updateSelectedOrderline({ buffer: "-0", key: "-" });
+    expect(line.qty).toBe(-2);
+});

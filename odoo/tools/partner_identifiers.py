@@ -2,7 +2,6 @@ from stdnum import (
     ean,
     lei,
 )
-from stdnum.at import uid as at_en
 from stdnum.au import acn as au_acn, abn as au_abn
 from stdnum.be import vat as be_vat
 from stdnum.ch import uid as ch_uid
@@ -21,11 +20,16 @@ from stdnum.se import orgnr as se_en
 
 from odoo.tools.translate import LazyGettext, LazyTranslate
 from odoo.tools.partner_identifier_validation import (
+    NON_DIGIT_RE,
+    ae_tin_validate,
     nl_kvk_validate,
     nl_oin_validate,
     pk_cn_validate,
     sg_uen_validate,
     th_branch_code_validate,
+    it_cuc_validate,
+    at_en_validate,
+    at_steuernummer_validate,
 )
 
 from odoo.addons.base.models.res_country import (
@@ -61,8 +65,8 @@ TIN_METADATA = {
         'category': 'VAT',
         'countries': ['AD'],
     },
-    'AE_TIN': {
-        'scheme': '0235',
+    'AE_TRN': {  # 15-digit TRN; the 10-digit TIN (Peppol) is in additional_identifiers
+        'sequence': 10,
         'category': 'TIN',
         'countries': ['AE'],
     },
@@ -477,13 +481,34 @@ TIN_METADATA = {
 }
 
 ADDITIONAL_IDENTIFIERS_METADATA = {
+    'AE_TIN': {  # The first 10 digits of the TRN, deduced from AE_TRN
+        'sequence': 20,
+        'scheme': '0235',
+        'label': _lt('TIN'),
+        'help': _lt('UAE Tax Identification Number. If your business is VAT-registered, this is the first 10 digits of your 15-digit TRN.'),
+        'placeholder': '1001234567',
+        'category': 'TIN',
+        'validation_function': ae_tin_validate,
+        'countries': ['AE'],
+    },
     'AT_EN': {
         'sequence': 10,
         'scheme': '9915',
         'label': _lt('Company ID'),
-        'help': _lt('Austrian company ID number (UID).'),
+        'help': _lt('Austrian Commercial Register Number (Firmenbuchnummer).'),
+        'placeholder': '199081t',
+        'examples': ['123456a'],
         'category': 'EN',
-        'validation_function': at_en.validate,
+        'validation_function': at_en_validate,
+        'countries': ['AT'],
+    },
+    'AT_STEUERNUMMER': {
+        'label': _lt('Steuernummer'),
+        'help': _lt('Austrian Steuernummer/Abgabenkontonummer (FBN).'),
+        'placeholder': '59-119/9013',
+        'examples': ['59-119/9013', '591199013'],
+        'category': 'TIN',
+        'validation_function': at_steuernummer_validate,
         'countries': ['AT'],
     },
     'AU_ACN': {
@@ -638,6 +663,7 @@ ADDITIONAL_IDENTIFIERS_METADATA = {
         'label': _lt('SIREN'),
         'help': _lt('French 9-digit business identification number.'),
         'placeholder': '552008443',
+        'display_optional': 'show',
         'category': 'EN',
         'validation_function': fr_siren.validate,
         'countries': FR_AND_OVERSEAS_TERRITORIES,
@@ -648,6 +674,7 @@ ADDITIONAL_IDENTIFIERS_METADATA = {
         'label': _lt('SIRET'),
         'help': _lt('French 14-digit establishment identification number (SIREN + NIC).'),
         'placeholder': '33417522101010',
+        'display_optional': 'show',
         'category': 'EN',
         'validation_function': fr_siret.validate,
         'countries': FR_AND_OVERSEAS_TERRITORIES,
@@ -700,6 +727,14 @@ ADDITIONAL_IDENTIFIERS_METADATA = {
         'countries': ['IE'],
     },
     # Note: 'IT_CODICE' skipped for now, will need a refactor in itself.
+    'IT_CUC': {
+        'label': _lt('CUC'),
+        'help': _lt('CBI CUC code (Codice Univoco CBI) used for electronic banking.'),
+        'placeholder': 'A1B2C3D4',
+        'display_optional': 'hide',
+        'validation_function': it_cuc_validate,
+        'countries': ['IT'],
+    },
     'JP_EN': {
         'sequence': 10,
         'scheme': '0188',
@@ -883,10 +918,17 @@ ADDITIONAL_IDENTIFIERS_METADATA = {
     },
     'SK_EN': {
         'sequence': 10,
-        'scheme': '0245',
         'label': _lt('Company ID'),
         'help': _lt('Slovak company identification number (IČO).'),
         'category': 'EN',
+        'countries': ['SK'],
+    },
+    'SK_TIN': {
+        'sequence': 20,
+        'scheme': '0245',
+        'label': _lt('DIČ'),
+        'help': _lt('Slovak tax identification number (DIČ).'),
+        'category': 'TIN',
         'countries': ['SK'],
     },
     'TH_BRANCH_CODE': {
@@ -978,8 +1020,8 @@ def get_deduced_identifiers(key, value):
     Example: FR_SIRET => FR_SIREN, BE_VAT => BE_EN.
     """
     deduced = {}
-    if key == 'AT_VAT':
-        deduced['AT_EN'] = get_non_prefixed_identifier('AT', value)
+    if key == 'AE_TRN':
+        deduced['AE_TIN'] = NON_DIGIT_RE.sub('', value)[:10]
     if key == 'AU_ACN':
         deduced['AU_ABN'] = au_acn.to_abn(value)
     if key == 'BE_VAT':
@@ -992,8 +1034,17 @@ def get_deduced_identifiers(key, value):
         deduced['HU_VAT'] = get_prefixed_identifier('HU', value)[:10]  # "HU" + 8 digits
     if key == 'SG_GST':
         deduced['SG_UEN'] = value
+    if key == 'SK_VAT':
+        deduced['SK_TIN'] = get_non_prefixed_identifier('SK', value)
     if key == 'RO_VAT':
         deduced['RO_EN'] = get_non_prefixed_identifier('RO', value)
+    if key == 'FI_VAT':
+        deduced['FI_EN'] = get_non_prefixed_identifier('FI', value)  # FI + Y-tunnus (8 digits)
+    if key == 'NO_VAT':
+        deduced['NO_EN'] = get_non_prefixed_identifier('NO', value)[:9]  # NO + organisation number (9 digits) + optional 'MVA'
+    if key == 'SE_VAT':
+        deduced['SE_EN'] = get_non_prefixed_identifier('SE', value)[:10]  # SE + organisation number (10 digits) + '01'
+
     return deduced
 
 

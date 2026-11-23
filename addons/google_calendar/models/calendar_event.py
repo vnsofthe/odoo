@@ -60,18 +60,21 @@ class CalendarEvent(models.Model):
 
     @api.model
     def _restart_google_sync(self):
-        self.env['calendar.event'].search(self._get_sync_domain()).write({
-            'need_sync': True,
-        })
+        events = self.env['calendar.event'].search(self._get_sync_domain())
+        events.write({'need_sync': True})
+        events._check_alarm_ids_sync_limit()
 
     @api.model_create_multi
     def create(self, vals_list):
         description_context = self.env.context.get('skip_contact_description', False)
         notify_context = self.env.context.get('dont_notify', False)
-        return super(CalendarEvent, self.with_context(dont_notify=notify_context, skip_contact_description=description_context)).create([
+        events = super(CalendarEvent, self.with_context(dont_notify=notify_context, skip_contact_description=description_context)).create([
             dict(vals, need_sync=False) if vals.get('recurrence_id') or vals.get('recurrency') else vals
             for vals in vals_list
         ])
+        if any('alarm_ids' in vals for vals in vals_list):
+            events._check_alarm_ids_sync_limit()
+        return events
 
     @api.model
     def _check_values_to_sync(self, values):
@@ -105,10 +108,25 @@ class CalendarEvent(models.Model):
         notify_context = self.env.context.get('dont_notify', False)
         if not notify_context and ([self.env.user.id != record.user_id.id for record in self]):
             self._check_modify_event_permission(vals)
+        previous_alarms_per_event = {event.id: event.alarm_ids for event in self} if 'alarm_ids' in vals else {}
         res = super(CalendarEvent, self.with_context(dont_notify=notify_context)).write(vals)
+        if previous_alarms_per_event:
+            # Only check events whose alarms actually changed (Google -> Odoo sync only logs on Google alarms update).
+            events_to_check = self.filtered(lambda event: event.alarm_ids != previous_alarms_per_event[event.id])
+            events_to_check._check_alarm_ids_sync_limit()
         if recurrence_update_setting == 'all_events' and len(self) == 1 and vals.keys() & self._get_google_synced_fields():
             self.recurrence_id.need_sync = True
         return res
+
+    def _check_alarm_ids_sync_limit(self):
+        """ Google Calendar only accepts up to 5 reminders per event.
+        Log a message on every synced event in self that exceeds this limit.
+        """
+        synced_events_over_limit = self.filtered(
+            lambda event: len(event.alarm_ids) > 5 and event._get_event_user().is_google_calendar_synced())
+        if synced_events_over_limit:
+            body = _("This event has more than 5 reminders, only the first 5 will be synced to Google Calendar.")
+            synced_events_over_limit._message_log_batch(bodies={event.id: body for event in synced_events_over_limit})
 
     def _check_modify_event_permission(self, values):
         """ Check if event modification attempt by attendee is valid to avoid duplicate events creation. """
@@ -145,6 +163,7 @@ class CalendarEvent(models.Model):
             '|',
                 ('partner_ids.user_ids', 'in', self.env.user.id),
                 ('calendar_id', 'in', self.env.user.writable_calendar_ids.ids),
+            ('user_id', '!=', False),
             ('stop', '>', lower_bound),
             ('start', '<', upper_bound),
             # Do not sync events that follow the recurrence, they are already synced at recurrence creation
@@ -153,6 +172,12 @@ class CalendarEvent(models.Model):
 
     @api.model
     def _odoo_values(self, google_event, calendar, default_reminders=()):
+        """ Convert the google event record to a set of values that can be used to create or update an Odoo event.
+
+        Side effect note: To prevent alarm duplication when importing multiple events in a single transaction, we create
+        the alarm record directly within this call so that other events can be linked to it. If the sync process fails,
+        the transaction will be rolled back and the alarm record will not be committed (see _odoo_reminders_commands)
+        """
         if google_event.is_cancelled():
             return {'active': False}
 
@@ -269,6 +294,11 @@ class CalendarEvent(models.Model):
 
     @api.model
     def _odoo_reminders_commands(self, reminders=()):
+        """ Returns commands to link alarms to the event based on the reminders provided by google.
+
+        Side effect note: To avoid having to extract and deduplicate alarm commands later on, we simply create
+        missing alarms directly within this call. If the sync process fails, the transaction will be rolled back
+        and the alarm record will not be committed."""
         commands = []
         for reminder in reminders:
             alarm_type = 'email' if reminder.get('method') == 'email' else 'notification'
@@ -306,7 +336,13 @@ class CalendarEvent(models.Model):
                         reminder_type=alarm_type_label,
                         duration=duration,
                     )
-                commands += [(0, 0, {'duration': duration, 'interval': interval, 'name': name, 'alarm_type': alarm_type})]
+                alarm = self.env['calendar.alarm'].create({
+                    'duration': duration,
+                    'interval': interval,
+                    'name': name,
+                    'alarm_type': alarm_type,
+                })
+                commands += [(4, alarm.id)]
         return commands
 
     def action_mass_archive(self, recurrence_update_setting):
@@ -337,10 +373,11 @@ class CalendarEvent(models.Model):
             # Otherwise, if both 'date' and 'dateTime' are set, Google may not recognize it as a timed event
             start['dateTime'] = self.start.replace(tzinfo=datetime.UTC).isoformat()
             end['dateTime'] = self.stop.replace(tzinfo=datetime.UTC).isoformat()
+        # The Google Calendar API only accepts up to 5 reminders per event.
         reminders = [{
             'method': "email" if alarm.alarm_type == "email" else "popup",
             'minutes': alarm.duration_minutes
-        } for alarm in self.alarm_ids]
+        } for alarm in self.alarm_ids.sorted('id')[:5]]
 
         attendees = self.attendee_ids
         attendee_values = [{
@@ -448,3 +485,8 @@ class CalendarEvent(models.Model):
         # specifically first (e.g.: mass selection from a list view) before deleting the calendar.
         self.write({'google_id': False})
         return super()._before_calendar_cascade_unlink()
+
+    def _creation_message(self):
+        if self.env.context.get('google_calendar_from_sync'):
+            return _('Calendar Event imported from Google')
+        return super()._creation_message()

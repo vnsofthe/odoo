@@ -218,7 +218,7 @@ test("should make a few characters strikeThrough inside table (strikeThrough)", 
         stepFunction: strikeThrough,
         contentAfterEdit: unformat(`
             <p data-selection-placeholder=""><br></p>
-            <table class="table table-bordered o_table o_selected_table">
+            <div class="o_table_wrapper"><table class="table table-bordered o_table o_selected_table">
                 <tbody>
                     <tr>
                         <td class="o_selected_td"><p><s>[abc</s></p></td>
@@ -236,7 +236,7 @@ test("should make a few characters strikeThrough inside table (strikeThrough)", 
                         <td><p><br></p></td>
                     </tr>
                 </tbody>
-            </table>
+            </table></div>
             <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`),
     });
 });
@@ -271,4 +271,16 @@ test("should not add history commit for strikethrough on collapsed selection", a
 
     undo(editor);
     expect(getContent(el)).toBe(`<p>abcd[]</p>`);
+});
+
+test("should not apply the style on the link itself because it can't be neutralized locally", async () => {
+    const { el, editor } = await setupEditor(`<p><a href="test">[abc]</a></p>`);
+    strikeThrough(editor);
+    expect(getContent(el)).toBe(
+        `<p>\ufeff<a href="test" class="o_link_in_selection">\ufeff<s>[abc]</s>\ufeff</a>\ufeff</p>`
+    );
+    strikeThrough(editor);
+    expect(getContent(el)).toBe(
+        `<p>\ufeff<a href="test" class="o_link_in_selection">\ufeff[abc]\ufeff</a>\ufeff</p>`
+    );
 });

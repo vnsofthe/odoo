@@ -73,9 +73,32 @@ def _trim_hours_from_start(intervals, hours):
     return result
 
 
+def _trim_hours_from_end(intervals, hours):
+    """Remove `hours` worth of time from the end of an interval list."""
+    remaining = hours
+    result = []
+    for s, e, r in reversed(intervals):
+        if remaining <= 0:
+            result.append((s, e, r))
+            continue
+        slot = (e - s).total_seconds() / 3600
+        if slot <= remaining:
+            remaining -= slot
+        else:
+            result.append((s, e - timedelta(hours=remaining), r))
+            remaining = 0
+    result.reverse()
+    return result
+
+
 def _to_utc(dt, tz):
     """Convert a naive local datetime to a naive UTC datetime."""
     return dt.replace(tzinfo=tz).astimezone(UTC).replace(tzinfo=None)
+
+
+def _utc_seconds(start, end, tz):
+    """Duration in seconds between two naive local datetimes, measured in UTC (DST-safe)."""
+    return (_to_utc(end, tz) - _to_utc(start, tz)).total_seconds()
 
 
 def _from_utc(dt, tz):
@@ -108,6 +131,21 @@ def _split_by_window(intervals, window):
 
 
 class HrTimeRule(models.Model):
+    """Threshold rule reclassifying worked or absent time (overtime, undertime).
+
+    A rule reads: when the time of the types ``condition_work_entry_type_ids`` within the
+    timing window (weekdays, public holidays, ``timing_start``-``timing_stop``) exceeds
+    (``threshold_operator = 'exceed'``) or is less than (``'less_than'``) the expected hours of
+    the period (``quantity_period``: day or week, from the schedule or ``expected_hours``, see
+    ``working_hours_mode``), the excess or the missing time gets the type
+    ``work_entry_type_id``. ``employer_tolerance`` / ``employee_tolerance`` are the hours
+    ignored before an excess / a deficit counts.
+
+    Rules are evaluated by :meth:`_evaluate_rules` on ``hr.attendance`` and ``hr.leave``
+    records (the sources, see ``hr.time.rule.source.mixin``) and their result is written back
+    on the sources by :meth:`_apply_output`.
+    """
+
     _name = 'hr.time.rule'
     _description = "Time Rule"
     _order = 'sequence, id'
@@ -334,6 +372,16 @@ class HrTimeRule(models.Model):
                 rule.expected_hours = 0.0
 
     def _get_applicable_employees(self, employees):
+        """Return the employees of ``employees`` the rule applies to.
+
+        Filters on the rule's company (or else country), then on ``employee_domain`` (evaluated as
+        superuser). ``hr_attendance`` also drops employees without calendar for rules based on the
+        employee schedule.
+
+        :param employees: ``hr.employee`` recordset
+        :rtype: hr.employee
+        :raise ValidationError: if ``employee_domain`` cannot be evaluated
+        """
         self.ensure_one()
         if self.company_id:
             employees = employees.filtered(lambda e: e.company_id == self.company_id)
@@ -362,7 +410,12 @@ class HrTimeRule(models.Model):
         ]
 
     def _get_schedule_calendar(self):
-        """Return the effective reference calendar for this rule, or False if employee-based."""
+        """Return the reference calendar of the rule.
+
+        :return: ``resource_calendar_id``, else the company's or the current company's calendar
+            when ``calendar_source`` is ``'reference'``; an empty recordset otherwise
+        :rtype: resource.calendar
+        """
         self.ensure_one()
         if self.calendar_source != 'reference':
             return self.env['resource.calendar']
@@ -373,6 +426,11 @@ class HrTimeRule(models.Model):
         )
 
     def _build_work_intervals_by_calendar(self, employees, start_dt, end_dt):
+        """Compute :meth:`_get_work_intervals` once per baseline calendar used by the rules of ``self``.
+
+        :return: ``{calendar_id: work_intervals}``, key ``False`` for the employees' own schedules
+        :rtype: dict
+        """
         by_calendar = {}
         if self.filtered(lambda r: r.calendar_source != 'reference'):
             by_calendar[False] = self._get_work_intervals(employees, start_dt, end_dt)
@@ -383,6 +441,21 @@ class HrTimeRule(models.Model):
         return by_calendar
 
     def _get_work_intervals(self, employees, start_dt, end_dt, schedule_calendar=None):
+        """Return the schedule data the rules compare worked time with, per employee.
+
+        Computed per version period of each employee, with naive datetimes in the employee's
+        timezone (as all the pipeline).
+
+        :param employees: ``hr.employee`` recordset
+        :param datetime start_dt: period start (only the date is used)
+        :param datetime end_dt: period end (only the date is used)
+        :param schedule_calendar: reference ``resource.calendar`` replacing the versions'
+            calendars for the ``'schedule'`` and ``'public_leave'`` keys
+        :return: ``{key: {employee: Intervals}}`` with keys ``'schedule'`` (planned attendances),
+            ``'public_leave'`` (global leaves of the calendar), ``'leave'`` (absence leaves of the
+            employee) and ``'fully_flexible'`` (version periods with a fully flexible calendar)
+        :rtype: dict
+        """
         version_periods_by_employee = employees.sudo()._get_version_periods(
             start_dt.date(), end_dt.date(),
         )
@@ -401,8 +474,9 @@ class HrTimeRule(models.Model):
             rid = emp.resource_id.id
 
             for p_start, p_stop, version in periods:
-                p_dt_start = datetime.combine(p_start, time.min, tzinfo=UTC)
-                p_dt_end = datetime.combine(p_stop, time.max, tzinfo=UTC)
+                p_dt_start = datetime.combine(p_start, time.min, tzinfo=tz)
+                # the end of the period excluded, at the start of the day after its last day
+                p_dt_end = datetime.combine(p_stop + timedelta(days=1), time.min, tzinfo=tz)
                 period = Intervals([(p_dt_start.replace(tzinfo=None), p_dt_end.replace(tzinfo=None), version)])
 
                 if version._is_fully_flexible():
@@ -455,6 +529,10 @@ class HrTimeRule(models.Model):
         return result
 
     def _dates_to_day_intervals(self, intervals):
+        """Return one whole-day interval (00:00 to 23:59:59.999999) per day touched by ``intervals``.
+
+        :rtype: Intervals
+        """
         dates = set()
         for interval in intervals:
             start_dt = interval[0]
@@ -483,6 +561,12 @@ class HrTimeRule(models.Model):
         ], keep_distinct=True)
 
     def _build_hour_window_intervals(self, employees, day_intervals_by_employee):
+        """Restrict whole-day intervals to the rule's ``timing_start``-``timing_stop`` hours.
+
+        :param day_intervals_by_employee: ``{employee: Intervals}`` of whole days
+        :return: ``{employee: Intervals}`` of naive local datetimes
+        :rtype: dict
+        """
         self.ensure_one()
         result = defaultdict(Intervals)
         window_start = min(self.timing_start, self.timing_stop)
@@ -505,6 +589,16 @@ class HrTimeRule(models.Model):
         return result
 
     def _build_rule_day_intervals(self, min_date, max_date, employees, work_intervals_by_type):
+        """Return the timing window of the rule, per employee.
+
+        The days of ``[min_date, max_date]`` enabled by the ``apply_<weekday>`` flags, plus or
+        minus the employee's public holidays (``apply_on_public_holidays``), restricted to the
+        rule's hours (:meth:`_build_hour_window_intervals`).
+
+        :param work_intervals_by_type: result of :meth:`_get_work_intervals`
+        :return: ``{employee: Intervals}`` of naive local datetimes
+        :rtype: dict
+        """
         self.ensure_one()
         weekday_flags = self._weekday_flags()
         all_days = [
@@ -541,7 +635,12 @@ class HrTimeRule(models.Model):
         return result
 
     def _get_record_interval_local(self, record):
-        """Return (start_local, stop_local) for a time record in the employee's tz."""
+        """Return the span of a source record as naive datetimes in the employee's timezone.
+
+        :param record: an ``hr.time.rule.source.mixin`` record
+        :return: ``(start, stop)``
+        :rtype: tuple
+        """
         tz = ZoneInfo(record.employee_id.sudo()._get_tz())
         start_field = record._time_rule_span_start_field
         end_field = record._time_rule_span_end_field
@@ -550,25 +649,38 @@ class HrTimeRule(models.Model):
         return start, stop
 
     def _get_pp_frozenset(self):
-        """Return frozenset of premium pay IDs to attach when this rule classifies an interval."""
+        """Return the premium pay ids attached to the intervals this rule classifies.
+
+        Hook for localizations (``l10n_be``); default: empty.
+
+        :rtype: frozenset
+        """
         self.ensure_one()
         return frozenset()
 
     def _get_source_annotation_vals(self, accumulated_pp=frozenset()):
-        """Extra write vals when the source record is repurposed in-place as the first output segment.
+        """Return extra values written on a source record reused as the first output.
 
-        Override to propagate fields that _get_output_*_vals sets on newly created records
-        but that the in-place write path would otherwise miss (e.g. l10n_be_premium_pay_rule_ids).
+        When the output starts with the source, the source itself is reclassified (written)
+        instead of creating a new record. Override to write the fields the
+        ``_get_output_*_vals`` methods set on new output records (e.g.
+        ``l10n_be_premium_pay_rule_ids``).
+
+        :param frozenset accumulated_pp: premium pay ids of the output interval(s)
+        :rtype: dict
         """
         return {}
 
     def _resolve_output_intervals(self, intervals):
-        """Resolve each excess _Iv to its output form.
+        """Return the excess intervals of a source in their final output form.
 
-        Filters zero-duration and unresolvable intervals, computes wet (the effective output WET:
-        rule.work_entry_type_id or the source wet) and pp (union of all classifiers' pp frozensets,
-        derived from acc | {rule}), then returns the updated _Iv list via _replace.
-        Subclasses may merge consecutive slices (e.g. by merge key for leaves).
+        Sorts by start, drops empty intervals and intervals without type, sets ``wet`` to the
+        rule's ``work_entry_type_id`` (else the current type) and ``pp`` to the premium pay ids of
+        the classifying rule and of the rules it displaced (``acc``). ``hr_holidays`` also merges
+        consecutive slices with the same output.
+
+        :param list intervals: ``_Iv`` excess intervals of one source
+        :rtype: list
         """
         result = []
         for iv in sorted(intervals, key=lambda iv: iv.start):
@@ -580,10 +692,32 @@ class HrTimeRule(models.Model):
         return result
 
     def _apply_output(self, excess, deficit, active_iv=None):
-        """Shared apply-output implementation for both leaves and attendances.
+        """Write the result of :meth:`_evaluate_rules` on the source records.
 
-        active_iv: schedule-clipped pipeline intervals per source.
-        Returns (new_records, all_source_ids, excess_alloc, deficit_alloc) where
+        Shared by attendances and leaves (called by ``_apply_attendance_output`` /
+        ``_apply_leave_output``). Writes use the source's ``_time_rule_write_ctx``, so they do not
+        trigger the rules again.
+
+        - Excess: if the first output interval starts with the source, the source itself is
+          reclassified (type, ``time_rule_id``, end); otherwise the source is cut at the first
+          output start. Each other output interval becomes a new record
+          (``_get_time_rule_output_vals``) and the uncovered parts of the source a remainder
+          record keeping the source type (``_get_time_rule_remainder_vals``). Rules without
+          output type only annotate the source (:meth:`_get_source_annotation_vals`).
+        - Deficit: per period, only the lowest sequence rule is kept; the missing hours are
+          placed as new output records in the free slots after the deficit start (not
+          covered by other records of the model), minus what earlier runs already created.
+
+        :param dict excess: ``{employee: {source: [_Iv]}}``
+        :param dict deficit: ``{employee: {source: [(start, stop, rule)]}}``
+        :param dict active_iv: ``{employee: {source: Intervals}}`` pipeline segments of the
+            sources, used to compute the remainders
+        :return: ``(new_records, all_source_ids, excess_alloc, deficit_alloc)``: created records,
+            ids of the processed sources, and allocation rows
+            ``[employee, rule, hours, source, log_source]`` (``log_source`` = record the credit is
+            logged on, used by ``hr_holidays`` for compensatory allocations). Returns
+            ``(None, frozenset(), [], [])`` when there is no source.
+        :rtype: tuple
         """
         create_vals = []
         all_source_ids = set()
@@ -601,7 +735,7 @@ class HrTimeRule(models.Model):
                 # group by period, pick the lowest-sequence rule per period
                 by_period = defaultdict(list)
                 for iv_start, iv_end, rule in intervals:
-                    if not rule.work_entry_type_id or iv_end <= iv_start:
+                    if iv_end <= iv_start:
                         continue
                     if rule.quantity_period == 'week':
                         ws = int(rule.week_start or '0')
@@ -617,9 +751,12 @@ class HrTimeRule(models.Model):
                     for iv_start, iv_end, rule in period_ivs:
                         if rule != winning_rule:
                             continue
+                        deficit_hours = (iv_end - iv_start).total_seconds() / 3600
+                        if not rule.work_entry_type_id:
+                            deficit_alloc.append([employee, rule, deficit_hours, source, source])
+                            continue
                         pp = rule._get_pp_frozenset()
                         df = _to_utc(iv_start, tz)
-                        deficit_hours = (iv_end - iv_start).total_seconds() / 3600
                         occupied = source._get_time_rule_deficit_occupied(employee.id, df, period_end)
                         already_covered = source._get_time_rule_deficit_already_covered(rule, df, period_end)
                         remaining = max(0.0, deficit_hours - already_covered)
@@ -675,6 +812,9 @@ class HrTimeRule(models.Model):
                 src_start_local = _from_utc(source[start_field], tz)
                 src_stop_local = _from_utc(source[source._time_rule_span_end_field], tz)
                 source_wet_id = source.work_entry_type_id.id
+                # capture before any write so proration uses the original span/break
+                src_break_h = source._get_time_rule_break_hours()
+                src_span_secs = (source[source._time_rule_span_end_field] - source[start_field]).total_seconds()
 
                 out_union = Intervals([(s, e, dummy) for s, e, *_ in output_intervals], keep_distinct=True)
                 src_iv = (
@@ -682,15 +822,48 @@ class HrTimeRule(models.Model):
                     if active_iv and source in active_iv.get(employee, {})
                     else Intervals([(src_start_local, src_stop_local, dummy)])
                 )
-                remainder_segments = list(src_iv - out_union)
+                # filter out sub-second gaps that are artifacts of the pipeline splitting
+                # intervals at datetime.max.time()
+                remainder_segments = [
+                    seg for seg in src_iv - out_union
+                    if (_to_utc(seg[1], tz) - _to_utc(seg[0], tz)).total_seconds() >= 1
+                ]
 
                 min_out_start_utc = min(_to_utc(iv.start, tz) for iv in output_intervals)
                 src_start_utc = source[start_field]
-
+                # we apply break proration across intervals matching the source time type and pp
+                src_wet = source.work_entry_type_id
+                src_pp = frozenset()
                 if min_out_start_utc <= src_start_utc:
                     first = output_intervals[0]
                     first_end_utc = _to_utc(first.end, tz)
                     extra_vals = first.rule._get_source_annotation_vals(accumulated_pp=first.pp)
+                    # source record is repurposed as the first output; all remainder segments need new records
+                    # remainder: time between/after outputs that reverts to the original work type
+                    remainder_secs = sum(
+                        _utc_seconds(seg_s, seg_e, tz)
+                        for seg_s, seg_e, _ in remainder_segments
+                    )
+                    # eligible pool: remainder + output slices that keep the original type/pp
+                    break_pool_secs = remainder_secs + sum(
+                        _utc_seconds(iv.start, iv.end, tz)
+                        for iv in ([first._replace(start=src_start_local)] + list(output_intervals[1:]))
+                        if iv.wet == src_wet and iv.pp == src_pp
+                    )
+                    # zero out if the pool is too small to hold the break
+                    if break_pool_secs < src_break_h * 3600:
+                        break_pool_secs = 0
+                    break_span_secs = break_pool_secs or src_span_secs
+                    first_break_vals = {}
+                    if src_break_h:
+                        # the source becomes the first output: it must always get its own
+                        # share (possibly 0), never keep the original full break, else
+                        # the break is counted twice (source + remainder records)
+                        first_gets_break = not break_pool_secs or (first.wet == src_wet and first.pp == src_pp)
+                        first_break_vals['break_duration'] = (
+                            (first_end_utc - src_start_utc).total_seconds() / break_span_secs * src_break_h
+                            if first_gets_break and break_span_secs else 0.0
+                        )
                     if not (
                         source.work_entry_type_id == first.wet
                         and source.time_rule_id == first.rule
@@ -701,30 +874,65 @@ class HrTimeRule(models.Model):
                             'time_rule_id': first.rule.id,
                             **source._get_time_rule_end_write_vals(first_end_utc, first.end),
                             **extra_vals,
+                            **first_break_vals,
                         })
-                    elif extra_vals:
-                        # main fields already match but pp categories may still need updating
-                        source.sudo().with_context(**source._time_rule_write_ctx).write(extra_vals)
-                    for seg_s, seg_e, _ in remainder_segments:
-                        create_vals.append(source._get_time_rule_remainder_vals(_to_utc(seg_s, tz), _to_utc(seg_e, tz))
-                                           | {'work_entry_type_id': source_wet_id})
+                    elif extra_vals or first_break_vals:
+                        # main fields already match but pp or break may still need updating
+                        source.sudo().with_context(**source._time_rule_write_ctx).write({
+                            **extra_vals,
+                            **first_break_vals,
+                        })
                     # in-place: source record IS the output (its WET/time_rule_id were changed);
                     excess_alloc.append([employee, first.rule, (first.end - first.start).total_seconds() / 3600, source, source])
                     subsequent = output_intervals[1:]
                 else:
                     min_out_start_local = min(iv.start for iv in output_intervals)
-                    source.sudo().with_context(**source._time_rule_write_ctx).write(
-                        source._get_time_rule_end_write_vals(min_out_start_utc, min_out_start_local)
+                    # source record is cut at the first output: it keeps all the remainder
+                    # segments before it (several when absences are clipped to the schedule)
+                    # eligible pool: all remainder segments + output slices
+                    # that keep the original type/pp
+                    break_pool_secs = sum(
+                        _utc_seconds(seg_s, seg_e, tz)
+                        for seg_s, seg_e, _ in remainder_segments
+                    ) + sum(
+                        _utc_seconds(iv.start, iv.end, tz)
+                        for iv in output_intervals
+                        if iv.wet == src_wet and iv.pp == src_pp
                     )
-                    for seg_s, seg_e, _ in remainder_segments[1:]:
-                        create_vals.append(source._get_time_rule_remainder_vals(_to_utc(seg_s, tz), _to_utc(seg_e, tz))
-                                           | {'work_entry_type_id': source_wet_id})
+                    # zero out if the pool is too small to hold the break
+                    if break_pool_secs < src_break_h * 3600:
+                        break_pool_secs = 0
+                    break_span_secs = break_pool_secs or src_span_secs
+                    write_vals = source._get_time_rule_end_write_vals(min_out_start_utc, min_out_start_local)
+                    if src_break_h and break_span_secs:
+                        write_vals['break_duration'] = (min_out_start_utc - src_start_utc).total_seconds() / break_span_secs * src_break_h
+                    source.sudo().with_context(**source._time_rule_write_ctx).write(write_vals)
                     subsequent = output_intervals
 
+                for seg_s, seg_e, _ in remainder_segments:
+                    if _to_utc(seg_e, tz) <= min_out_start_utc:
+                        continue
+                    # snap a start that lands on the end-of-day boundary to midnight
+                    if seg_s.time() == time.max:
+                        seg_s = datetime.combine(seg_s.date() + timedelta(1), time.min)
+                    seg_start_utc = _to_utc(seg_s, tz)
+                    seg_end_utc = _to_utc(seg_e, tz)
+                    vals = source._get_time_rule_remainder_vals(seg_start_utc, seg_end_utc)
+                    vals['work_entry_type_id'] = source_wet_id
+                    if src_break_h and break_span_secs:
+                        vals['break_duration'] = (seg_end_utc - seg_start_utc).total_seconds() / break_span_secs * src_break_h
+                    create_vals.append(vals)
+
                 for iv in subsequent:
+                    iv_start_utc = _to_utc(iv.start, tz)
+                    iv_end_utc = _to_utc(iv.end, tz)
                     # new output record being created; log_source resolved to it after create()
                     pending_log_sources.append((len(excess_alloc), len(create_vals)))
-                    create_vals.append(source._get_time_rule_output_vals(iv.rule, _to_utc(iv.start, tz), _to_utc(iv.end, tz), iv.pp))
+                    iv_gets_break = not break_pool_secs or (iv.wet == src_wet and iv.pp == src_pp)
+                    vals = source._get_time_rule_output_vals(iv.rule, iv_start_utc, iv_end_utc, iv.pp)
+                    if iv_gets_break and src_break_h and break_span_secs:
+                        vals['break_duration'] = (iv_end_utc - iv_start_utc).total_seconds() / break_span_secs * src_break_h
+                    create_vals.append(vals)
                     excess_alloc.append([employee, iv.rule, (iv.end - iv.start).total_seconds() / 3600, source, None])
 
         any_source = next(
@@ -742,14 +950,26 @@ class HrTimeRule(models.Model):
         return new_records, all_source_ids, excess_alloc, deficit_alloc
 
     def _evaluate_period(self, start, stop, record_intervals, schedule):
-        """Evaluate one time period against this rule's threshold.
+        """Compare the time worked in one period (day or week) with the rule's threshold.
 
-        record_intervals: list of (start, stop, source) 3-tuples extracted from the
-            pipeline for this period.
+        Expected hours: the schedule in the period if ``calendar_source`` is set, else
+        ``expected_hours``. Worked hours: union of the source intervals minus their breaks
+        (prorated to the part of the source in the period).
 
-        Returns (excess_by_source, deficit_by_source) where each value is a list of
-        (start, stop, rule) 3-tuples.  pp is derived lazily from rule._get_pp_frozenset()
-        at consumption time.
+        - ``exceed``: when the excess is above ``employer_tolerance``, the expected hours are
+          consumed in chronological order and what remains is the excess, taken from the end of
+          the source intervals.
+        - ``less_than``: when the deficit is above ``employee_tolerance``, the gaps of the schedule
+          (or of the period) not covered by worked time form the deficit, all attached to the
+          source ending last.
+
+        :param datetime start: period start, naive local
+        :param datetime stop: period end, naive local
+        :param list record_intervals: ``(start, stop, source)`` tuples of the period
+        :param Intervals schedule: schedule restricted to the rule window and the period
+        :return: ``(excess_by_source, deficit_by_source)``, each ``{source: [(start, stop,
+            rule)]}``; at most one of them is non-empty
+        :rtype: tuple
         """
         self.ensure_one()
         period_window = Intervals([(start, stop, self.env['resource.calendar'])])
@@ -771,7 +991,7 @@ class HrTimeRule(models.Model):
 
         # prorate each source's break across the fraction of its span in this window.
         # e.g. a 2h break in an 8h attendance contributes 1h to a 4h timing window.
-        # the break stays entirely on the source record; output child records carry no break.
+        # _apply_output then distributes the break over the split records.
         total_break = 0.0
         src_span_secs_cache = {}
         for source, src_intervals in intervals_by_source.items():
@@ -782,7 +1002,7 @@ class HrTimeRule(models.Model):
             end_f = source._time_rule_span_end_field
             src_start_utc = source[start_f]
             src_end_utc = source[end_f]
-            span_secs = (src_end_utc - src_start_utc).total_seconds() if src_start_utc and src_end_utc else 0
+            span_secs = (src_end_utc - src_start_utc).total_seconds()
             src_span_secs_cache[source] = span_secs
             if span_secs <= 0:
                 continue
@@ -801,7 +1021,22 @@ class HrTimeRule(models.Model):
                 intervals_by_source.keys(),
                 key=lambda r: max(e for _, e, _ in intervals_by_source[r]),
             )
-            if self.calendar_source:
+            dummy = self.env['resource.calendar']
+            sched_cal = next((att.calendar_id for _s, _e, att in schedule), dummy)
+            if self.calendar_source and sched_cal._is_duration_based() and total_worked:
+                # place deficit after checkout, or before checkin if the day is too short
+                last_end = max(e for _s, e, _ in total_worked)
+                first_start = min(s for s, _e, _ in total_worked)
+                after_slot = Intervals([(last_end, stop, dummy)]) - total_worked
+                if sum_intervals(after_slot) >= deficit_amount:
+                    gap = _trim_hours_from_end(list(after_slot), sum_intervals(after_slot) - deficit_amount)
+                else:
+                    before_slot = Intervals([(start, first_start, dummy)]) - total_worked
+                    gap = list(before_slot)
+                    trim = sum_intervals(before_slot) - deficit_amount
+                    if trim > 0:
+                        gap = _trim_hours_from_start(gap, trim)
+            elif self.calendar_source:
                 gap = list((schedule & period_window) - total_worked)
                 extra_outside = sum_intervals(total_worked) - sum_intervals(total_worked & schedule & period_window)
                 if extra_outside > 0:
@@ -811,21 +1046,15 @@ class HrTimeRule(models.Model):
                     absence_hours = sum((e - s).total_seconds() / 3600 for s, e, _ in gap)
                     break_deficit = deficit_amount - absence_hours
                     if break_deficit > 1e-6:
-                        dummy = self.env['resource.calendar']
                         gap.append((stop - timedelta(hours=break_deficit), stop, dummy))
-                return {}, {last_source: [(s, e, self) for s, e, _ in gap]}
             else:
-                # when schedule data is available, clip the gap to actual working-time
-                # slots so the deficit output lands within calendar hours, mirroring the
-                # calendar_source branch.  falls back to the full period window for
-                # fully-flexible employees who have no schedule.
                 available = schedule if schedule else period_window
                 gap_iv = available - total_worked
                 gap = list(gap_iv)
                 trim = sum_intervals(gap_iv) - deficit_amount
                 if trim > 0:
                     gap = _trim_hours_from_start(gap, trim)
-                return {}, {last_source: [(s, e, self) for s, e, _ in gap]}
+            return {}, {last_source: [(s, e, self) for s, e, _ in gap]}
 
         tolerance = self.employer_tolerance
         if float_compare(excess_amount, tolerance, 5) != 1:
@@ -843,16 +1072,25 @@ class HrTimeRule(models.Model):
             span_secs = src_span_secs_cache.get(source, 0)
             for r_start, r_stop, _ in intervals_by_source[source]:
                 iv_secs = (r_stop - r_start).total_seconds()
-                # effective duration: subtract prorated break so it stays in the source portion
-                effective_iv = iv_secs / 3600 - (
-                    iv_secs / span_secs * break_hours if span_secs > 0 and break_hours else 0.0
-                )
-                if remaining_expected >= effective_iv:
+                # exclude prorated break from the threshold calculation
+                prorated_break = iv_secs / span_secs * break_hours if span_secs > 0 else 0.0
+                effective_iv = iv_secs / 3600 - prorated_break
+
+                if effective_iv <= remaining_expected:
+                    # interval fits entirely in expected time; consume and move on
                     remaining_expected -= effective_iv
                     continue
-                excess_duration = effective_iv - remaining_expected if remaining_expected else effective_iv
-                excess_start = r_stop - timedelta(hours=excess_duration)
+
+                # interval crosses into excess territory
+                excess_duration = effective_iv - remaining_expected
+                if remaining_expected:
+                    # excess begins partway through interval
+                    excess_start = r_stop - timedelta(hours=excess_duration)
+                else:
+                    # entire interval is excess from the start
+                    excess_start = r_start
                 remaining_expected = 0
+
                 excess_by_source[source].append((excess_start, r_stop, self))
                 remaining_excess -= excess_duration
                 if remaining_excess <= 0:
@@ -860,13 +1098,26 @@ class HrTimeRule(models.Model):
         return excess_by_source, {}
 
     def _evaluate_rules(self, records, start_dt, end_dt):
-        """Evaluate all rules sequentially against a recordset of time records.
+        """Run the rules of ``self`` in sequence on source records; nothing is written.
 
-        Each rule fires in sequence order and sees all current pipeline intervals —
-        both original and those classified by prior rules. Returns (excess, deficit, active_iv)
-        keyed by employee then source record. excess values are _Iv instances (pp still frozenset();
-        filled in by _resolve_output_intervals). deficit values are 3-tuples (s, e, rule).
-        active_iv carries the union of pipeline segments per source for remainder computation.
+        The sources are turned into a pipeline of ``_Iv`` intervals (naive local datetimes, see
+        ``_get_pipeline_intervals_local``). Each applicable rule, in ``sequence, id`` order,
+        takes the intervals whose current type is in its ``condition_work_entry_type_ids`` and
+        inside its timing window, evaluates each period (:meth:`_evaluate_period`) and
+        reclassifies the excess in the pipeline, so later rules see the output of earlier ones
+        (e.g. a ``> 9h`` rule then a ``> 8h`` rule on the remaining attendance type). Rules
+        without output type and without threshold just tag the matching intervals. Pass the
+        result to :meth:`_apply_output`.
+
+        :param records: source records (``hr.attendance`` or ``hr.leave``)
+        :param datetime start_dt: evaluated period start (only the date is used, as a day of the
+            employees' timezone)
+        :param datetime end_dt: evaluated period end (only the date is used)
+        :return: ``(excess, deficit, active_iv)``: ``excess`` is ``{employee: {source:
+            [_Iv]}}`` with the intervals classified by a rule (``pp`` not filled yet),
+            ``deficit`` is ``{employee: {source: [(start, stop, rule)]}}``, ``active_iv`` is
+            ``{employee: {source: Intervals}}`` of the pipeline segments of each source
+        :rtype: tuple
         """
         excess = defaultdict(lambda: defaultdict(list))
         deficit = defaultdict(lambda: defaultdict(list))

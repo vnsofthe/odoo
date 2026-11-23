@@ -6,7 +6,6 @@ import { useService } from "@web/core/utils/hooks";
 import { Component, proxy, useProps, t } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
-import { parseFloat } from "@web/views/fields/parsers";
 import { useAsyncLockedMethod } from "@point_of_sale/app/hooks/hooks";
 import { ask, makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { PaymentMethodBreakdown } from "@point_of_sale/app/components/payment_method_breakdown/payment_method_breakdown";
@@ -153,14 +152,14 @@ export class ClosePosPopup extends Component {
     handleCashCountBlur() {
         const counted = this.state.payments[this.props.default_cash_details.id].counted;
         this.setManualCashInput(counted);
-        const parsed = parseFloat(counted);
+        const parsed = this.pos.parseCurrency(counted);
         const currency = this.pos.formatCurrency(parsed, this.pos.config.currency_id.id, {
             noSymbol: true,
         });
         this.state.payments[this.props.default_cash_details.id].counted = currency;
     }
     handlePaymentCountBlur(paymentId) {
-        const parsed = parseFloat(this.state.payments[paymentId].counted);
+        const parsed = this.pos.parseCurrency(this.state.payments[paymentId].counted);
         this.state.payments[paymentId].counted = this.pos.formatCurrency(
             parsed,
             this.pos.config.currency_id.id,
@@ -179,7 +178,11 @@ export class ClosePosPopup extends Component {
                 ? this.props.default_cash_details.amount
                 : this.props.non_cash_payment_methods.find((pm) => pm.id === paymentId).amount;
 
-        return parseFloat(counted) - expectedAmount;
+        return this.pos.parseCurrency(counted) - expectedAmount;
+    }
+
+    parseValidCounted(counted) {
+        return this.pos.isValidFloat(counted) ? this.pos.parseCurrency(counted) : 0;
     }
 
     getMaxDifference() {
@@ -202,7 +205,7 @@ export class ClosePosPopup extends Component {
         return true;
     }
     async closeSession() {
-        this.pos.accessRight.resetCashier();
+        this.pos.accessRight.forgetConnectedCashier();
         // If there are orders in the db left unsynced, we try to sync.
         const syncSuccess = await this.pos.pushOrdersWithClosingPopup();
         if (!syncSuccess) {
@@ -215,7 +218,7 @@ export class ClosePosPopup extends Component {
             };
             const amountByPaymentMethod = Object.entries(this.state.payments).reduce(
                 (acc, [id, { counted }]) => {
-                    acc[id] = parseFloat(counted);
+                    acc[id] = this.pos.parseCurrency(counted);
                     return acc;
                 },
                 {}
@@ -232,14 +235,18 @@ export class ClosePosPopup extends Component {
 
             this.pos.session.state = "closed";
             try {
+                await this.postCloseSession();
                 await this.pos.ticketPrinter.printSaleDetailsReceipt({ download: true });
             } finally {
+                this.pos.resetCashier();
                 this.pos.router.close();
             }
         } finally {
             localStorage.removeItem(`pos.session.${odoo.pos_config_id}`);
         }
     }
+    // Hook called once the session has been successfully closed in the backend, overrode inside `l10n_be_pos_blackbox`
+    async postCloseSession() {}
     async handleClosingError(response) {
         if (response.type === "session_already_closed") {
             return await makeAwaitable(

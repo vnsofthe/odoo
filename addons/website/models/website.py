@@ -229,7 +229,7 @@ class Website(models.CachedModel):
 
     def _compute_menu(self):
         # prefetch all accessible menus at once
-        all_menus = self.env['website.menu'].search_fetch(Domain('website_id', 'in', self.ids + [False]))
+        all_menus = self.env['website.menu'].search_fetch(Domain('website_id', 'in', self.ids))
 
         # use field parent_id (1 query) to determine field child_id (2 queries by level)
         children = dict.fromkeys(all_menus, ())
@@ -241,15 +241,6 @@ class Website(models.CachedModel):
 
         for website in self:
             menus = all_menus.filtered(lambda m: m.website_id == website)
-
-            # add the child menu without contained into menu with a website
-            for menu in all_menus.filtered(lambda m: not m.website_id):
-                parent = menu.parent_id
-                while parent:
-                    if parent.website_id == website:
-                        menus += menu
-                        break
-                    parent = parent.parent_id
 
             # prefetch every website.page and ir.ui.view at once
             menus.mapped('is_visible')
@@ -418,6 +409,7 @@ class Website(models.CachedModel):
     @api.model
     def _handle_favicon(self, vals):
         if icon := vals.get('favicon'):
+            icon = self._fields['favicon'].convert_to_cache(icon, self)
             filename = icon.filename if isinstance(icon, BinaryValue) else ''
             vals['favicon'] = BinaryBytes(image_process(icon, size=(256, 256), crop='center', output_format='ICO'), filename)
 
@@ -486,17 +478,11 @@ class Website(models.CachedModel):
 
         if default_website.id != first_website.id:
             existing_settings = filter(lambda s: s in self._fields, self._get_settings_to_copy_onto_new_default_website())
-            transferred_settings = []
             for s in existing_settings:
                 if default_website[s] and not first_website[s]:
                     # If s is set in the old default website and not in the new
                     # default website, transfer it
                     first_website[s] = default_website[s]
-                    field_description = self.env['ir.model.fields'].search([
-                        ('name', '=', s),
-                        ('model', '=', 'website'),
-                    ], limit=1).field_description
-                    transferred_settings.append(field_description)
 
             # Mark the first website as default
             self.env['ir.model.data']._update_xmlids([{
@@ -509,26 +495,11 @@ class Website(models.CachedModel):
             self.env['ir.model.data'].invalidate_model()
 
             # Display a notification to inform the user
-            if len(transferred_settings) > 0:
-                self.env.user._bus_send("simple_notification", {
-                    'type': 'info',
-                    'title': _("Default website changed"),
-                    'message': _(
-                        'The new default website is %(default_website_name)s. '
-                        'The following default settings were copied from the old default website '
-                        'to the new one: %(transferred_settings)s. Note that these settings are still '
-                        'present on the old default website.',
-                        default_website_name=first_website.name,
-                        transferred_settings=", ".join(transferred_settings)),
-                    'sticky': True,
-                })
-            else:
-                self.env.user._bus_send("simple_notification", {
-                    'type': 'success',
-                    'title': _("Default website changed"),
-                    'message': _('The new default website is %(default_website_name)s.',
-                        default_website_name=first_website.name),
-                })
+            self.env.user._bus_send("simple_notification", {
+                'type': 'success',
+                'message': _("Default website changed to %(default_website_name)s.",
+                    default_website_name=first_website.name),
+            })
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_default_website(self):
@@ -879,6 +850,8 @@ class Website(models.CachedModel):
         self._check_configurator_access()
         website = self.env.website or self.env['website'].browse(self.env.context.get('host_id'))
         website.ensure_one()
+        if website.configurator_done:
+            return website.button_go_website()
         theme = self.env["ir.module.module"].search([("name", "=", "theme_default")])
         website.configurator_done = True
         return theme.with_context(website_id=website.id).button_choose_theme()
@@ -886,13 +859,16 @@ class Website(models.CachedModel):
     @api.model
     def configurator_missing_industry(self, unknown_industry):
         self._check_configurator_access()
-        self._website_api_rpc(
-            '/api/website/unknown_industry',
-            {
-                'unknown_industry': unknown_industry,
-                'lang': self.env.context.get('lang'),
-            }
-        )
+        try:
+            self._website_api_rpc(
+                '/api/website/unknown_industry',
+                {
+                    'unknown_industry': unknown_industry,
+                    'lang': self.env.context.get('lang'),
+                },
+            )
+        except RequestException as e:
+            logger.warning(e.args[0])
 
     @api.model
     def configurator_get_images(self, industry_id, theme=''):
@@ -923,7 +899,9 @@ class Website(models.CachedModel):
         skip_ai = kwargs.get('skip_ai')  # Used by design-themes tooling
         theme_name = kwargs['theme_name']
         theme = self.env['ir.module.module'].search([('name', '=', theme_name)])
-        redirect_url = theme.button_choose_theme()
+        redirect_url = theme.with_context(
+            is_dark_palette=kwargs.get('is_dark_palette'),
+        ).button_choose_theme()
 
         module = self.env['ir.module.module'].search([
             ('name', '=', WEBSITE_TYPE_MODULES.get(kwargs.get('website_type'))),
@@ -2324,13 +2302,15 @@ class Website(models.CachedModel):
         fuzzy_term = False
         search_details = self._search_get_details(search_type, order, options)
         if search and options.get('allowFuzzy', True):
-            fuzzy_term = self._search_find_fuzzy_term(search_details, search)
-            if fuzzy_term:
-                if fuzzy_term.lower() != search.lower():
-                    search = fuzzy_term
+            count, results = self._search_exact(search_details, search, offset, limit, order)
+            if not count:
+                fuzzy_term = self._search_find_fuzzy_term(search_details, search)
+                if fuzzy_term and fuzzy_term.lower() != search.lower():
+                    count, results = self._search_exact(search_details, fuzzy_term, offset, limit, order)
                 else:
                     fuzzy_term = False
-        count, results = self._search_exact(search_details, search, offset, limit, order)
+        else:
+            count, results = self._search_exact(search_details, search, offset, limit, order)
         return count, results, fuzzy_term
 
     def _search_exact(self, search_details, search, offset, limit, order):
@@ -2541,14 +2521,21 @@ class Website(models.CachedModel):
                         rel_table = direct_field.relation
                         rel_joinkey = direct_field.column2
                 subqueries.append(get_similarity_subquery(comodel, comodel_similarity_fields, id_column, rel_table, rel_joinkey))
+            # Rank only the records eligible for the provider domain, before the
+            # similarity LIMIT. The eligible ids are a sub-select (not fetched)
+            # to keep the domain's joins/aliases out of the similarity query.
             query = SQL("""
                 SELECT id,
                     MAX(similarity) as _best_similarity
-                FROM (%s) sub
+                FROM (%(subqueries)s) sub
+                WHERE id IN %(eligible_ids)s
                 GROUP BY id
                 ORDER BY _best_similarity DESC
                 LIMIT 1000
-            """, SQL("\nUNION ALL\n").join(subqueries))  # UNION ALL allows to hit GIST indexes in subplans.
+            """,
+                subqueries=SQL("\nUNION ALL\n").join(subqueries),  # UNION ALL allows to hit GIST indexes in subplans.
+                eligible_ids=model._search(domain).subselect(),
+            )
             ids = {row[0] for row in self.env.execute_query(query)}
             domain = Domain.AND([domain, Domain([('id', 'in', list(ids))])])
             records = model.search_read(domain, direct_fields, limit=limit)

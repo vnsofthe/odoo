@@ -160,9 +160,15 @@ export class Call extends Component {
             this.syncFocusedSession();
             this.requestLayout();
         });
-        useHotkey("shift+d", () => this.rtc.toggleDeafen());
-        useHotkey("shift+m", ({ target }) => this.rtc.toggleMicrophone({ rootRef: () => target }));
-        useHotkey("shift+h", () => this.rtc.raiseHand(!this.rtc.selfSession.raisingHand));
+        useHotkey("shift+d", () => this.rtc.toggleDeafen(), {
+            isAvailable: () => Boolean(this.rtc.selfSession),
+        });
+        useHotkey("shift+m", ({ target }) => this.rtc.toggleMicrophone({ rootRef: () => target }), {
+            isAvailable: () => Boolean(this.rtc.selfSession),
+        });
+        useHotkey("shift+h", () => this.rtc.raiseHand(!this.rtc.selfSession.raisingHand), {
+            isAvailable: () => Boolean(this.rtc.selfSession),
+        });
         useSubEnv({
             inDiscussCallView: {
                 dragInsetBy: (surfaceKey, dX, dY) => this.dragInsetBy(surfaceKey, dX, dY),
@@ -216,7 +222,9 @@ export class Call extends Component {
             }
         }
         // Keep a pin or presentation focused, or retain the last speaker when the call is quiet.
-        const focused = this.channel.activeRtcSession || this.spotlightSession;
+        // Self is only retained while alone: whoever joins takes the stage over.
+        const active = this.channel.activeRtcSession;
+        const focused = active?.notEq(this.rtc.selfSession) ? active : this.spotlightSession;
         return focused ? [focused] : [];
     }
 

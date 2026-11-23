@@ -203,6 +203,8 @@ def parse_date(value: str, env: Environment) -> date | datetime:
         # Operations on dates
         try:
             unit = _SHORT_DATE_UNIT[term[-1]]
+            if unit in ("hours", "minutes", "seconds") and not isinstance(dt, datetime):
+                dt = datetime.combine(dt, time.min, tzinfo=env.tz)
             if operator in ('+', '-'):
                 number = int(term[:-1])  # positive or negative
             else:
@@ -211,7 +213,11 @@ def parse_date(value: str, env: Environment) -> date | datetime:
                 if isinstance(dt, datetime):
                     dt += TRUNCATE_UNIT[unit]
                 # note: '=Nw' is not supported
-            dt += relativedelta(**{unit: number})
+            delta = relativedelta(**{unit: number})
+            if isinstance(dt, datetime) and unit in ("hours", "minutes", "seconds"):
+                dt = (dt.astimezone(UTC) + delta).astimezone(dt.tzinfo)
+            else:
+                dt += delta
         except (ValueError, TypeError, KeyError):
             raise ValueError(f"Invalid term {term!r} in expression date: {value!r}")
 
@@ -421,8 +427,11 @@ def date_range(start: D, end: D, step: relativedelta = relativedelta(months=1)) 
             start = start.replace(tzinfo=None)
             end = end.replace(tzinfo=None)
 
-    elif isinstance(start, date) and isinstance(end, date):
-        if not isinstance(start + step, date):
+    elif (
+        isinstance(start, date) and not isinstance(start, datetime)
+        and isinstance(end, date) and not isinstance(end, datetime)
+    ):
+        if isinstance(start + step, datetime):
             raise ValueError("the step interval must add only entire days")  # noqa: TRY004
     else:
         raise ValueError("start/end should be both date or both datetime type")  # noqa: TRY004

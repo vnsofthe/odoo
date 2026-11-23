@@ -75,7 +75,7 @@
                                 <label for="move_id" string="Journal Entry"/>
                                 <field name="move_id" readonly="1" nolabel="1"/>
                                 <group readonly="1" invisible="not statement_line_id">
-                                    <label for="statement_line_id" string="Originator Statement Line"/>
+                                    <label for="statement_line_id" string="Originator Bank Transaction"/>
                                     <field name="statement_line_id"/>
                                 </group>
                             </page>
@@ -103,7 +103,7 @@
                             </div>
                             <div class="row mb4" style="min-height: 60px;">
                                 <em class="col-10">
-                                    <field name="name"/>
+                                    <field name="label"/>
                                 </em>
                                 <div class="col-2 text-end">
                                     <field name="partner_id" widget="image" options="{'preview_image': 'avatar_128'}"/>
@@ -169,7 +169,8 @@
                     <field name="partner_id" optional="show" readonly="move_type != 'entry'"/>
                     <field name="ref" optional="hide" readonly="False"/>
                     <field name="product_id" readonly="1" optional="hide"/>
-                    <field name="name" optional="show"/>
+                    <field name="label" optional="show" readonly="1"/>
+                    <field name="name" optional="hide"/>
                     <field name="analytic_distribution"
                            widget="analytic_distribution"
                            groups="analytic.group_analytic_accounting"
@@ -418,7 +419,8 @@
                     <field name="move_name" string="Journal Entry" widget="open_move_widget"/>
                     <field name="partner_id" optional="show" readonly="move_type != 'entry'"/>
                     <field name="ref" readonly="False"/>
-                    <field name="name" optional="show"/>
+                    <field name="label" optional="show" readonly="1"/>
+                    <field name="name" optional="hide"/>
                     <field name="discount_amount_currency" string="Discount Amount" optional="show" invisible="not discount_amount_currency"/>
                     <field name="residual_at_date" sum="Total Residual at date" string="Residual" readonly="1" invisible="not is_account_reconcile"/>
                     <field name="residual_currency_at_date" string="Residual in Currency" optional="hide" readonly="1" invisible="is_same_currency or not is_account_reconcile" groups="base.group_multi_currency"/>
@@ -543,6 +545,24 @@
                 <xpath expr="//list" position="attributes">
                     <attribute name="multi_edit">1</attribute>
                 </xpath>
+            </field>
+        </record>
+
+        <record id="account_move_view_list_stock_closing" model="ir.ui.view">
+            <field name="name">account.move.view.list.stock.closing</field>
+            <field name="model">account.move</field>
+            <field name="priority">99</field>
+            <field name="arch" type="xml">
+                <list string="Journal Entries" default_order="reversed_entry_id nulls first, date"
+                      decoration-info="state == 'draft'" decoration-muted="state == 'cancel'">
+                    <field name="currency_id" column_invisible="True"/>
+                    <field name="ref"/>
+                    <field name="name"/>
+                    <field name="date"/>
+                    <field name="journal_id" optional="show"/>
+                    <field name="amount_total" sum="Total"/>
+                    <field name="state" optional="hide" widget="badge" decoration-info="state == 'draft'" decoration-success="state == 'posted'"/>
+                </list>
             </field>
         </record>
 
@@ -785,12 +805,12 @@
                                 class="oe_highlight"
                                 invisible="state != 'posted' or is_being_sent or invoice_pdf_report_id or move_type in ('entry', 'in_invoice','in_refund','in_receipt')"
                                 string="Print"
-                                data-hotkey="p"/>
+                                data-hotkey="shift+p"/>
                         <button name="action_print_pdf"
                                 type="object"
                                 invisible="state != 'posted' or (not is_being_sent and not invoice_pdf_report_id) or move_type in ('in_invoice','in_refund','in_receipt')"
                                 string="Print"
-                                data-hotkey="p"/>
+                                data-hotkey="shift+p"/>
                         <!-- Register Payment (only invoices / receipts) -->
                         <button name="action_register_payment" id="account_invoice_payment_btn"
                                 type="object" class="oe_highlight"
@@ -1115,7 +1135,7 @@
                                     <field name="partner_id" widget="res_partner_many2one" nolabel="1"
                                            context="{
                                             'res_partner_search_mode': (context.get('default_move_type', 'entry') in ('out_invoice', 'out_refund', 'out_receipt') and 'customer') or (context.get('default_move_type', 'entry') in ('in_invoice', 'in_refund', 'in_receipt') and 'supplier') or False,
-                                            'show_address': 1, 'default_is_company': True, 'show_vat': True}"
+                                            'show_address': 1, 'default_is_company': True, 'show_identifier': True}"
                                            options='{"no_quick_create": True}'
                                            default_focus="1"
                                            invisible="move_type not in ('out_invoice', 'out_refund', 'in_invoice', 'in_refund', 'out_receipt', 'in_receipt')"
@@ -1488,7 +1508,7 @@
                                 </field>
                                 <group col="12" class="oe_invoice_lines_tab overflow-hidden pt-3 pt-md-0">
                                     <group colspan="8">
-                                        <field name="narration" placeholder="Terms and Conditions" nolabel="1"/>
+                                        <field name="narration" placeholder="Terms and Conditions" nolabel="1" colspan="2"/>
                                     </group>
                                     <!-- Totals (only invoices / receipts) -->
                                     <group colspan="4" class="m-0">
@@ -1538,7 +1558,8 @@
                                                optional="show"
                                                domain="['|', ('parent_id', '=', False), ('is_company', '=', True)]"
                                                column_invisible="parent.move_type != 'entry'"/>
-                                        <field name="name" optional="show"/>
+                                        <field name="label" optional="show"/>
+                                        <field name="name" optional="hide"/>
                                         <field name="analytic_distribution" widget="analytic_distribution"
                                                groups="analytic.group_analytic_accounting"
                                                optional="show"
@@ -1611,7 +1632,8 @@
                                       <group>
                                         <field name="account_id" domain="[('company_ids', 'parent_of', company_id)]"/>
                                         <field name="partner_id" domain="['|', ('parent_id', '=', False), ('is_company', '=', True)]"/>
-                                        <field name="name"/>
+                                        <field name="label"/>
+                                        <field name="name" invisible="1"/>
                                         <field name="analytic_distribution" widget="analytic_distribution" groups="analytic.group_analytic_accounting"/>
                                         <field name="amount_currency" groups="base.group_multi_currency"/>
                                         <field name="company_currency_id" invisible="1"/>

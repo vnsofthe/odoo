@@ -12,7 +12,7 @@ import {
     onWillUnmount,
 } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
-import { cleanZWChars, deduceURLfromText } from "./utils";
+import { cleanZWChars, deduceLinkUrl, normalizeLinkUrlInput } from "./utils";
 import { CheckBox } from "@web/core/checkbox/checkbox";
 import { isAbsoluteURLInCurrentDomain } from "@html_editor/utils/url";
 import { Dropdown } from "@web/core/dropdown/dropdown";
@@ -26,7 +26,8 @@ import {
     getButtonSize,
     getButtonType,
 } from "@html_editor/utils/button_style";
-import { trapFocus } from "@html_editor/utils/dom_traversal";
+import { closestElement, trapFocus } from "@html_editor/utils/dom_traversal";
+import { ICON_SELECTOR } from "@html_editor/utils/dom_info";
 
 export const linkPopoverProps = {
     advancedAttributeOptions: t.array().optional(),
@@ -106,7 +107,9 @@ export class LinkPopover extends Component {
         this.state = proxy({
             editing: this.props.LinkPopoverState.editing,
             // `.getAttribute("href")` instead of `.href` to keep relative url
-            url: linkElement.getAttribute("href") || this.deduceUrl(textContent),
+            url: this.setUrlFileNamePath(
+                linkElement.getAttribute("href") || deduceLinkUrl(textContent, linkElement)
+            ),
             label: labelEqualsUrl ? "" : textContent,
             previewIcon: {
                 /** @type {'oi'|'imgSrc'|'mimetype'} */
@@ -124,7 +127,7 @@ export class LinkPopover extends Component {
             buttonShape: getButtonShape(linkElement),
             isImage: this.props.isImage,
             showReplaceTitleBanner: this.props.showReplaceTitleBanner,
-            canReplaceTitle: !linkElement.querySelector("img,.fa"),
+            canReplaceTitle: !linkElement.querySelector(`img,${ICON_SELECTOR}`),
             showLabel: !linkElement.childElementCount,
             stripDomain: true,
             showAdvancedOptions: false,
@@ -155,8 +158,30 @@ export class LinkPopover extends Component {
         };
         useCrossDocumentListener(this.props.document, "pointerdown", onPointerDown);
         useContentChange(this.props.linkElement, () => {
-            this.state.urlTitle = this.props.linkElement.textContent;
+            const fileName = this.props.linkElement.textContent;
+            this.state.urlTitle = fileName;
+            this.state.url = this.setUrlFileNamePath(this.state.url);
         });
+    }
+    setUrlFileNamePath(url) {
+        const fileName = this.props.linkElement.textContent;
+        const file = closestElement(this.props.linkElement, ".o_file_box");
+        if (!file) {
+            return url;
+        }
+        const hadOrigin = /^https?:\/\//i.test(url);
+        const urlObj = new URL(url, window.location.origin);
+        const match = urlObj.pathname.match(/^(\/web\/content\/\d+)(?:\/[^/]*)?$/);
+        if (!match) {
+            return url;
+        }
+        let cleanName = fileName.replace(/\ufeff/g, "");
+        const extension = file.dataset.extension;
+        if (extension && !cleanName.toLowerCase().endsWith(`.${extension.toLowerCase()}`)) {
+            cleanName += `.${extension}`;
+        }
+        urlObj.pathname = `${match[1]}/${encodeURIComponent(cleanName)}`;
+        return hadOrigin ? urlObj.toString() : urlObj.toString().replace(urlObj.origin, "");
     }
 
     toggleAdvancedOptions() {
@@ -221,10 +246,7 @@ export class LinkPopover extends Component {
         if (this.state.label === "") {
             this.state.label = this.state.url;
         }
-        const deducedUrl = this.deduceUrl(this.state.url);
-        this.state.url = deducedUrl
-            ? this.correctLink(deducedUrl)
-            : this.correctLink(this.state.url);
+        this.state.url = normalizeLinkUrlInput(this.state.url, this.props.linkElement);
         if (
             this.props.allowStripDomain &&
             this.state.stripDomain &&
@@ -332,32 +354,6 @@ export class LinkPopover extends Component {
             this.state.directDownload = true;
         }
     }
-    correctLink(url) {
-        if (
-            url &&
-            !url.startsWith("tel:") &&
-            !url.startsWith("mailto:") &&
-            !url.includes("://") &&
-            !url.startsWith("/") &&
-            !url.startsWith("#") &&
-            !url.startsWith("${")
-        ) {
-            url = "https://" + url;
-        }
-        if (url && (url.startsWith("http:") || url.startsWith("https:"))) {
-            url = URL.parse(url) ? url : "";
-        }
-        return url;
-    }
-    deduceUrl(text) {
-        text = text.trim();
-        if (/^(https?:|mailto:|tel:)/.test(text)) {
-            // Text begins with a known protocol, accept it as valid URL.
-            return text;
-        } else {
-            return deduceURLfromText(text, this.props.linkElement) || "";
-        }
-    }
     /**
      * link preview in the popover
      */
@@ -420,9 +416,9 @@ export class LinkPopover extends Component {
                     return {};
                 });
 
-            this.state.urlTitle = externalMetadata?.og_title || this.state.url;
-            this.state.urlDescription = externalMetadata?.og_description || "";
-            this.state.imgSrc = externalMetadata?.og_image || "";
+            this.state.urlTitle = externalMetadata?.og_title?.trim() || this.state.url;
+            this.state.urlDescription = externalMetadata?.og_description?.trim() || "";
+            this.state.imgSrc = externalMetadata?.og_image?.trim() || "";
             if (
                 externalMetadata?.og_image &&
                 this.state.label &&

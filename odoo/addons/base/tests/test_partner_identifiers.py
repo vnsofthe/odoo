@@ -64,6 +64,17 @@ class TestPartnerIdentifiers(TransactionCase):
             "BE_EN should be deduced from BE VAT by stripping the country prefix",
         )
 
+    def test_vat_change_updates_be_en(self):
+        """Changing a Belgian VAT must update the existing BE_EN (BCE/KBO) to match."""
+        partner = self.env['res.partner'].create({
+            'name': 'BE Partner',
+            'country_id': self.env.ref('base.be').id,
+            'vat': 'BE0477472701',
+        })
+        self.assertEqual((partner.additional_identifiers or {}).get('BE_EN'), '0477472701')
+        partner.vat = 'BE0428759497'
+        self.assertEqual((partner.additional_identifiers or {}).get('BE_EN'), '0428759497')
+
     def test_vat_deduces_dk_cvr(self):
         """Setting a Danish VAT should automatically deduce DK_CVR."""
         partner = self.env['res.partner'].create({
@@ -76,17 +87,48 @@ class TestPartnerIdentifiers(TransactionCase):
             '12345674',
         )
 
-    def test_vat_deduces_at_en(self):
-        """Setting an Austrian VAT should automatically deduce AT_EN."""
+    def test_vat_not_deduces_at_en(self):
+        """Setting an Austrian VAT should not automatically deduce AT_EN (anymore)."""
         partner = self.env['res.partner'].create({
             'name': 'AT Partner',
             'country_id': self.env.ref('base.at').id,
         })
         partner.vat = 'ATU12345675'
-        self.assertEqual(
-            (partner.additional_identifiers or {}).get('AT_EN'),
-            'U12345675',
-        )
+        self.assertFalse((partner.additional_identifiers or {}).get('AT_EN'))
+
+    def test_vat_deduces_se_en(self):
+        """Setting a Swedish VAT should automatically deduce SE_EN, with or without the SE prefix."""
+        for vat in ('SE123456789701', '123456789701'):
+            with self.subTest(vat=vat):
+                partner = self.env['res.partner'].create({
+                    'name': 'SE Partner',
+                    'country_id': self.env.ref('base.se').id,
+                })
+                partner.vat = vat
+                self.assertEqual(
+                    (partner.additional_identifiers or {}).get('SE_EN'),
+                    '1234567897',
+                )
+
+    def test_vat_deduces_fi_en(self):
+        """Setting a Finnish VAT should automatically deduce FI_EN."""
+        partner = self.env['res.partner'].create({
+            'name': 'FI Partner',
+            'country_id': self.env.ref('base.fi').id,
+        })
+        partner.vat = 'FI01120389'
+        self.assertEqual((partner.additional_identifiers or {}).get('FI_EN'), '01120389')
+
+    def test_vat_deduces_no_en(self):
+        """Setting a Norwegian VAT should automatically deduce NO_EN, with or without the MVA suffix."""
+        for vat in ('NO974760673MVA', 'NO974760673'):
+            with self.subTest(vat=vat):
+                partner = self.env['res.partner'].create({
+                    'name': 'NO Partner',
+                    'country_id': self.env.ref('base.no').id,
+                })
+                partner.vat = vat
+                self.assertEqual((partner.additional_identifiers or {}).get('NO_EN'), '974760673')
 
     def test_unknown_key_dropped(self):
         """Unknown identifier keys should be dropped on save with a logger warning."""
@@ -100,6 +142,29 @@ class TestPartnerIdentifiers(TransactionCase):
 
         self.assertNotIn('UNKNOWN_KEY', partner.additional_identifiers or {})
         self.assertIn('BE_EN', partner.additional_identifiers or {})
+
+    def test_display_name_falls_back_on_enterprise_number(self):
+        """Without a VAT, the display name shows the preferred legal entity identifier."""
+        self.partner.additional_identifiers = {'FR_SIRET': '33417522101010'}
+        self.assertEqual(
+            self.partner.with_context(show_identifier=True).display_name,
+            'Test Partner Identifiers - 33417522101010',
+        )
+
+    def test_display_name_falls_back_on_citizen_number(self):
+        self.partner.additional_identifiers = {'FR_CN': '295109912611193'}
+        self.assertEqual(
+            self.partner.with_context(show_identifier=True).display_name,
+            'Test Partner Identifiers - 295109912611193',
+        )
+
+    def test_display_name_ignores_category_less_identifier(self):
+        """Without a VAT, DUNS should not be shown since it is not a legal identifier."""
+        self.partner.additional_identifiers = {'DUNS': '372441183'}
+        self.assertEqual(
+            self.partner.with_context(show_identifier=True).display_name,
+            'Test Partner Identifiers',
+        )
 
     def test_tin_metadata(self):
         # Please, set a category on the Tax ID.

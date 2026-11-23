@@ -13,6 +13,7 @@ import { _t } from "@web/core/l10n/translation";
 export const productProps = {
     id: t.or([t.number(), t.literal(false)]).optional(),
     product_tmpl_id: t.number(),
+    product_type: t.string(),
     display_name: t.string(),
     // backend sends 'false' when there is no description
     description_sale: t.or([t.boolean(), t.string()]),
@@ -28,7 +29,6 @@ export const productProps = {
     parent_product_tmpl_id: t.number().optional(),
     price_info: t.string().optional(),
     selectedComboItems: t.array(t.object({ name: t.string() })).optional(),
-    show_extra_price: t.boolean().optional(true),
 };
 
 export class Product extends Component {

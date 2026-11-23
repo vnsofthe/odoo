@@ -1,10 +1,6 @@
 import { Store as BaseStore, fields, makeStore } from "@mail/model/export";
 import { formatLocalDateTime, resolveTimeZoneName } from "@mail/utils/common/dates";
-import {
-    attClassObjectToString,
-    generateEmojisOnHtml,
-    prettifyMessageText,
-} from "@mail/utils/common/format";
+import { attClassObjectToString, generateEmojisOnHtml } from "@mail/utils/common/format";
 
 import { proxy, usePlugin } from "@odoo/owl";
 
@@ -22,7 +18,6 @@ import { debounce } from "@web/core/utils/timing";
 import { getOrigin } from "@web/core/utils/urls";
 import { session } from "@web/session";
 import { isMarkup, createDocumentFragmentFromContent } from "@web/core/utils/html";
-import { nbsp } from "@web/core/utils/strings";
 
 const { DateTime } = luxon;
 
@@ -279,7 +274,7 @@ export class Store extends BaseStore {
         navigator.serviceWorker?.addEventListener("message", ({ data = {} }) => {
             const { type, payload } = data;
             if (type === "notification-display-request") {
-                const { correlationId, model, res_id } = payload;
+                const { correlationId, model, res_id, message_id } = payload;
                 const thread = this["mail.thread"].get({ model, id: res_id });
                 let isTabFocused;
                 try {
@@ -287,13 +282,16 @@ export class Store extends BaseStore {
                 } catch {
                     // assumes tab not focused: parent.document from iframe triggers CORS error
                 }
-                // Prevent duplicate inbox push notifications since they're already handled by
-                // `mail.message/notification` bus notifications, and the `modelsHandleByPush` heuristic
-                // in `out_of_focus_service.js` isn't reliable enough to detect these cases.
-                const isInbox =
-                    this.store.self.main_user_id?.notification_type === "inbox" &&
-                    model !== "discuss.channel";
-                if ((isTabFocused && thread?.channel?.isDisplayed) || isInbox) {
+                const isMessageSeen =
+                    model === "discuss.channel"
+                        ? thread?.channel?.self_member_id?.seen_message_id?.id >= message_id
+                        : thread?.messages.some((m) => m.id === message_id) ||
+                          this["mail.message"].get(message_id)?.needaction === false;
+                if (
+                    this.self_user?.im_status === "busy" ||
+                    (isTabFocused && thread?.channel?.isDisplayed) ||
+                    isMessageSeen
+                ) {
                     navigator.serviceWorker.controller?.postMessage({
                         type: "notification-display-response",
                         payload: { correlationId },
@@ -499,7 +497,7 @@ export class Store extends BaseStore {
             this.env.services.ui.isSmall &&
             ev.target.closest(".o-mail-ChatWindow") &&
             link.href &&
-            !link.href.startsWith("#")
+            (model || !link.getAttribute("href").startsWith("#"))
         ) {
             let url;
             try {
@@ -612,7 +610,7 @@ export class Store extends BaseStore {
             : [body];
         // Longest mention text first, so e.g. "@John" inside "@John Doe" isn't kept.
         const mentionTexts = (partner) => {
-            const name = thread?.getPersonaName(partner) ?? partner.displayName;
+            const name = (thread?.getPersonaName(partner) ?? partner.displayName)?.trim();
             return [name && `@${name}`, partner.email && `@${partner.email}`].filter(Boolean);
         };
         const remaining = [...segments];
@@ -832,22 +830,23 @@ export class Store extends BaseStore {
      * @param {string|undefined} search_filter
      */
     async searchMessagesInThread(searchTerm, thread, before, search_filter) {
-        const { count, messages } = await this.fetchStoreData(
+        const { messages } = await this.fetchStoreData(
             thread.getFetchRoute(),
             {
                 ...thread.getFetchParams(),
                 fetch_params: {
                     search_filter,
-                    search_term: (await prettifyMessageText(searchTerm)).replaceAll(nbsp, " "), // formatted like message_post
+                    search_term: searchTerm,
                     before,
+                    // one extra message to know whether there are more results
+                    limit: this.FETCH_LIMIT + 1,
                 },
             },
             { requestData: true }
         );
         return {
-            count,
-            loadMore: messages.length === this.FETCH_LIMIT,
-            messages,
+            loadMore: messages.length > this.FETCH_LIMIT,
+            messages: messages.slice(0, this.FETCH_LIMIT),
         };
     }
 }

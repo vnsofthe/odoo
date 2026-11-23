@@ -54,6 +54,10 @@
     container-type: inline-size;
 }
 
-.o-mail-DiscussContent-threadNameBox {
-    max-width: 75cqi;
+.o-mail-DiscussContent-threadNameBox:not(:only-child) {
+    max-width: #{"min(75cqi, 100%)"} !important;
+}
+
+.o-mail-DiscussContent-threadDescriptionBox {
+    flex-shrink: 10000;
 }

@@ -310,10 +310,10 @@ class SaleOrder(models.Model):
         }
 
     def _add_users_to_program(self):
-        for program, orders in self.grouped(lambda o: o.code_enabled_rule_ids.program_id).items():
-            if program.once_per_user:
-                partners = orders.partner_id
-                program.sudo().write({"partner_ids": [Command.link(p.id) for p in partners]})
+        for order in self:
+            order.code_enabled_rule_ids.program_id.filtered("once_per_user").sudo().write(
+                {"partner_ids": [Command.link(order.partner_id.id)]}
+            )
 
     def _send_reward_coupon_mail(self):
         coupons = self.env["loyalty.card"]
@@ -1836,7 +1836,6 @@ class SaleOrder(models.Model):
             invoice.action_post()
 
             if invoice._is_ready_to_be_sent():
-                invoice.is_move_sent = True  # Mark invoice as sent
                 send_context = {"allow_raising": False, "allow_fallback_pdf": True}
 
                 default_template_param = (
@@ -1851,4 +1850,4 @@ class SaleOrder(models.Model):
                     if mail_template.exists():
                         send_context["mail_template"] = mail_template
 
-                self.env["account.move.send"]._generate_and_send_invoices(invoice, **send_context)
+                self.env['account.move.send']._generate_and_send_invoices_post_commit(invoice, **send_context)

@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 20.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-18 17:38+0000\n"
-"PO-Revision-Date: 2026-09-18 17:38+0000\n"
+"POT-Creation-Date: 2026-11-06 17:38+0000\n"
+"PO-Revision-Date: 2026-11-06 17:38+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -218,29 +218,29 @@ msgstr ""
 #: model:mail.template,body_html:project.rating_project_request_email_template
 msgid ""
 "<div>\n"
-"    <t t-set=\"access_token\" t-value=\"object._rating_get_access_token()\"/>\n"
-"    <t t-set=\"partner\" t-value=\"object._rating_get_partner()\"/>\n"
+"    <t t-set=\"access_token\" t-value=\"object._rating_get_access_token()\"></t>\n"
+"    <t t-set=\"partner\" t-value=\"object._rating_get_partner()\"></t>\n"
 "    <table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"590\" style=\"width:100%; margin:0px auto;\">\n"
 "    <tbody>\n"
 "        <tr><td valign=\"top\" style=\"font-size: 13px;\">\n"
 "            <t t-if=\"partner.name\">\n"
-"                Hello <t t-out=\"partner.name or ''\">Brandon Freeman</t>,<br/><br/>\n"
+"                Hello <t t-out=\"partner.name or ''\">Brandon Freeman</t>,<br><br>\n"
 "            </t>\n"
 "            <t t-else=\"\">\n"
-"                Hello,<br/><br/>\n"
+"                Hello,<br><br>\n"
 "            </t>\n"
 "            Please take a moment to rate our services related to the <strong t-out=\"object.name or ''\">Planning and budget</strong> task\n"
 "            <t t-if=\"object._rating_get_operator().name\">\n"
-"                assigned to <strong t-out=\"object._rating_get_operator().name or ''\">Mitchell Admin</strong>.<br/>\n"
+"                assigned to <strong t-out=\"object._rating_get_operator().name or ''\">Mitchell Admin</strong>.<br>\n"
 "            </t>\n"
 "            <t t-else=\"\">\n"
-"                .<br/>\n"
+"                .<br>\n"
 "            </t>\n"
 "        </td></tr>\n"
 "        <tr><td style=\"text-align: center;\">\n"
 "            <table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"590\" style=\"width:100%; margin: 32px 0px 32px 0px; display: inline-table;\">\n"
 "                <tr><td style=\"font-size: 13px;text-align:center;\">\n"
-"                    <strong>Tell us how you feel about our services</strong><br/>\n"
+"                    <strong>Tell us how you feel about our services</strong><br>\n"
 "                    <span style=\"font-size: 12px; opacity: 0.5; color: #454748;\">(click on one of these smileys)</span>\n"
 "                </td></tr>\n"
 "                <tr><td style=\"font-size: 13px;\">\n"
@@ -248,17 +248,17 @@ msgid ""
 "                        <tr>\n"
 "                            <td>\n"
 "                                <a t-attf-href=\"/rate/{{ access_token }}/5\" t-att-class=\"'pe-none' if object._rating_get_operator() else ''\">\n"
-"                                    <img alt=\"Happy\" src=\"/rating/static/src/img/rating_5.png\" title=\"Happy\"/>\n"
+"                                    <img alt=\"Happy\" src=\"/rating/static/src/img/rating_5.png\" title=\"Happy\">\n"
 "                                </a>\n"
 "                            </td>\n"
 "                            <td>\n"
 "                                <a t-attf-href=\"/rate/{{ access_token }}/3\" t-att-class=\"'pe-none' if object._rating_get_operator() else ''\">\n"
-"                                    <img alt=\"Neutral\" src=\"/rating/static/src/img/rating_3.png\" title=\"Neutral\"/>\n"
+"                                    <img alt=\"Neutral\" src=\"/rating/static/src/img/rating_3.png\" title=\"Neutral\">\n"
 "                                </a>\n"
 "                            </td>\n"
 "                            <td>\n"
 "                                <a t-attf-href=\"/rate/{{ access_token }}/1\" t-att-class=\"'pe-none' if object._rating_get_operator() else ''\">\n"
-"                                    <img alt=\"Unhappy\" src=\"/rating/static/src/img/rating_1.png\" title=\"Unhappy\"/>\n"
+"                                    <img alt=\"Unhappy\" src=\"/rating/static/src/img/rating_1.png\" title=\"Unhappy\">\n"
 "                                </a>\n"
 "                            </td>\n"
 "                        </tr>\n"
@@ -269,13 +269,13 @@ msgid ""
 "        <tr><td valign=\"top\" style=\"font-size: 13px;\">\n"
 "            We appreciate your feedback. It helps us improve continuously.\n"
 "            <t t-if=\"object.stage_id.rating_status == 'stage'\">\n"
-"                <br/><span style=\"margin: 0; font-size: 12px; opacity: 0.5; color: #454748;\">This satisfaction survey has been sent because your task has been moved to the <b t-out=\"object.stage_id.name or ''\">In progress</b> stage</span>\n"
+"                <br><span style=\"margin: 0; font-size: 12px; opacity: 0.5; color: #454748;\">This satisfaction survey has been sent because your task has been moved to the <b t-out=\"object.stage_id.name or ''\">In progress</b> stage</span>\n"
 "            </t>\n"
 "            <t t-if=\"object.stage_id.rating_status == 'periodic'\">\n"
-"                <br/><span style=\"margin: 0; font-size: 12px; opacity: 0.5; color: #454748;\">This satisfaction survey is sent <b t-out=\"object.stage_id.rating_status_period or ''\">weekly</b> as long as the task is in the <b t-out=\"object.stage_id.name or ''\">In progress</b> stage.</span>\n"
+"                <br><span style=\"margin: 0; font-size: 12px; opacity: 0.5; color: #454748;\">This satisfaction survey is sent <b t-out=\"object.stage_id.rating_status_period or ''\">weekly</b> as long as the task is in the <b t-out=\"object.stage_id.name or ''\">In progress</b> stage.</span>\n"
 "            </t>\n"
 "        </td></tr>\n"
-"        <tr><td><br/>Best regards,</td></tr>\n"
+"        <tr><td><br>Best regards,</td></tr>\n"
 "        <tr><td>\n"
 "           <t t-out=\"object.project_id.company_id.name or ''\">YourCompany</t>\n"
 "        </td></tr>\n"
@@ -298,14 +298,14 @@ msgstr ""
 #: model:mail.template,body_html:project.project_done_email_template
 msgid ""
 "<div>\n"
-"    Dear <t t-out=\"object.partner_id.name or 'customer'\">Brandon Freeman</t>,<br/>\n"
+"    Dear <t t-out=\"object.partner_id.name or 'customer'\">Brandon Freeman</t>,<br>\n"
 "    It is my pleasure to let you know that we have successfully completed the project \"<strong t-out=\"object.name or ''\">Renovations</strong>\".\n"
 "    <t t-if=\"user.signature\">\n"
-"        <br/>\n"
-"        <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t t-out=\"user.signature or ''\">Mitchell Admin</t></div>\n"
+"        <br>\n"
+"        <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"><t t-out=\"user.signature or ''\">Mitchell Admin</t></div>\n"
 "    </t>\n"
 "</div>\n"
-"<br/><span style=\"margin: 0px 0px 0px 0px; font-size: 12px; opacity: 0.5; color: #454748;\" groups=\"project.group_project_stages\">You are receiving this email because your project has been moved to the stage <b t-out=\"object.stage_id.name or ''\">Done</b></span>\n"
+"<br><span style=\"margin: 0px 0px 0px 0px; font-size: 12px; opacity: 0.5; color: #454748;\" groups=\"project.group_project_stages\">You are receiving this email because your project has been moved to the stage <b t-out=\"object.stage_id.name or ''\">Done</b></span>\n"
 "            "
 msgstr ""
 
@@ -313,15 +313,15 @@ msgstr ""
 #: model:mail.template,body_html:project.mail_template_data_project_task
 msgid ""
 "<div>\n"
-"    Dear <t t-out=\"object.partner_id.name or 'customer'\">Brandon Freeman</t>,<br/><br/>\n"
-"    Thank you for contacting us. We appreciate your interest in our products/services.<br/>\n"
-"    Our team is currently reviewing your inquiry and will respond to your email as soon as possible.<br/>\n"
-"    If you have any further questions or concerns in the meantime, please do not hesitate to let us know. We are here to help.<br/><br/>\n"
-"    Thank you for your patience.<br/>\n"
+"    Dear <t t-out=\"object.partner_id.name or 'customer'\">Brandon Freeman</t>,<br><br>\n"
+"    Thank you for contacting us. We appreciate your interest in our products/services.<br>\n"
+"    Our team is currently reviewing your inquiry and will respond to your email as soon as possible.<br>\n"
+"    If you have any further questions or concerns in the meantime, please do not hesitate to let us know. We are here to help.<br><br>\n"
+"    Thank you for your patience.<br>\n"
 "    Best regards,\n"
 "    <t t-if=\"user.signature\">\n"
-"        <br/>\n"
-"        <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t t-out=\"user.signature or ''\">Mitchell Admin</t></div>\n"
+"        <br>\n"
+"        <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"><t t-out=\"user.signature or ''\">Mitchell Admin</t></div>\n"
 "    </t>\n"
 "</div>\n"
 "        "
@@ -359,6 +359,13 @@ msgid "<i class=\"oi me-1\" data-icon=\"east\"/>Back to edit mode"
 msgstr ""
 
 #. module: project
+#: model_terms:ir.ui.view,arch_db:project.view_project_card
+msgid ""
+"<i class=\"oi me-2\" data-icon=\"schedule\" title=\"Dates\" data-"
+"tooltip=\"Planned Date\"/>"
+msgstr ""
+
+#. module: project
 #: model_terms:ir.ui.view,arch_db:project.edit_project
 msgid ""
 "<i class=\"oi o_button_icon\" data-icon=\"check\" invisible=\"next_milestone_status == False or next_milestone_status != 'on_track'\" title=\"On Track\"/>\n"
@@ -367,10 +374,38 @@ msgid ""
 msgstr ""
 
 #. module: project
+#: model_terms:ir.ui.view,arch_db:project.view_project_card
+msgid ""
+"<i class=\"oi oi-filled me-2\" data-icon=\"person\" aria-label=\"Project "
+"Manager\" title=\"Project Manager\" data-tooltip=\"Project Manager\"/>"
+msgstr ""
+
+#. module: project
 #: model_terms:ir.ui.view,arch_db:project.project_milestone_view_kanban
 msgid ""
 "<i class=\"oi oi-filled px-1 mt-1\" data-icon=\"calendar_today\" "
 "role=\"img\" aria-label=\"Deadline\"/>"
+msgstr ""
+
+#. module: project
+#: model_terms:ir.ui.view,arch_db:project.view_task_card
+msgid ""
+"<i class=\"oi oi-filled\" data-icon=\"flag\" title=\"Miltstone\" data-"
+"tooltip=\"Milestone\"/>"
+msgstr ""
+
+#. module: project
+#: model_terms:ir.ui.view,arch_db:project.view_task_card
+msgid ""
+"<i class=\"oi oi-filled\" data-icon=\"person\" title=\"Customer\" data-"
+"tooltip=\"Customer\"/>"
+msgstr ""
+
+#. module: project
+#: model_terms:ir.ui.view,arch_db:project.view_project_card
+msgid ""
+"<i class=\"oi oi-filled\" data-icon=\"task\" title=\"Tasks\" data-"
+"tooltip=\"Name of Tasks\"/>"
 msgstr ""
 
 #. module: project
@@ -395,13 +430,22 @@ msgid "<i class=\"oi pe-2\" data-icon=\"lightbulb\" title=\"Info\"/>"
 msgstr ""
 
 #. module: project
-#: model_terms:ir.ui.view,arch_db:project.project_task_view_activity
-msgid "<i class=\"oi\" data-icon=\"lock\"/> Private"
+#: model_terms:ir.ui.view,arch_db:project.view_task_card
+msgid ""
+"<i class=\"oi\" data-icon=\"assignment_turned_in\" title=\"Project\" data-"
+"tooltip=\"Project\"/>"
 msgstr ""
 
 #. module: project
 #: model_terms:ir.ui.view,arch_db:project.view_task_card
-msgid "<i title=\"Private Task\" class=\"oi\" data-icon=\"lock\"/>"
+msgid ""
+"<i class=\"oi\" data-icon=\"calendar_clock\" data-tooltip=\"Deadline\" "
+"title=\"Deadline\"/>"
+msgstr ""
+
+#. module: project
+#: model_terms:ir.ui.view,arch_db:project.project_task_view_activity
+msgid "<i class=\"oi\" data-icon=\"lock\"/> Private"
 msgstr ""
 
 #. module: project
@@ -509,18 +553,6 @@ msgstr ""
 msgid ""
 "<span class=\"oi me-2\" data-icon=\"mail\" aria-label=\"Domain Alias\" "
 "title=\"Domain Alias\"/>"
-msgstr ""
-
-#. module: project
-#: model_terms:ir.ui.view,arch_db:project.view_project_card
-msgid "<span class=\"oi me-2\" data-icon=\"schedule\" title=\"Dates\"/>"
-msgstr ""
-
-#. module: project
-#: model_terms:ir.ui.view,arch_db:project.view_project_card
-msgid ""
-"<span class=\"oi oi-filled me-2\" data-icon=\"person\" aria-"
-"label=\"Partner\" title=\"Partner\"/>"
 msgstr ""
 
 #. module: project
@@ -724,6 +756,12 @@ msgstr ""
 #. module: project
 #: model_terms:ir.ui.view,arch_db:project.view_project_project_filter
 msgid "Activity type"
+msgstr ""
+
+#. module: project
+#. odoo-javascript
+#: code:addons/project/static/src/components/subtask_kanban_list/subtask_kanban_create/subtask_kanban_create.xml:0
+msgid "Add"
 msgstr ""
 
 #. module: project
@@ -1165,24 +1203,6 @@ msgstr ""
 #. module: project
 #: model:ir.model.fields,field_description:project.field_report_project_task_user__rating_avg
 msgid "Average Rating (1-5)"
-msgstr ""
-
-#. module: project
-#: model_terms:ir.ui.view,arch_db:project.view_project_card
-#: model_terms:ir.ui.view,arch_db:project.view_task_card
-msgid "Average Rating: Happy"
-msgstr ""
-
-#. module: project
-#: model_terms:ir.ui.view,arch_db:project.view_project_card
-#: model_terms:ir.ui.view,arch_db:project.view_task_card
-msgid "Average Rating: Neutral"
-msgstr ""
-
-#. module: project
-#: model_terms:ir.ui.view,arch_db:project.view_project_card
-#: model_terms:ir.ui.view,arch_db:project.view_task_card
-msgid "Average Rating: Unhappy"
 msgstr ""
 
 #. module: project
@@ -2262,12 +2282,6 @@ msgid "Handoff"
 msgstr ""
 
 #. module: project
-#: model_terms:ir.ui.view,arch_db:project.view_project_card
-#: model_terms:ir.ui.view,arch_db:project.view_task_card
-msgid "Happy face"
-msgstr ""
-
-#. module: project
 #: model:ir.model.fields,field_description:project.field_project_milestone__has_message
 #: model:ir.model.fields,field_description:project.field_project_project__has_message
 #: model:ir.model.fields,field_description:project.field_project_task__has_message
@@ -2687,6 +2701,12 @@ msgstr ""
 #. module: project
 #. odoo-javascript
 #: code:addons/project/static/src/js/tours/project.js:0
+msgid "Let's add another <b>stage</b> to your project."
+msgstr ""
+
+#. module: project
+#. odoo-javascript
+#: code:addons/project/static/src/js/tours/project.js:0
 msgid "Let's create a regular <b>project</b>."
 msgstr ""
 
@@ -2720,6 +2740,12 @@ msgstr ""
 msgid ""
 "Let's go back to the <b>kanban view</b> to have an overview of your next "
 "tasks."
+msgstr ""
+
+#. module: project
+#. odoo-javascript
+#: code:addons/project/static/src/js/tours/project.js:0
+msgid "Let's go back to the <b>kanban view</b> to see your task."
 msgstr ""
 
 #. module: project
@@ -2983,12 +3009,6 @@ msgstr ""
 msgid ""
 "Name used to refer to the tasks of your project e.g. tasks, tickets, "
 "sprints, etc..."
-msgstr ""
-
-#. module: project
-#: model_terms:ir.ui.view,arch_db:project.view_project_card
-#: model_terms:ir.ui.view,arch_db:project.view_task_card
-msgid "Neutral face"
 msgstr ""
 
 #. module: project
@@ -3500,8 +3520,18 @@ msgid ""
 msgstr ""
 
 #. module: project
+#: model_terms:ir.ui.view,arch_db:project.view_task_card
+msgid "Private Task"
+msgstr ""
+
+#. module: project
 #: model_terms:ir.ui.view,arch_db:project.view_task_search_form
 msgid "Private Tasks"
+msgstr ""
+
+#. module: project
+#: model_terms:ir.ui.view,arch_db:project.view_task_card
+msgid "Private task"
 msgstr ""
 
 #. module: project
@@ -4206,12 +4236,6 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:project.project_project_stage_view_form
 #: model_terms:ir.ui.view,arch_db:project.task_type_edit
 msgid "Rotting in"
-msgstr ""
-
-#. module: project
-#. odoo-javascript
-#: code:addons/project/static/src/components/subtask_kanban_list/subtask_kanban_create/subtask_kanban_create.xml:0
-msgid "SAVE"
 msgstr ""
 
 #. module: project
@@ -5205,7 +5229,6 @@ msgstr ""
 #. module: project
 #. odoo-python
 #: code:addons/project/models/project_project.py:0
-#: code:addons/project/models/project_task.py:0
 msgid "This project can’t be shared with external people."
 msgstr ""
 
@@ -5236,6 +5259,12 @@ msgid ""
 "associated with %s. There are a couple of options to consider: either change"
 " the project's company to align with the stage's company or remove the "
 "company designation from the stage"
+msgstr ""
+
+#. module: project
+#. odoo-python
+#: code:addons/project/models/project_task.py:0
+msgid "This task can’t be shared with external people."
 msgstr ""
 
 #. module: project
@@ -5479,12 +5508,6 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/project/static/src/project_sharing/chatter/portal_chatter_patch.xml:0
 msgid "Unfollow"
-msgstr ""
-
-#. module: project
-#: model_terms:ir.ui.view,arch_db:project.view_project_card
-#: model_terms:ir.ui.view,arch_db:project.view_task_card
-msgid "Unhappy face"
 msgstr ""
 
 #. module: project

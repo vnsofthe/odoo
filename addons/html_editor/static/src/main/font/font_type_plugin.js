@@ -9,6 +9,7 @@ import {
     isVisibleTextNode,
     isStylable,
     isContentEditableAncestor,
+    headingTags,
 } from "@html_editor/utils/dom_info";
 import {
     ancestors,
@@ -33,7 +34,6 @@ import { weakMemoize } from "@html_editor/utils/functions";
  * @typedef {{ name: LazyTranslatedString; tagName: string; extraClass?: string; }[]} font_type_items
  */
 
-export const headingTags = ["H1", "H2", "H3", "H4", "H5", "H6"];
 const handledElemSelector = [...headingTags, "BLOCKQUOTE"].join(", ");
 
 export class FontTypePlugin extends Plugin {
@@ -221,6 +221,7 @@ export class FontTypePlugin extends Plugin {
         ),
         on_history_commit_undone_handlers: this.updateFontTypeSelectorParams.bind(this),
         on_history_commit_redone_handlers: this.updateFontTypeSelectorParams.bind(this),
+        on_all_formats_removed_handlers: this.updateFontTypeSelectorParams.bind(this),
         normalize_processors: this.normalize.bind(this),
 
         /** Overrides */
@@ -241,6 +242,11 @@ export class FontTypePlugin extends Plugin {
         is_powerbox_available_predicates: (node) => {
             if (closestElement(node, "pre")) {
                 return false;
+            }
+        },
+        can_contain_selection_placeholder_predicates: (container) => {
+            if (container.nodeName === "BLOCKQUOTE") {
+                return true;
             }
         },
 

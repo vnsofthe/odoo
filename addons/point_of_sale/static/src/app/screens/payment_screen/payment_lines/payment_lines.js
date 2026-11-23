@@ -3,7 +3,6 @@ import { NumberPopup } from "@point_of_sale/app/components/popups/number_popup/n
 import { useService } from "@web/core/utils/hooks";
 import { Component, useProps, t } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
-import { parseFloat } from "@web/views/fields/parsers";
 import { enhancedButtons } from "@point_of_sale/app/components/numpad/numpad";
 import { PriceFormatter } from "@point_of_sale/app/components/price_formatter/price_formatter";
 import { PosPayment } from "@point_of_sale/app/models/pos_payment";
@@ -36,7 +35,7 @@ export class PaymentScreenPaymentLines extends Component {
 
     getFormattedPrice(line) {
         const amount = line.amount_currency || line.amount;
-        return this.pos.formatCurrency(amount);
+        return this.pos.formatCurrency(amount, line.currency.id);
     }
 
     async selectLine(paymentline) {
@@ -51,7 +50,7 @@ export class PaymentScreenPaymentLines extends Component {
                     { noSymbol: true }
                 ),
                 getPayload: (num) => {
-                    this.props.updateSelectedPaymentline(parseFloat(num));
+                    this.props.updateSelectedPaymentline(this.pos.parseCurrency(num));
                 },
             });
         }
@@ -119,6 +118,7 @@ export class PaymentScreenPaymentLines extends Component {
                 label: _t("Force done"),
                 action: () => this.props.sendForceDone(line),
                 severity: "warning",
+                show: line.isForceDoneAllowed(),
             },
 
             cancel: {
@@ -135,6 +135,7 @@ export class PaymentScreenPaymentLines extends Component {
                 label: _t("Force Cancel"),
                 action: () => this.props.sendForceCancel(line),
                 severity: "danger",
+                show: line.isForceDoneAllowed(),
             },
         };
         const state = { id: "unknown", title: "", actions: [] };
@@ -157,7 +158,7 @@ export class PaymentScreenPaymentLines extends Component {
         else if (status === "force_done") {
             state.id = "force_done";
             state.title = _t("Connection error");
-            state.actions = [ACTIONS.forceDone];
+            state.actions = [{ ...ACTIONS.forceDone, show: true }];
         }
 
         // --- Waiting customer action
@@ -181,8 +182,11 @@ export class PaymentScreenPaymentLines extends Component {
             state.icon = SPINNER_ICON;
             state.iconClass = SPINNER_ICON_CLASS;
             state.actions = [
-                { ...ACTIONS.forceDone, show: status === "waiting" },
-                { ...ACTIONS.forceCancel, show: status === "waitingCancel" },
+                { ...ACTIONS.forceDone, show: ACTIONS.forceDone.show && status === "waiting" },
+                {
+                    ...ACTIONS.forceCancel,
+                    show: ACTIONS.forceCancel.show && status === "waitingCancel",
+                },
             ];
         }
 

@@ -69,17 +69,11 @@ patch(AttendeeCalendarModel.prototype, {
     fetchEventLocation(data) {
         let attendeeIds;
         const filters = data.filterSections.partner_ids?.filters;
-        if (
-            filters && filters.length > 0 &&
-            filters[filters.length - 1].type === "all" &&
-            filters[filters.length - 1].active
-        ) {
-            attendeeIds = Object.keys(this.partnerColorMap);
-        } else {
-            attendeeIds = (filters || [])
-                .filter((filter) => filter.type !== "all" && filter.value && filter.active)
-                .map((filter) => filter.value);
-        }
+
+        attendeeIds = (filters || [])
+            .filter((filter) => filter.value && filter.active)
+            .map((filter) => filter.value);
+
         if (!attendeeIds.includes(user.partnerId)) {
             attendeeIds.push(user.partnerId);
         }
@@ -224,12 +218,13 @@ patch(AttendeeCalendarModel.prototype, {
     },
 
     mapPartnersToColor(data) {
-        return (data.filterSections.partner_ids?.filters || [])
-            .filter((filter) => filter.type !== "all" && filter.value)
-            .reduce(
-                (map, partner) => ({ ...map, [partner.value]: getColor(partner.colorIndex) }),
-                {}
-            );
+        const map = {};
+        for (const filter of data.filterSections.partner_ids?.filters || []) {
+            if (filter.value) {
+                map[filter.value] = getColor(filter.colorIndex);
+            }
+        }
+        return map;
     },
 
     /**

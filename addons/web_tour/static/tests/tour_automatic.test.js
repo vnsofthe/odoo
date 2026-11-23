@@ -13,6 +13,7 @@ import {
     getService,
     makeTestApp,
     mountWithCleanup,
+    onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { location, browser } from "@web/core/browser/browser";
@@ -20,6 +21,7 @@ import { Dialog } from "@web/core/dialog/dialog";
 import { Macro } from "@web/core/macro";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { TourAutomatic } from "@web_tour/tour_automatic/tour_automatic";
 
 describe.current.tags("desktop");
 
@@ -140,6 +142,26 @@ test("Step Tour validity", async () => {
   }
 ]`,
     ]);
+});
+
+test("testing a custom tour that only exists in the database", async () => {
+    onRpc("web_tour.tour", "get_tour_json_by_name", () => ({
+        name: "custom_tour",
+        steps: [{ trigger: ".button0", run: "click" }],
+    }));
+
+    class Root extends Component {
+        static components = {};
+        static template = xml/*html*/ `<button class="button0" t-on-click="this.onClick">Button 0</button>`;
+        onClick() {
+            expect.step("clicked");
+        }
+    }
+
+    await mountWithCleanup(Root);
+    await odoo.startTour("custom_tour", { mode: "auto", fromDB: true });
+    await waitForMacro();
+    expect.verifySteps(["clicked"]);
 });
 
 test("a tour with invalid step trigger", async () => {
@@ -721,4 +743,45 @@ test("Tour redirect to given url", async () => {
     await odoo.startTour("tour_redirect", { mode: "auto", url: "/odoo" });
     await waitForMacro();
     expect(location.pathname).toBe("/odoo");
+});
+
+test("automatic tour does not keep the elements of the steps it ran", async () => {
+    let tour;
+    patchWithCleanup(TourAutomatic.prototype, {
+        start() {
+            tour = this;
+            super.start(...arguments);
+        },
+    });
+    class Root extends Component {
+        static components = {};
+        static template = xml/*html*/ `
+            <t>
+                <button class="button0">Button 0</button>
+                <button class="button1">Button 1</button>
+            </t>
+        `;
+    }
+
+    await mountWithCleanup(Root);
+    tourRegistry.add("tour_without_elements", {
+        steps: () => [
+            {
+                trigger: ".button0",
+                run() {
+                    expect.step("button0");
+                },
+            },
+            {
+                trigger: ".button1",
+                run() {
+                    expect.step("button1");
+                },
+            },
+        ],
+    });
+    await odoo.startTour("tour_without_elements", { mode: "auto" });
+    await waitForMacro();
+    expect.verifySteps(["button0", "button1"]);
+    expect(tour.steps.map((step) => step.element)).toEqual([null, null]);
 });

@@ -5,7 +5,6 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import SUPERUSER_ID, api, Command, fields, models, _
 from odoo.fields import Domain
-from odoo.tools.float_utils import float_compare, float_is_zero, float_round
 from odoo.exceptions import UserError
 
 
@@ -120,7 +119,7 @@ class PurchaseOrderLine(models.Model):
         previous_product_uom_qty = {line.id: line.product_uom_qty for line in lines}
         previous_product_qty = {line.id: line.product_qty for line in lines}
         result = super().write(values)
-        if 'price_unit' in values:
+        if 'price_unit' in values or 'discount' in values:
             for line in lines:
                 # Avoid updating kit components' stock.move
                 moves = line.move_ids.filtered(lambda s: s.state not in ('cancel', 'done') and s.product_id == line.product_id)
@@ -128,7 +127,7 @@ class PurchaseOrderLine(models.Model):
         if 'product_qty' in values:
             lines = lines.filtered(lambda l: l.uom_id.compare(previous_product_qty[l.id], l.product_qty) != 0)
             lines.with_context(previous_product_qty=previous_product_uom_qty)._create_or_update_picking()
-        valuation_trigger = ['price_unit', 'product_qty', 'uom_id']
+        valuation_trigger = ['price_unit', 'discount', 'tax_ids', 'product_qty', 'uom_id']
         if any(field in valuation_trigger for field in values):
             self.move_ids.filtered(lambda m: m.is_valued)._set_value()
         return result
@@ -269,7 +268,6 @@ class PurchaseOrderLine(models.Model):
             at_date = fields.Date.today()
         order = self.order_id
         price_unit = self.price_unit_discounted
-        price_unit_prec = self.env['decimal.precision'].precision_get('Product Price')
         if self.tax_ids:
             qty = self.product_qty or 1
             price_unit = self.tax_ids.compute_all(
@@ -287,7 +285,7 @@ class PurchaseOrderLine(models.Model):
         if order.currency_id != order.company_id.currency_id:
             price_unit = order.currency_id._convert(
                 price_unit, order.company_id.currency_id, self.company_id, at_date, round=False)
-        return float_round(price_unit, precision_digits=price_unit_prec)
+        return price_unit
 
     def _get_qty_procurement(self):
         self.ensure_one()

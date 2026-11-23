@@ -1,8 +1,10 @@
 import { expect, test } from "@odoo/hoot";
+import { mockTimeZone } from "@odoo/hoot-mock";
 import {
     clickSave,
     contains,
     defineModels,
+    defineParams,
     fields,
     models,
     mountView,
@@ -78,5 +80,50 @@ test("FloatTimeTzField wraps around midnight", async () => {
 
     await contains(".o_field_float_time_tz[name=qux] input").edit("01:00");
     await clickSave();
-    expect(".o_field_float_time_tz[name=qux] input").toHaveValue("1:00");
+    expect(".o_field_float_time_tz[name=qux] input").toHaveValue("01:00");
+});
+
+test("FloatTimeTzField uses the default timezone when the user timezone is unset", async () => {
+    expect.assertions(4);
+    mockTimeZone(+2);
+    patchWithCleanup(user, { tz: false });
+    onRpc("foo", "web_save", ({ args }) => {
+        expect(args[1].qux).toBe(2);
+    });
+
+    await mountView({ type: "form", resModel: "foo", arch: TZ_ARCH, resId: 5 });
+    expect(".o_field_float_time_tz[name=qux] input").toHaveValue("11:06");
+
+    await contains(".o_field_float_time_tz[name=qux] input").edit("4");
+    expect(".o_field_float_time_tz[name=qux] input").toHaveValue("04:00");
+
+    await clickSave();
+    expect(".o_field_float_time_tz[name=qux] input").toHaveValue("04:00");
+});
+
+test("FloatTimeTzField displays the value in 12h format", async () => {
+    patchTimeZone();
+    defineParams({ lang_parameters: { time_format: "%I:%M:%S %p" } });
+    await mountView({ type: "form", resModel: "foo", arch: TZ_ARCH, resId: 5 });
+
+    // stored 9.1 (9:06 UTC) + 2h => 11:06 AM
+    expect(".o_field_float_time_tz[name=qux] input").toHaveValue("11:06 AM");
+});
+
+test("FloatTimeTzField parses a 12h input back to UTC", async () => {
+    expect.assertions(2);
+    patchTimeZone();
+    defineParams({ lang_parameters: { time_format: "%I:%M:%S %p" } });
+    onRpc("foo", "web_save", ({ args }) => {
+        // 01:30 PM in UTC+2 is 11:30 UTC
+        expect(args[1].qux).toBe(11.5, {
+            message: "the PM value should be converted to a 24h UTC float",
+        });
+    });
+
+    await mountView({ type: "form", resModel: "foo", arch: TZ_ARCH, resId: 5 });
+
+    await contains(".o_field_float_time_tz[name=qux] input").edit("01:30 PM");
+    await clickSave();
+    expect(".o_field_float_time_tz[name=qux] input").toHaveValue("01:30 PM");
 });

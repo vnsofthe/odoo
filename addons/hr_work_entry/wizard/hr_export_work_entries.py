@@ -91,7 +91,7 @@ class HrExportWorkEntries(models.TransientModel):
             (self.env._('External Code'), lambda args: args['we_collection']['work_entries'][0]['work_entry_type_id']['external_code'] or ''),
             (self.env._('Employee Name'), lambda args: args['employee_id'].name),
             (self.env._('Employee Ext. Code'), lambda args: args['employee_id'].external_code or ''),
-            (self.env._('Duration'), lambda args: str(round(int(args['we_collection']['duration'] // 3600), 2))),
+            (self.env._('Duration'), lambda args: str(round(args['we_collection']['duration'] / 3600, 2))),
         ]
         return columns
 
@@ -111,7 +111,7 @@ class HrExportWorkEntries(models.TransientModel):
         args = {
             'date': date,
             'employee_id': employee_id,
-            'company': company,
+            'company': employee_id.company_id,
             'we_collection': we_collection
         }
         values = [col[1](args) for col in columns]
@@ -153,7 +153,7 @@ class HrExportWorkEntries(models.TransientModel):
         if employee_ids is None:
             employees = self._get_employees()
         else:
-            employees = self.env['hr.employee'].search([('id', '=', employee_ids)])
+            employees = self.env['hr.employee'].search([('id', 'in', employee_ids)])
         if period_start is None or period_stop is None:
             period_start = self.period_start
             period_stop = self.period_stop
@@ -183,9 +183,11 @@ class HrExportEmployee(models.TransientModel):
 
     @api.depends('employee_id')
     def _compute_version_ids(self):
-        contracts_by_employee = self.export_id._get_contracts_by_employee(employee_ids=self.employee_id)
-        for line in self:
-            line.version_ids = self.env['hr.version'].browse([c.id for c in contracts_by_employee.get(line.employee_id)])
+        for export, lines in self.grouped('export_id').items():
+            contracts_by_employee = export._get_contracts_by_employee(employee_ids=lines.employee_id.ids)
+            for line in lines:
+                contract_versions = contracts_by_employee.get(line.employee_id.id, {})
+                line.version_ids = self.env['hr.version'].union(*contract_versions.values())
 
     def _get_work_entries_by_day_and_code(self, limit_start=None, limit_stop=None):
         """ Group work entries by day and code.

@@ -197,6 +197,12 @@ class ResPartner(models.Model):
             ):
             country = self.env['res.country'].browse(enriched_company['country_id']['id']).exists()
             autocomplete_response['vat'] = self._run_vat_checks(country, vat_number, validation='setnull')[0]
+        if identifiers := autocomplete_response.get('additional_identifiers'):
+            autocomplete_response['additional_identifiers'] = {
+                key: valid_value
+                for key, value in identifiers.items()
+                if (valid_value := self._validate_identifier(key, value, validation='setnull')['value'])
+            }
         return autocomplete_response
 
     @api.model
@@ -269,6 +275,8 @@ class ResPartner(models.Model):
     def action_enrich_partner(self):
         empty_partner_data = []
         errors = []
+
+        partner_fields = {'image_1920', 'additional_identifiers'}
         for partner in self:
             partner = partner.with_prefetch()
 
@@ -302,8 +310,14 @@ class ResPartner(models.Model):
 
                 partner_data = {
                     field: value for field, value in partner_data.items()
-                    if field in partner._fields and value and (field == 'image_1920' or not partner[field])
+                    if field in partner._fields and value and (field in partner_fields or not partner[field])
                 }
+                if additional_identifiers := partner_data.get('additional_identifiers'):
+                    # additional_identifiers will be updated by the new values but we don't modify the existing ones.
+                    partner_data['additional_identifiers'] = {
+                        **additional_identifiers,
+                        **(partner.additional_identifiers or {}),
+                    }
                 partner.write(partner_data)
 
         if errors:

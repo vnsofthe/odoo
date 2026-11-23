@@ -329,8 +329,6 @@ class ProductTemplate(models.Model):
         return records
 
     def write(self, vals):
-        if "active" in vals and not vals["active"] and any(pt._is_donation() for pt in self):
-            raise ValidationError(self.env._("Donation products cannot be archived."))
         # Clear empty ecommerce description content to avoid side-effects on product pages
         # when there is no content to display anyway.
         if vals.get("description_ecommerce"):
@@ -376,6 +374,25 @@ class ProductTemplate(models.Model):
                 template_copy.product_template_image_ids
             ):
                 template_copy.product_template_image_ids[0].unlink()
+
+            # Set the image attribute values to the corresponding PTAVs of the copied template.
+            copied_ptavs = {
+                ptav.product_attribute_value_id.id: ptav.id
+                for ptav in template_copy.attribute_line_ids.product_template_value_ids
+            }
+
+            for original_image, copied_image in zip(
+                template.product_template_image_ids,
+                template_copy.product_template_image_ids,
+                strict=True,
+            ):
+                copied_image.with_context(skip_update_main_image=True).attribute_value_ids = [
+                    Command.set([
+                        copied_ptavs[ptav.product_attribute_value_id.id]
+                        for ptav in original_image.attribute_value_ids
+                        if ptav.product_attribute_value_id.id in copied_ptavs
+                    ])
+                ]
         return template_copies
 
     @api.ondelete(at_uninstall=False)
@@ -465,7 +482,7 @@ class ProductTemplate(models.Model):
             "name": self.display_name,
             "image_1920": image,
             "product_tmpl_id": self.id,
-            "sequence": self.product_template_image_ids.sorted("sequence")[:1].sequence - 1,
+            "sequence": min(self.product_template_image_ids.mapped("sequence"), default=0) - 1,
         })
 
     def _set_main_image_from_extra_images(self):
@@ -990,7 +1007,7 @@ class ProductTemplate(models.Model):
             "has_discounted_price": has_discounted_price,
             "discount_start_date": pricelist_item.date_start,
             "discount_end_date": pricelist_item.date_end,
-            "show_extra_price": pricelist_item.compute_price != "fixed",
+            "show_extra_price": True,  # kept for stable compatibility
         }
 
         if (
@@ -1043,8 +1060,12 @@ class ProductTemplate(models.Model):
 
         if combination_info["hide_price"]:
             # If the price should be hidden, we don't want to send any price information regarding
-            # the product
-            combination_info["compare_list_price"] = 0
+            # the product, including the price before discount
+            combination_info.update({
+                'compare_list_price': 0,
+                'has_discounted_price': False,
+                'list_price': combination_info['price'],
+            })
 
         if product_or_template._has_multiple_uoms():
             # for packaging pricings
@@ -1401,7 +1422,28 @@ class ProductTemplate(models.Model):
         If the template has no images, the template itself is returned.
         """
         self.ensure_one()
-        return self.product_template_image_ids.sorted("sequence") or self
+        return (
+            self.product_template_image_ids.sorted("sequence").filtered(
+                lambda image: not image.has_attribute_value
+            )
+            or self
+        )
+
+    def _get_shop_images(self):
+        """Return the primary and secondary images to display on the shop page.
+
+        If the template has no primary or secondary images, fall back on the first 2 product images.
+        """
+        self.ensure_one()
+        all_images = self.product_template_image_ids.sorted("sequence")
+        Image = self.env["product.image"]
+        primary_image = next((i for i in all_images if i.type == "primary"), Image) or next(
+            (i for i in all_images if not i.type), Image
+        )
+        secondary_image = next((i for i in all_images if i.type == "secondary"), Image) or next(
+            (i for i in all_images - primary_image), Image
+        )
+        return (primary_image + secondary_image) or self
 
     def _get_product_page_documents(self, variant=None):
         self.ensure_one()
@@ -1418,12 +1460,7 @@ class ProductTemplate(models.Model):
 
     @api.model
     def _get_website_sale_search_fields(self, search_in_description=True):
-        search_fields = [
-            "name",
-            "variants_default_code",
-            "barcode",
-            "product_variant_ids.barcode",
-        ]
+        search_fields = ["name", "variants_default_code", "barcode", "product_variant_ids.barcode"]
         if search_in_description:
             search_fields.append("description_ecommerce")
         search_fields.extend((
@@ -1809,12 +1846,8 @@ class ProductTemplate(models.Model):
                     ("assign", "!=", "manual")
                 ])
 
-            if auto_assign_ribbons:
-                variant = variant or self._get_variant_for_combination(
-                    self._get_first_available_combination()
-                )
             for rb in auto_assign_ribbons:
-                if rb._is_applicable_for(variant, price_vals):
+                if rb._is_applicable_for(variant or self, price_vals):
                     return rb
 
         return ribbon
@@ -1929,7 +1962,11 @@ class ProductTemplate(models.Model):
     def _get_first_available_combination(self, necessary_values=None):
         """Override of `product` to return the first combination that has stock."""
         res = super()._get_first_available_combination(necessary_values)
-        if not self.env.context.get("website_id"):
+        if (
+            not self.is_storable
+            or self.allow_out_of_stock_order
+            or not self.env.context.get("website_id")
+        ):
             return res
 
         for combination in self._get_possible_combinations(necessary_values):
@@ -1989,37 +2026,49 @@ class ProductTemplate(models.Model):
         return data
 
     def _mail_get_operation_for_mail_message_operation(self, message_operation):
-        if (
-            message_operation == "create"
-            and not self.env.user._is_internal()
-        ):
-            website = self.env.website or self.env['website'].browse(self.env.context.get('host_id'))
-            if not website.with_context(website_id=website.id).is_view_active('website_sale.product_comment'):
-                return [(Domain.TRUE, 'write')]
+        if message_operation == "create" and not self.env.user._is_internal():
+            website = self.env.website or self.env["website"].browse(
+                self.env.context.get("host_id")
+            )
+            if not website.with_context(website_id=website.id).is_view_active(
+                "website_sale.product_comment"
+            ):
+                return [(Domain.TRUE, "write")]
         return super()._mail_get_operation_for_mail_message_operation(message_operation)
 
     @api.model
     def _create_extra_variant_images(self):
+        """Duplicate all template and variant main images as extra images.
+
+        The main images are stored as image fields (`image_1920` for templates and
+        `image_variant_1920` for variants), and the extra images are stored as `product.image`
+        records.
+
+        This method should only be called once, when the module is installed, to migrate existing
+        main images to extra images.
+        """
+        templates = self.env["product.template"].search([("image_1920", "!=", False)])
+        if not templates:
+            return
+
+        variants = templates.product_variant_ids
+        # Prefetch everything the loop below needs in as few batched queries as possible, instead
+        # of letting each field access lazily trigger its own.
+        templates.fetch(["display_name", "image_1920"])
+        variants.fetch([
+            "display_name",
+            "image_variant_1920",
+            "product_template_attribute_value_ids",
+        ])
+
         image_vals = []
-        for template in self.env["product.template"].search([("image_1920", "!=", False)]):
-            template_image = template.image_1920
-            first_extra_image = template.product_template_image_ids.sorted("sequence")[:1]
-            add_template_main_image = template_image.content != first_extra_image.image_1920.content
+        for template in templates:
             template_main_image_ptavs = self.env["product.template.attribute.value"]
 
             for product in template.product_variant_ids:
                 variant_image = product.image_variant_1920
-                first_extra_image_product = product.variant_image_ids.sorted("sequence")[:1]
-                if (
-                    add_template_main_image
-                    and not variant_image
-                    and template_image.content == product.image_1920.content
-                ):
+                if not variant_image:
                     template_main_image_ptavs |= product.product_template_attribute_value_ids
-                if (
-                    not variant_image
-                    or variant_image.content == first_extra_image_product.image_1920.content
-                ):
                     continue
 
                 image_vals.append({
@@ -2029,20 +2078,20 @@ class ProductTemplate(models.Model):
                         Command.set(product.product_template_attribute_value_ids.ids)
                     ],
                     "image_1920": variant_image,
-                    "sequence": first_extra_image_product.sequence - 1,
+                    "sequence": 11,
                 })
 
-            if add_template_main_image:
-                image_vals = [
-                    {
-                        "name": template.display_name,
-                        "product_tmpl_id": template.id,
-                        "attribute_value_ids": [Command.set(template_main_image_ptavs.ids)]
-                        if template_main_image_ptavs and len(template.product_variant_ids) > 1
-                        else False,
-                        "image_1920": template_image,
-                        "sequence": first_extra_image.sequence - 1,
-                    }
-                ] + image_vals  # Make sure the template image is created before the variant images.
+            image_vals.append({
+                "name": template.display_name,
+                "product_tmpl_id": template.id,
+                "attribute_value_ids": [Command.set(template_main_image_ptavs.ids)]
+                if template_main_image_ptavs and len(template.product_variant_ids) > 1
+                else False,
+                "image_1920": template.image_1920,
+                # Insert the template's main image before the variants' main images.
+                "sequence": 10,
+            })
 
+        # TODO(loti): this can be prohibitively slow or cause memory issues if there are many images
+        # to create. Investigate alternatives.
         self.env["product.image"].with_context(skip_update_main_image=True).create(image_vals)

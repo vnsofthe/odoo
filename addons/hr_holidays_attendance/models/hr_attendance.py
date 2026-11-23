@@ -12,7 +12,19 @@ _INVALID_STATES = frozenset({'refused', 'draft'})
 class HrAttendance(models.Model):
     _inherit = 'hr.attendance'
 
+    def _get_work_entry_type_domain(self, country_ids=None):
+        return super()._get_work_entry_type_domain(country_ids=country_ids) + [('requires_allocation', '=', False)]
+
     def write(self, vals):
+        """Reverse the allocation credits logged on the attendances before an invalidating
+        write.
+
+        Credits are reversed when ``check_in``, ``check_out`` or ``employee_id`` change (unless
+        the context has ``skip_time_rules``), or when a validated attendance goes back to
+        ``draft`` or is ``refused``. Re-running the rules credits the new values again.
+
+        :raise ValidationError: if the allocation was already used beyond its allowed balance
+        """
         to_reverse = set()
         if not self.env.context.get('skip_time_rules') and _TIME_FIELDS & vals.keys():
             to_reverse.update(self.ids)
@@ -24,4 +36,5 @@ class HrAttendance(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _reverse_credits_on_unlink(self):
+        """Reverse the allocation credits logged on the deleted attendances."""
         self.env['hr.time.rule']._reverse_allocation_credits('hr.attendance', self.ids)

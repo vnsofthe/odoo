@@ -14,3 +14,5 @@ from . import project_task
 from . import project_update
 from . import project_collaborator
 from . import uom_uom
+from . import hr_employee_departure
+from . import update

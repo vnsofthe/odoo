@@ -132,17 +132,17 @@ class ProductTemplate(models.Model):
             # Copy: some overrides mutate the returned dict in place (e.g. `mrp_account`, `l10n_de`).
             return dict(cache[key])
 
-        stock_valuation = self._get_category_account('property_stock_valuation_account_id')\
-            or (self.company_id or self.env.company).account_stock_valuation_id
+        stock_valuation = self._get_category_account('property_stock_valuation_account_id', 'account_stock_valuation_id')
         cache[key] = {
             'income': (
                 self.property_account_income_id
                 or self._get_category_account('property_account_income_categ_id', 'income_account_id')
-            ), 'expense': (
+            ),
+            'expense': (
                 self.property_account_expense_id
-                or self._get_category_account('property_account_expense_categ_id')
-                or (self.company_id or self.env.company).expense_account_id
-            ), 'stock_valuation': stock_valuation,
+                or self._get_category_account('property_account_expense_categ_id', 'expense_account_id')
+            ),
+            'stock_valuation': stock_valuation,
             'stock_variation': stock_valuation.account_stock_variation_id,
         }
         return dict(cache[key])
@@ -160,7 +160,7 @@ class ProductTemplate(models.Model):
                 return account
             categ = categ.parent_id
         if company_field:
-            return (self.company_id or self.env.company)[company_field]
+            return (self.company_id or self.env.company).sudo()[company_field].with_env(self.env)
         return self.env['account.account']
 
     def get_product_accounts(self, fiscal_pos=None):
@@ -300,9 +300,15 @@ class ProductTemplate(models.Model):
         # the other companies default taxes which the user may not have access to.
         other_companies = self.env['res.company'].sudo().search(['!', ('id', 'child_of', self.env.companies.ids)])
         if other_companies and products:
-            products_without_company = products.filtered(lambda p: not p.company_id).sudo()
+            products_without_company = products.filtered(lambda p: not p.company_id and p.type != 'combo').sudo()
             products_without_company._force_default_tax(other_companies)
         return products
+
+    def write(self, vals):
+        res = super().write(vals)
+        if vals.get('type') == 'combo':
+            self.sudo().write({'taxes_id': [Command.clear()], 'supplier_taxes_id': [Command.clear()]})
+        return res
 
     def _get_list_price(self, price):
         """ Get the product sales price from a public price based on taxes defined on the product """

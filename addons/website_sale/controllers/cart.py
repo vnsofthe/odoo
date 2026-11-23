@@ -12,6 +12,7 @@ from odoo.addons.payment import utils as payment_utils
 from odoo.addons.payment.controllers.portal import PaymentPortal
 from odoo.addons.sale.controllers.portal import CustomerPortal
 from odoo.addons.website_sale.controllers.main import WebsiteSale
+from odoo.addons.website_sale.models.website import CART_SESSION_CACHE_KEY
 
 
 class Cart(PaymentPortal):
@@ -38,21 +39,19 @@ class Cart(PaymentPortal):
                 abandoned_order.access_token, access_token
             ):  # wrong token (or SO has been deleted)
                 raise NotFound
-            if abandoned_order.state not in (
-                "draft",
-                "sent",
-            ) or abandoned_order.get_portal_last_transaction().state in {
-                "pending",
-                "authorized",
-                "done",
-            }:  # abandoned cart already finished, or has an ongoing/confirmed transaction
+            if (
+                abandoned_order.state != "draft"
+                or abandoned_order.get_portal_last_transaction().state
+                in {"pending", "authorized", "done"}
+            ):  # abandoned cart already finished, or has an ongoing/confirmed transaction
                 values.update({"abandoned_proceed": True})
-            elif not request.session.get("sale_order_id"):
-                request.session["sale_order_id"] = abandoned_order.id
-                request.cart = abandoned_order
-                order_sudo = abandoned_order
-            elif abandoned_order.id != request.session.get("sale_order_id"):
-                abandoned_order.order_line.write({"order_id": request.session["sale_order_id"]})
+            elif not request.session.get(CART_SESSION_CACHE_KEY):
+                request.session[CART_SESSION_CACHE_KEY] = abandoned_order.id
+                return request.redirect("/shop/cart")
+            elif abandoned_order.id != request.session.get(CART_SESSION_CACHE_KEY):
+                abandoned_order.order_line.write({
+                    "order_id": request.session[CART_SESSION_CACHE_KEY]
+                })
                 abandoned_order.action_cancel()
 
         values.update({
@@ -114,7 +113,8 @@ class Cart(PaymentPortal):
             of `product.template.attribute.value` ids.
         :param list linked_products: A list of objects representing additional products linked to
             the product added to the cart. Can be combo item or optional products.
-        :param dict kwargs: Optional data. This parameter is not used here.
+        :param dict kwargs: Optional data, given to `_cart_add`. If `skip_order_alert` is set, the
+            warning isn't stored on the order when no line is created.
         :return: The values
         :rtype: dict
         """
@@ -133,15 +133,44 @@ class Cart(PaymentPortal):
                 )
             )
         if not product or not product._is_add_to_cart_allowed():
-            raise UserError(
-                self.env._("The given product does not exist therefore it cannot be added to cart.")
-            )
+            raise UserError(self._get_product_user_error(product))
+
+        if kwargs.pop("combo_item_id", None):
+            raise UserError(self.env._("You cannot add a combo item separately from its combo."))
+
+        if kwargs.pop("linked_line_id", None):
+            raise UserError(self.env._("Linked lines must be added to the cart with their parent."))
+
+        def check_selected_combo_items(combo_product, linked_products):
+            combo_item_products = [
+                linked_product for linked_product in linked_products or []
+                if (
+                    linked_product.get("combo_item_id")
+                    and linked_product.get("parent_product_template_id")
+                    == combo_product.sudo().product_tmpl_id.id
+                )
+            ]
+            combos_sudo = combo_product.sudo().product_tmpl_id.combo_ids
+            selected_combos_sudo = request.env['product.combo.item'].sudo().browse([
+                combo_item['combo_item_id'] for combo_item in combo_item_products
+            ]).combo_id
+            if (
+                len(combo_item_products) != len(combos_sudo)
+                or set(selected_combos_sudo.ids) != set(combos_sudo.ids)
+            ):
+                raise UserError(self.env._(
+                    "The number of selected combo items must match the number of available"
+                    " combo choices."
+                ))
+
+        if product.sudo().type == "combo":
+            check_selected_combo_items(product, linked_products)
 
         added_qty_per_line = {}
         values = order_sudo.with_context(skip_cart_verification=True)._cart_add(
             product_id=product_id,
             quantity=quantity,
-            uom_id=uom_id,
+            uom_id=uom_id if product.type != "combo" else None,
             product_custom_attribute_values=product_custom_attribute_values,
             no_variant_attribute_value_ids=no_variant_attribute_value_ids,
             **kwargs,
@@ -157,9 +186,15 @@ class Cart(PaymentPortal):
 
         if linked_products and values["line_id"]:
             for product_data in linked_products:
+                # Do not allow float values in ecommerce by default
+                product_data["quantity"] = (
+                    product_data["quantity"] and int(product_data["quantity"])
+                ) or 1
                 product_sudo = (
                     self.env["product.product"].sudo().browse(product_data["product_id"]).exists()
                 )
+                if product_sudo.type == "combo":
+                    check_selected_combo_items(product_sudo, linked_products)
                 if product_data["quantity"] and (
                     not product_sudo
                     or (
@@ -169,16 +204,14 @@ class Cart(PaymentPortal):
                         and not product_data.get("combo_item_id")
                     )
                 ):
-                    raise UserError(
-                        self.env._(
-                            "The given product does not exist therefore it cannot be added to cart."
-                        )
-                    )
+                    raise UserError(self._get_product_user_error(product_sudo))
 
                 product_values = order_sudo.with_context(skip_cart_verification=True)._cart_add(
                     product_id=product_data["product_id"],
                     quantity=product_data["quantity"],
-                    uom_id=product_data.get("uom_id"),
+                    uom_id=product_data.get("uom_id")
+                    if (product_sudo.type != "combo" and not product_data.get("combo_item_id"))
+                    else None,
                     product_custom_attribute_values=product_data["product_custom_attribute_values"],
                     no_variant_attribute_value_ids=[
                         int(value_id) for value_id in product_data["no_variant_attribute_value_ids"]
@@ -221,14 +254,31 @@ class Cart(PaymentPortal):
             warning = changed_reason
             values["quantity"] = updated_line.product_uom_qty
 
+        optional_combo_lines = order_sudo.env["sale.order.line"]
+        for linked_product_data in linked_products or []:
+            if not linked_product_data.get("combo_item_id"):
+                optional_line = order_sudo.env["sale.order.line"].browse(
+                    line_ids.get(linked_product_data["product_template_id"])
+                )
+                if optional_line.product_type == "combo":
+                    optional_combo_lines |= optional_line
+                    if order_sudo._check_combo_quantities(optional_line):
+                        added_qty_per_line.update({
+                            line.id: optional_line.product_uom_qty
+                            for line in (optional_line + optional_line.linked_line_ids)
+                        })
+                        warning = optional_line.shop_warning
+
         # Recompute delivery prices & other cart stuff (loyalty rewards)
         order_sudo._verify_cart_after_update()
 
         # The validity of a combo product line can only be checked after creating all of its combo
         # item lines.
-        main_product_line = self.env["sale.order.line"].browse(values["line_id"])
+        main_product_line = self.env["sale.order.line"].sudo().browse(values["line_id"])
         if main_product_line.product_type == "combo":
             main_product_line._check_validity()
+        for optional_combo_line in optional_combo_lines:
+            optional_combo_line._check_validity()
 
         positive_added_qty_per_line = {
             line_id: qty for line_id, qty in added_qty_per_line.items() if qty > 0
@@ -241,8 +291,14 @@ class Cart(PaymentPortal):
             notifications.append({"type": "item_added", "data": notification})
 
         if warning:
-            # Store the warning on the order line so the cart page can show its source to the user.
-            (updated_line or order_sudo)._add_warning_alert(warning)
+            if updated_line:
+                # Store the warning on the order line so the cart page can show its source to the
+                # user.
+                updated_line._add_warning_alert(warning)
+            elif not kwargs.pop("skip_order_alert", False):
+                # No line to attach the warning to: keep it on the order so that it is shown on the
+                # cart page for flows redirecting there.
+                order_sudo._add_warning_alert(warning)
             notifications.append({"type": "warning", "data": {"warning_message": warning}})
 
         return {
@@ -253,11 +309,18 @@ class Cart(PaymentPortal):
             "currency": order_sudo.currency_id.name,
         }
 
+    def _get_product_user_error(self, product):
+        return self.env._("The given product does not exist therefore it cannot be added to cart.")
+
     @route(
         route="/shop/cart/quick_add", type="jsonrpc", auth="user", methods=["POST"], website=True
     )
     def quick_add(self, product_template_id, product_id, quantity=1.0, **kwargs):
-        values = self.add_to_cart(product_template_id, product_id, quantity=quantity, **kwargs)
+        # The customer is already on the cart page and gets the warning as a notification, don't
+        # keep it on the order to show it again on the next page load.
+        values = self.add_to_cart(
+            product_template_id, product_id, quantity=quantity, skip_order_alert=True, **kwargs
+        )
 
         order_sudo = request.cart
         values.update(self._get_updated_cart_page_values(order_sudo))
@@ -326,8 +389,8 @@ class Cart(PaymentPortal):
             is falsy
         :params dict kwargs: additional parameters given to _cart_update_line_quantity calls.
         """
-        order_sudo = request.cart
-        order_sudo._check_not_partially_paid()  # Prevent modifying the cart if it's partially paid
+        if order_sudo := request.cart:
+            order_sudo._check_not_partially_paid()  # Prevent modifying the cart if it's partially paid
         quantity = int(quantity)  # Do not allow float values in ecommerce by default
 
         # This method must be only called from the cart page BUT in some advanced logic
@@ -337,6 +400,16 @@ class Cart(PaymentPortal):
             line_id = order_sudo.order_line.filtered(lambda sol: sol.product_id.id == product_id)[
                 :1
             ].id
+
+        # Combo item lines are updated together with their combo
+        if line_id:
+            target_line = order_sudo.order_line.filtered(lambda sol: sol.id == line_id)
+            if target_line.combo_item_id:
+                return {
+                    "warning": self.env._(
+                        "This product is part of a combo and can't be updated individually."
+                    )
+                }
 
         values = order_sudo._cart_update_line_quantity(line_id, quantity, **kwargs)
         values.update(self._get_updated_cart_page_values(order_sudo))
@@ -361,8 +434,11 @@ class Cart(PaymentPortal):
             "cart_quantity": order_sudo.cart_quantity,
             "currency": order_sudo.currency_id.name,
             "amount": order_sudo.amount_total,
-            "minor_amount": payment_utils.to_minor_currency_units(
-                order_sudo.amount_total, order_sudo.currency_id
+            "minor_amount": (
+                order_sudo.amount_total
+                and payment_utils.to_minor_currency_units(
+                    order_sudo.amount_total, order_sudo.currency_id
+                )
             ),
             "website_sale.cart_lines": IrUiView._render_template(
                 "website_sale.cart_lines",
@@ -403,6 +479,10 @@ class Cart(PaymentPortal):
         def is_same_combo(line1_, line2_):
             """Check if two combo lines have the same linked product combination."""
             return line1_.linked_line_ids.product_id.ids == line2_.linked_line_ids.product_id.ids
+
+        # The public partner is shared by all visitors: it has no order history of its own
+        if self.env.website.is_public_user():
+            return {"order_history": []}
 
         # Get the last 10 confirmed orders from the current website user.
         previous_orders_lines_sudo = (

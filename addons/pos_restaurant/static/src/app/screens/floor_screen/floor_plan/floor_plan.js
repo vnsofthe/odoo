@@ -120,12 +120,14 @@ export class FloorPlan extends FloorPlanBase {
         if (!this.selectedFloor || this.isKanban) {
             return;
         }
-        const size = this.selectedFloor.getSize();
+        const scrollContainer = this.containerRef();
+        if (!scrollContainer) {
+            return;
+        }
 
+        const size = this.selectedFloor.getSize();
         let canvasWidth = size.width;
         let canvasHeight = size.height;
-
-        const scrollContainer = this.containerRef();
 
         // Add some padding if overflow
         if (canvasWidth > scrollContainer.clientWidth) {
@@ -189,6 +191,9 @@ export class FloorPlan extends FloorPlanBase {
                     ),
                     { type: "danger" }
                 );
+                return false;
+            }
+            if (this.pos.isOrderDeleting(oToTrans) || this.pos.isOrderDeleting(oTarget)) {
                 return false;
             }
 

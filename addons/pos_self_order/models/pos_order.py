@@ -2,9 +2,11 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import logging
 import math
+from itertools import zip_longest
 
 from odoo import Command, models, fields, api, _
 from odoo.exceptions import UserError, ValidationError, LockError
+from odoo.tools import consteq, hmac
 
 _logger = logging.getLogger(__name__)
 
@@ -95,10 +97,11 @@ class PosOrder(models.Model):
 
     def _send_payment_result(self, payment_result):
         self.ensure_one()
+        order_fields = [field for field in self._load_pos_self_data_fields(self.config_id) if field != 'partner_id']
         self.config_id._notify('PAYMENT_STATUS', {
             'payment_result': payment_result,
             'data': {
-                'pos.order': self.read(self._load_pos_self_data_fields(self.config_id), load=False),
+                'pos.order': self.read(order_fields, load=False),
                 'pos.order.line': self.lines.read(self.lines._load_pos_self_data_fields(self.config_id), load=False),
                 'pos.payment': self.payment_ids.read(self.payment_ids._load_pos_self_data_fields(self.config_id), load=False),
             },
@@ -154,6 +157,31 @@ class PosOrder(models.Model):
             ):
                 raise UserError(_("Invalid product attribute"))
 
+            # Only the values of the ordered variant, and the template's active no_variant values,
+            # may be attached: a sibling variant's value would add its price_extra to this line.
+            no_variant_lines = product.product_tmpl_id.attribute_line_ids.filtered(lambda ptal: ptal.attribute_id.create_variant == 'no_variant')
+            valid_ptavs = product.product_template_attribute_value_ids | no_variant_lines.product_template_value_ids._only_active()
+            if command == Command.UPDATE:
+                # A value archived since the line was ordered stays valid on that line,
+                # otherwise updating the line would change what was ordered and its price.
+                valid_ptavs |= existing_lines.filtered(lambda existing_line: existing_line.id == id_to_use).attribute_value_ids
+            if attribute_values - valid_ptavs:
+                raise UserError(_("Invalid product attribute"))
+
+            # Only 'multi' attributes accept several values; any other no_variant
+            # attribute must carry at most one value per line.
+            for attribute_line in no_variant_lines.filtered(lambda ptal: ptal.attribute_id.display_type != 'multi'):
+                if len(attribute_values & attribute_line.product_template_value_ids) > 1:
+                    raise UserError(_("Invalid product configuration"))
+
+            # Reject combinations forbidden by the template's exclusion rules
+            # (e.g. a no_variant value marked incompatible with the variant).
+            combination = product.product_template_attribute_value_ids | attribute_values
+            exclusions = product.product_tmpl_id._get_own_attribute_exclusions()
+            excluded_ids = {ptav_id for ptav in combination for ptav_id in exclusions.get(ptav.id, [])}
+            if excluded_ids & set(combination.ids):
+                raise UserError(_("Invalid product configuration"))
+
             return [command, id_to_use, {
                 'combo_id': line_data.get('combo_id'),
                 'product_id': line_data.get('product_id'),
@@ -204,10 +232,12 @@ class PosOrder(models.Model):
     def _get_self_order_floating_name(self, pos_config, order, device_type, table, tracking_number, prefix=""):
         if device_type == 'kiosk':
             return f"Table tracker {order['table_stand_number']}" if order.get('table_stand_number') else f"Kiosk Order {tracking_number}"
-        if not table:
+        if not table and order.get('floating_order_name'):
+            return order.get('floating_order_name')
+        elif not table:
             return f"Self-Order {tracking_number}"
         if pos_config.self_ordering_service_mode == 'dynamic_qr':
-            return f"T {table.table_number} - {prefix}{tracking_number}"
+            return f"T {table.table_number} - {tracking_number}"
         return f"Self-Order T {table.table_number}"
 
     @api.model
@@ -237,30 +267,13 @@ class PosOrder(models.Model):
                 raise UserError(_("Error while creating the order. Please try again."))
             order['session_id'] = pos_config.current_session_id.id
 
-        existing_order = pos_config.env['pos.order']._get_open_order(order)
-        if not existing_order.exists():
-            pos_reference, tracking_number = pos_config._get_next_order_refs()
-            prefix = f"K{pos_config.id}-" if device_type == "kiosk" else "S"
-
-            if not floating_order_name:
-                floating_order_name = self._get_self_order_floating_name(pos_config, order, device_type, table, tracking_number, prefix)
-
-            tracking_number = f"{prefix}{tracking_number}"
-        else:
-            pos_reference = existing_order.pos_reference
-            floating_order_name = existing_order.floating_order_name
-            tracking_number = existing_order.tracking_number
-            if not floating_order_name:
-                floating_order_name = self._get_self_order_floating_name(pos_config, order, device_type, table, tracking_number)
-
         fiscal_position_id = preset_id.fiscal_position_id if preset_id else pos_config.default_fiscal_position_id
         pricelist_id = preset_id.pricelist_id if preset_id else pos_config.pricelist_id
         lines = [self._check_pos_order_lines(pos_config, order, line, fiscal_position_id) for line in order.get('lines', [])]
         lines = [line for line in lines if len(line)]
         payment_lines = self._check_pos_order_payment(device_type, order, order.get("payment_ids"))
         payment_lines = [line for line in payment_lines if len(line)]
-        partner_id = order.get('partner_id')
-        partner = pos_config.env['res.partner'].browse(partner_id) if partner_id else None
+        partner = self._get_self_partner_from_token(pos_config, order.get('partner_id')) if order.get('partner_id') else False
 
         if order.get('id') and order.get('uuid') and isinstance(order['id'], int):
             exists = pos_config.env['pos.order'].search_count([
@@ -281,13 +294,12 @@ class PosOrder(models.Model):
             'amount_return': order.get('amount_return'),
             'company_id': company.id,
             'pricelist_id': pricelist_id.id if pricelist_id else False,
-            'partner_id': order.get('partner_id'),
+            'partner_id': partner.id if partner else False,
             'sequence_number': order.get('sequence_number'),
             'session_id': pos_config.current_session_id.id,
             'fiscal_position_id': fiscal_position_id.id if fiscal_position_id else False,
             'preset_id': preset_id.id if preset_id else False,
             'preset_time': order.get('preset_time'),
-            'tracking_number': tracking_number,
             'source': 'kiosk' if device_type == 'kiosk' else 'mobile',
             'email': partner.email if partner else order.get('email'),
             'mobile': partner.phone if partner else order.get('mobile'),
@@ -295,7 +307,6 @@ class PosOrder(models.Model):
             'floating_order_name': floating_order_name,
             'general_customer_note': order.get('general_customer_note'),
             'nb_print': order.get('nb_print'),
-            'pos_reference': pos_reference,
             'to_invoice': order.get('to_invoice'),
             'is_tipped': order.get('is_tipped'),
             'tip_amount': order.get('tip_amount'),
@@ -306,6 +317,9 @@ class PosOrder(models.Model):
             'payment_ids': payment_lines,
             'relations_uuid_mapping': order.get('relations_uuid_mapping', {}),
         }
+
+        if pos_config.self_ordering_mode == 'kiosk':
+            result['table_stand_number'] = order.get('table_stand_number')
 
         if (table and pos_config.self_ordering_service_mode == 'table'):
             result['table_stand_number'] = order.get('table_stand_number')
@@ -351,6 +365,28 @@ class PosOrder(models.Model):
             for child in children:
                 if child.order_id != self or child.combo_parent_id != line:
                     raise UserError(_("Invalid combo line"))
+
+    @api.model
+    def _get_self_partner_token(self, pos_config, partner_id):
+        return hmac(self.env(su=True), 'pos-self-order-partner', (pos_config.id, partner_id))
+
+    @api.model
+    def _get_signed_self_partner_id(self, pos_config, partner_id):
+        return f"{partner_id}-{self._get_self_partner_token(pos_config, partner_id)}"
+
+    @api.model
+    def _get_self_partner_from_token(self, pos_config, signed_partner):
+        if not isinstance(signed_partner, str) or "-" not in signed_partner:
+            return False
+        raw_id, _sep, token = signed_partner.partition("-")
+        try:
+            partner_id = int(raw_id)
+        except ValueError:
+            return False
+        if not consteq(token, self._get_self_partner_token(pos_config, partner_id)):
+            return False
+        partner = pos_config.env['res.partner'].sudo().browse(partner_id)
+        return partner if partner.exists() else False
 
     def recompute_prices(self):
         self.ensure_one()
@@ -429,13 +465,16 @@ class PosOrder(models.Model):
             return
 
         service_fee_product = preset.service_fee_product_id
+        existing_service_fee_lines = self.lines.filtered(
+            lambda line: line.product_id == service_fee_product,
+        )
         applicable_lines = self.lines.filtered(
             lambda line: line.product_id != service_fee_product
-            and line.product_id != self.config_id.tip_product_id
-            and not line.combo_parent_id,
+            and line.product_id != self.config_id.tip_product_id,
         )
 
         if not applicable_lines:
+            existing_service_fee_lines.unlink()
             return
 
         # Build base lines from applicable order lines to derive the correct taxes
@@ -453,10 +492,10 @@ class PosOrder(models.Model):
         if preset.service_fee_type == 'percent':
             amount *= 100
 
-        # Group base lines individually (line by line) so each produces its own
+        # Group base lines by tax so each tax group produces its own
         # service fee contribution with the correct tax breakdown
         def grouping_function(base_line):
-            return {'line_id': base_line['id']}
+            return {'product_id': service_fee_product}
 
         service_fee_base_lines = self.env['account.tax']._reduce_base_lines_to_target_amount(
             base_lines=base_lines,
@@ -466,25 +505,25 @@ class PosOrder(models.Model):
             grouping_function=grouping_function,
         )
 
-        # Update existing service fee lines: each gets the price_unit
-        # and tax_ids from its corresponding reduced base line
-        existing_service_fee_lines = self.lines.filtered(
-            lambda line: line.product_id == service_fee_product,
-        )
-        for service_fee_line, bl in zip(existing_service_fee_lines, service_fee_base_lines):
-            tax_ids = self.env['account.tax']
-            for tax_data in bl['tax_details']['taxes_data']:
-                tax_ids |= tax_data['tax']
-            tax_ids_after_fp = self.fiscal_position_id.map_tax(tax_ids)
-            taxes = tax_ids_after_fp.compute_all(
-                bl['price_unit'], self.currency_id, 1,
-                product=service_fee_product,
-                partner=self.partner_id,
-            )
+        surplus_lines = self.env['pos.order.line']
+        for bl, service_fee_line in zip_longest(service_fee_base_lines, existing_service_fee_lines):
+            if not bl:
+                surplus_lines |= service_fee_line
+                continue
+            if not service_fee_line:
+                service_fee_line = self.env['pos.order.line'].sudo().create({
+                    'order_id': self.id,
+                    'product_id': service_fee_product.id,
+                    'price_subtotal': 0.0,
+                    'price_subtotal_incl': 0.0,
+                    'full_product_name': service_fee_product.name,
+                })
+            service_fee_line.qty = 1
+            service_fee_line.price_type = 'automatic'
             service_fee_line.price_unit = bl['price_unit']
-            service_fee_line.tax_ids = tax_ids
-            service_fee_line.price_subtotal = taxes['total_excluded']
-            service_fee_line.price_subtotal_incl = taxes['total_included']
+            service_fee_line.tax_ids = bl['tax_ids']
+            self._compute_line_subtotals(service_fee_line)
+        surplus_lines.unlink()
 
     def _compute_combo_price(self, parent_line):
         """

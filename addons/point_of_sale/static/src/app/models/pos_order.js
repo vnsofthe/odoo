@@ -102,7 +102,7 @@ export class PosOrder extends PosOrderAccounting {
     }
 
     get canBeRemovedFromIndexedDB() {
-        return (this.finalized && this.isSynced) || this.state === "cancel";
+        return (this.finalized && !this.isUnsyncedPaid) || this.state === "cancel";
     }
 
     get totalItemQuantity() {
@@ -122,7 +122,8 @@ export class PosOrder extends PosOrderAccounting {
     }
 
     get isUnsyncedPaid() {
-        return this.finalized && !this.isSynced;
+        // An order synced as draft then paid offline has a server id but unsynced payments
+        return this.finalized && (!this.isSynced || this.payment_ids.some((p) => !p.isSynced));
     }
 
     get originalSplittedOrder() {
@@ -433,7 +434,9 @@ export class PosOrder extends PosOrderAccounting {
     addPaymentline(payment_method, args = {}) {
         this.assertEditable();
 
-        const { status: canSend, message } = payment_method.getPaymentInterfaceStates();
+        const { status: canSend, message } = payment_method.getPaymentInterfaceStates({
+            order: this,
+        });
         if (!canSend) {
             return { status: false, data: message, size: "sm" };
         }
@@ -449,6 +452,10 @@ export class PosOrder extends PosOrderAccounting {
         if ((payment_method.payment_interface && !this.isRefund) || payment_method.useBankQrCode) {
             newPaymentLine.setPaymentStatus("pending");
         }
+        if (payment_method.type === "pay_later") {
+            this.setToInvoice(true);
+        }
+
         return { status: true, data: newPaymentLine };
     }
 
@@ -673,7 +680,7 @@ export class PosOrder extends PosOrderAccounting {
     }
 
     get floatingOrderName() {
-        return this.floating_order_name || this.tracking_number.toString() || "";
+        return this.floating_order_name || this.tracking_number?.toString() || "";
     }
 
     sortBySequenceAndCategory(a, b) {
@@ -996,7 +1003,8 @@ export class PosOrder extends PosOrderAccounting {
     }
 
     get remainingDueAmount() {
-        return this.orderCurrency.convert(this.hasRemainingDue ? this.remainingDue : this.change);
+        const amount = this.hasRemainingDue ? this.remainingDue : this.change;
+        return this.convertAmountToCurrency(amount, this.orderCurrency);
     }
 
     get remainingDueLabel() {

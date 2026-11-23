@@ -115,6 +115,7 @@ class IrHttp(models.AbstractModel):
             "is_admin": user._is_admin() if session_uid else False,
             "is_public": user._is_public(),
             "is_internal_user": is_internal_user,
+            "is_regular_user": user._is_regular() if session_uid else False,
             "user_context": user_context,
             "db": self.env.cr.dbname,
             "registry_hash": hmac(self.env(su=True), "webclient-cache", self.env.registry.registry_sequence),
@@ -139,6 +140,10 @@ class IrHttp(models.AbstractModel):
             'bundle_params': {
                 'lang': request.session.context['lang'],
             },
+            'translation_hash': self._get_cached_web_translations_hash(
+                self._get_web_translations_modules(),
+                self._get_web_translations_lang(user_context.get('lang')),
+            ),
             'test_mode': config['test_enable'],
             'view_info': self.env['ir.ui.view'].get_view_info(),
             'groups': {

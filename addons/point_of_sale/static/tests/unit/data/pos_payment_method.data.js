@@ -17,6 +17,29 @@ export class PosPaymentMethod extends models.ServerModel {
         ];
     }
 
+    // Labels of the `payment_provider` selection, extended by the provider modules
+    _get_payment_provider_names() {
+        return {};
+    }
+
+    _load_pos_data_read(records) {
+        const names = this._get_payment_provider_names();
+        for (const record of records) {
+            record._payment_provider_name = names[record.payment_provider] || false;
+        }
+        return records;
+    }
+
+    get_qr_code_value(
+        _amount,
+        _free_communication,
+        _structured_communication,
+        _currency,
+        _debtor_partner
+    ) {
+        return "http://localhost:4444";
+    }
+
     _records = [
         {
             id: 2,
@@ -51,7 +74,7 @@ export class PosPaymentMethod extends models.ServerModel {
             sequence: 0,
             payment_method_type: "none",
             default_qr: false,
-            currency_ids: [1],
+            currency_ids: [125],
             write_date: "2025-01-01 10:00:00",
         },
     ];

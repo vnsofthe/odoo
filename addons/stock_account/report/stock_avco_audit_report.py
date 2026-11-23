@@ -45,7 +45,7 @@ SELECT
     sm.company_id,
     sm.reference,
     CASE WHEN sm.is_in THEN sm.value ELSE -sm.value END AS value,
-    CASE WHEN sm.is_in THEN sm.quantity ELSE -sm.quantity END AS quantity,
+    CASE WHEN sm.is_in THEN sm.quantity * (um.factor / up.factor) ELSE -sm.quantity * (um.factor / up.factor) END AS quantity,
     'stock.move' AS res_model_name,
     'Operation' AS description
 FROM
@@ -61,6 +61,10 @@ LEFT JOIN
 LEFT JOIN
     ir_default cost_method_default ON cost_method_default.company_id = sm.company_id
                                   AND cost_method_default.field_id = (SELECT id FROM ir_model_fields WHERE name = 'property_cost_method' AND model = 'product.category')
+LEFT JOIN
+    uom_uom um ON um.id = sm.uom_id
+LEFT JOIN
+    uom_uom up ON up.id = pt.uom_id
 WHERE
     sm.state = 'done'
     AND (sm.is_in = TRUE OR sm.is_out = TRUE)
@@ -90,6 +94,7 @@ WHERE
         total_records_grouped = self.env['stock.avco.report'].search(
             [('product_id', 'in', self.product_id.mapped('id')), ('company_id', 'in', self.company_id.mapped('id'))]
         ).grouped(lambda m: (m.product_id, m.company_id))
+        precision_digits = self.env['decimal.precision'].precision_get('Product Unit')
         for records in self.grouped(lambda m: (m.product_id, m.company_id)).values():
             current_page_records = records.sorted('date, id')
             total_records = total_records_grouped.get((records.product_id, records.company_id)).sorted('date, id')
@@ -107,11 +112,15 @@ WHERE
                         # Regular case, value from accumulation
                         if previous_qty > 0:
                             total_value += added_value
-                            avco = total_value / total_quantity if not float_is_zero(total_quantity, precision_digits=self.env['decimal.precision'].precision_get('Product Unit')) else avco
+                            avco = total_value / total_quantity if not float_is_zero(total_quantity, precision_digits=precision_digits) else avco
                         # From negative quantity case, value from last_in
                         elif previous_qty <= 0:
                             avco = added_value / qty if qty else avco
                             total_value = avco * total_quantity
+                    elif qty < 0 and record.product_id.lot_valuated:
+                        added_value = -record.value
+                        total_value += added_value
+                        avco = total_value / total_quantity if not float_is_zero(total_quantity, precision_digits=precision_digits) else avco
                     else:
                         added_value = avco * qty
                         total_value += added_value

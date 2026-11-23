@@ -59,7 +59,7 @@ patch(PosOrderline.prototype, {
         }
 
         // Set the qty of the line based on number of pack lots.
-        if (!this.product_id.to_weight && setQuantity) {
+        if (!this.product_id.to_weight && setQuantity && this.product_id.tracking === "serial") {
             this.setQuantityByLot();
         }
     },
@@ -77,7 +77,9 @@ patch(PosOrderline.prototype, {
                 this,
                 related_lines
             );
-            related_lines.forEach((line) => line.setUnitPrice(price));
+            related_lines
+                .filter((line) => line.price_type === "original")
+                .forEach((line) => line.setUnitPrice(price));
         } else {
             super.recomputeUnitPrice();
         }

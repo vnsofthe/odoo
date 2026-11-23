@@ -4,15 +4,17 @@
 #
 # "Tiffany Chang (tic)" <tic@odoo.com>, 2025.
 # "Chloe Wang (chwa)" <chwa@odoo.com>, 2026.
+# Odoo Translation Bot <c3p@odoo.com>, 2026.
+# 张飞虎 <feihu.zhang@live.com>, 2026.
 msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 18.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-04 17:46+0000\n"
-"PO-Revision-Date: 2026-09-09 14:04+0000\n"
-"Last-Translator: \"Chloe Wang (chwa)\" <chwa@odoo.com>\n"
+"POT-Creation-Date: 2026-09-18 17:39+0000\n"
+"PO-Revision-Date: 2026-10-11 11:46+0000\n"
+"Last-Translator: 张飞虎 <feihu.zhang@live.com>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.odoo.com/"
-"projects/odoo-master/sale_loyalty/zh_Hans/>\n"
+"projects/odoo-20/sale_loyalty/zh_Hans/>\n"
 "Language: zh_CN\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -30,28 +32,28 @@ msgstr " - 产品含有如下税项: %(taxes)s"
 #. odoo-python
 #: code:addons/sale_loyalty/models/sale_order.py:0
 msgid "%(points_name)s Issued"
-msgstr ""
+msgstr "%(points_name)s 已发放"
 
 #. module: sale_loyalty
 #. odoo-python
 #: code:addons/sale_loyalty/models/sale_order.py:0
 msgid "%(points_name)s Used"
-msgstr ""
+msgstr "%(points_name)s 已使用"
 
 #. module: sale_loyalty
 #: model_terms:ir.ui.view,arch_db:sale_loyalty.sale_order_portal_loyalty_content
 msgid "<small class=\"fw-bold\">Total</small>"
-msgstr ""
+msgstr "<small class=\"fw-bold\">总计</small>"
 
 #. module: sale_loyalty
 #: model_terms:ir.ui.view,arch_db:sale_loyalty.sale_order_portal_loyalty_content
 msgid "<small class=\"text-muted\">Issued</small>"
-msgstr ""
+msgstr "<small class=\"text-muted\">已发放</small>"
 
 #. module: sale_loyalty
 #: model_terms:ir.ui.view,arch_db:sale_loyalty.sale_order_portal_loyalty_content
 msgid "<small class=\"text-muted\">Used</small>"
-msgstr ""
+msgstr "<small class=\"text-muted\">已使用</small>"
 
 #. module: sale_loyalty
 #. odoo-python
@@ -60,12 +62,14 @@ msgid ""
 "<span>You must <a href='/web/login?redirect=/shop/checkout'>login</a> to use "
 "this code</span>"
 msgstr ""
+"<span>您必须先<a href='/web/login?redirect=/shop/checkout'>登录</a>才能使用此"
+"代码</span>"
 
 #. module: sale_loyalty
 #: model_terms:ir.ui.view,arch_db:sale_loyalty.sale_order_portal_loyalty_content
 msgid ""
 "<strong class=\"smaller text-uppercase text-muted\">Loyalty Card</strong>"
-msgstr ""
+msgstr "<strong class=\"smaller text-uppercase text-muted\">会员卡</strong>"
 
 #. module: sale_loyalty
 #. odoo-python
@@ -102,13 +106,13 @@ msgstr "代码："
 #. module: sale_loyalty
 #: model_terms:ir.ui.view,arch_db:sale_loyalty.sale_purchased_gift_card
 msgid "Copy code"
-msgstr ""
+msgstr "复制代码"
 
 #. module: sale_loyalty
 #. odoo-javascript
 #: code:addons/sale_loyalty/static/src/interactions/gift_card.js:0
 msgid "Could not send the gift card. Please try again later."
-msgstr ""
+msgstr "无法发送礼品卡。请稍后重试。"
 
 #. module: sale_loyalty
 #: model:ir.model.fields,field_description:sale_loyalty.field_sale_order_coupon_points__coupon_id
@@ -117,6 +121,8 @@ msgid "Coupon"
 msgstr "优惠券"
 
 #. module: sale_loyalty
+#. odoo-javascript
+#: code:addons/sale_loyalty/static/src/xml/discount_menu_widget.xml:0
 #: model:ir.model.fields,field_description:sale_loyalty.field_sale_loyalty_coupon_wizard__coupon_code
 #: model_terms:ir.ui.view,arch_db:sale_loyalty.sale_order_view_form_inherit_sale_loyalty
 msgid "Coupon Code"
@@ -134,11 +140,6 @@ msgid "Coupon not found while trying to add the following reward: %s"
 msgstr "尝试添加以下奖励时未找到优惠券:%s"
 
 #. module: sale_loyalty
-#: model_terms:ir.ui.view,arch_db:sale_loyalty.sale_loyalty_reward_wizard_view_form
-msgid "Coupons & Loyalty"
-msgstr "优惠券 & 会员"
-
-#. module: sale_loyalty
 #: model:ir.model.fields,field_description:sale_loyalty.field_sale_loyalty_coupon_wizard__create_uid
 #: model:ir.model.fields,field_description:sale_loyalty.field_sale_loyalty_reward_wizard__create_uid
 #: model:ir.model.fields,field_description:sale_loyalty.field_sale_order_coupon_points__create_uid
@@ -154,8 +155,9 @@ msgstr "创建日期"
 
 #. module: sale_loyalty
 #: model_terms:ir.ui.view,arch_db:sale_loyalty.sale_loyalty_reward_wizard_view_form
+#, fuzzy
 msgid "Discard"
-msgstr ""
+msgstr "丢弃"
 
 #. module: sale_loyalty
 #. odoo-python
@@ -185,7 +187,7 @@ msgstr "显示名称"
 #. module: sale_loyalty
 #: model_terms:ir.ui.view,arch_db:sale_loyalty.sale_purchased_gift_card
 msgid "Email Address"
-msgstr ""
+msgstr "Email地址"
 
 #. module: sale_loyalty
 #: model:ir.actions.act_window,name:sale_loyalty.sale_loyalty_coupon_wizard_action
@@ -199,8 +201,9 @@ msgstr "过期日期:"
 
 #. module: sale_loyalty
 #: model:ir.model.fields,field_description:sale_loyalty.field_sale_order__gift_card_count
+#, fuzzy
 msgid "Gift Card Count"
-msgstr ""
+msgstr "礼品卡计数"
 
 #. module: sale_loyalty
 #. odoo-python
@@ -212,13 +215,13 @@ msgstr "礼品卡"
 #. module: sale_loyalty
 #: model_terms:ir.ui.view,arch_db:sale_loyalty.sale_purchased_gift_card
 msgid "Gift card"
-msgstr ""
+msgstr "礼品卡"
 
 #. module: sale_loyalty
 #. odoo-javascript
 #: code:addons/sale_loyalty/static/src/interactions/gift_card.js:0
 msgid "Gift card sent to %s"
-msgstr ""
+msgstr "礼品卡已发送至 %s"
 
 #. module: sale_loyalty
 #: model:ir.ui.menu,name:sale_loyalty.menu_gift_ewallet_type_config
@@ -252,7 +255,7 @@ msgstr "ID"
 #. module: sale_loyalty
 #: model:ir.module.module,description:base.module_sale_loyalty
 msgid "Integrate discount and loyalty programs mechanisms in sales orders."
-msgstr ""
+msgstr "在销售订单中集成折扣与会员方案机制。"
 
 #. module: sale_loyalty
 #. odoo-python
@@ -293,7 +296,7 @@ msgstr "上次更新日期"
 #. module: sale_loyalty
 #: model_terms:ir.ui.view,arch_db:sale_loyalty.sale_order_portal_template
 msgid "Loyalty Card"
-msgstr ""
+msgstr "会员卡"
 
 #. module: sale_loyalty
 #: model:ir.model,name:sale_loyalty.model_loyalty_card
@@ -392,6 +395,14 @@ msgid "Points Cost"
 msgstr "积分成本"
 
 #. module: sale_loyalty
+#: model:ir.ui.menu,name:sale_loyalty.menu_sale_promotions
+#: model_terms:ir.ui.view,arch_db:sale_loyalty.sale_loyalty_reward_wizard_view_form
+msgid "Promotions"
+msgstr "促销"
+
+#. module: sale_loyalty
+#. odoo-javascript
+#: code:addons/sale_loyalty/static/src/xml/discount_menu_widget.xml:0
 #: model:ir.model.fields,field_description:sale_loyalty.field_sale_loyalty_reward_wizard__reward_ids
 #: model:ir.model.fields,field_description:sale_loyalty.field_sale_order_line__reward_id
 #: model_terms:ir.ui.view,arch_db:sale_loyalty.sale_order_view_form_inherit_sale_loyalty
@@ -422,7 +433,7 @@ msgstr "可用奖励"
 #. module: sale_loyalty
 #: model:ir.module.module,shortdesc:base.module_sale_loyalty
 msgid "Sale Loyalty"
-msgstr ""
+msgstr "销售会员"
 
 #. module: sale_loyalty
 #: model:ir.model,name:sale_loyalty.model_sale_loyalty_coupon_wizard
@@ -473,7 +484,7 @@ msgstr "选择的奖励"
 #. module: sale_loyalty
 #: model_terms:ir.ui.view,arch_db:sale_loyalty.sale_purchased_gift_card
 msgid "Send as gift"
-msgstr ""
+msgstr "作为礼物发送"
 
 #. module: sale_loyalty
 #. odoo-python
@@ -595,7 +606,7 @@ msgstr "该方案需要一个代码才能是哦那个。"
 #. odoo-python
 #: code:addons/sale_loyalty/models/sale_order.py:0
 msgid "This promo code can only be used once."
-msgstr ""
+msgstr "此促销代码只能使用一次。"
 
 #. module: sale_loyalty
 #. odoo-python
@@ -610,8 +621,8 @@ msgid ""
 "To take advantage of this offer, your order must include at least %(amount)s "
 "%(currency)s of the eligible products."
 msgstr ""
-"要享受此优惠，您的订单中必须包含至少%(amount)s %(currency)s 的符合条件的产品"
-"。"
+"要享受此优惠，您的订单中必须包含至少%(amount)s %(currency)s 的符合条件的产"
+"品。"
 
 #. module: sale_loyalty
 #: model_terms:ir.ui.view,arch_db:sale_loyalty.sale_order_view_form_inherit_sale_loyalty
@@ -621,7 +632,7 @@ msgstr "更新当前的促销项目，并选择新的奖励（如适用）。"
 #. module: sale_loyalty
 #: model:ir.module.module,summary:base.module_sale_loyalty
 msgid "Use discounts and loyalty programs in sales orders"
-msgstr ""
+msgstr "在销售订单中使用折扣和会员方案"
 
 #. module: sale_loyalty
 #. odoo-python
@@ -641,17 +652,17 @@ msgstr "您的销售订单上没有所需的产品数量。"
 #. odoo-python
 #: code:addons/sale_loyalty/controllers/gift_card.py:0
 msgid "You've received a gift card from %s"
-msgstr ""
+msgstr "您收到了来自 %s 的礼品卡"
 
 #. module: sale_loyalty
 #: model_terms:ir.ui.view,arch_db:sale_loyalty.sale_purchased_gift_card
 msgid "Your gift card is ready to use"
-msgstr ""
+msgstr "您的礼品卡已可使用"
 
 #. module: sale_loyalty
 #: model_terms:ir.ui.view,arch_db:sale_loyalty.sale_purchased_gift_card
 msgid "Your gift cards are ready to use"
-msgstr ""
+msgstr "您的礼品卡已可使用"
 
 #. module: sale_loyalty
 #. odoo-python
@@ -659,5 +670,8 @@ msgstr ""
 msgid "order_id"
 msgstr "order_id"
 
-msgid "<span class=\"oi\" data-icon=\"assignment\"/> Copy"
-msgstr "<span class=\"oi\" data-icon=\"assignment\"/> 拷贝"
+#~ msgid "Coupons & Loyalty"
+#~ msgstr "优惠券 & 会员"
+
+#~ msgid "<span class=\"oi\" data-icon=\"assignment\"/> Copy"
+#~ msgstr "<span class=\"oi\" data-icon=\"assignment\"/> 拷贝"

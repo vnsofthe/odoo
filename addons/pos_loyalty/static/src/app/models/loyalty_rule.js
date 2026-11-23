@@ -70,6 +70,9 @@ export class LoyaltyRule extends Base {
         if (this.mode === "with_code" && !order.applied_codes.includes(this.code)) {
             return false;
         }
+        if (this.program_id?.is_nominative && !order.getPartner()) {
+            return false;
+        }
         const qualifyingLines = this._qualifyingLines(order);
         if (!qualifyingLines.length) {
             return false;
@@ -96,7 +99,11 @@ export class LoyaltyRule extends Base {
      * @returns {number} the number of points
      */
     getPoints(order) {
-        if (!this.reward_point_amount || !this.isFulfilled(order)) {
+        if (
+            !this.reward_point_amount ||
+            !this.isFulfilled(order) ||
+            !order.isProgramPricelistValid(this.program_id)
+        ) {
             return 0;
         }
         const qualifyingLines = this._qualifyingLines(order);

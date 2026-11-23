@@ -126,6 +126,13 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
         relations = self._get_fk_on(self.env[model]._table)
 
+        tables = {table for table, _column in relations}
+        cached_models = {
+            model_cls._table: self.env[model_name]
+            for model_name, model_cls in self.env.registry.items()
+            if model_cls._table in tables and model_cls._clear_cache_name
+        }
+
         # this guarantees cache consistency
         self.env.invalidate_all()
 
@@ -193,6 +200,9 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                         column=column_sql,
                         src_record_ids=src_records.ids,
                     ))
+
+            if (cached_model := cached_models.get(table)) is not None and column in cached_model._clear_cache_on_fields:
+                self.env.transaction.invalidate_ormcache(cached_model._clear_cache_name)
 
     @api.model
     def _update_reference_fields_generic(self, referenced_model, src_records, dst_record, additional_update_records=None):
@@ -467,7 +477,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             raise UserError(self.env._("You cannot merge a contact with one of his parent."))
 
         # check if the list of partners to merge are linked to more than one user
-        if len(partner_ids.with_context(active_test=False).user_ids) > 1:
+        if len(partner_ids.sudo().with_context(active_test=False).user_ids) > 1:
             raise UserError(self.env._("You cannot merge contacts linked to more than one user even if only one is active."))
 
         if extra_checks and len(set(partner.email for partner in partner_ids)) > 1:

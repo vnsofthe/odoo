@@ -315,12 +315,6 @@ class SaleOrderLine(models.Model):
             values = self._timesheet_create_task_prepare_values(project)
             task = self.env['project.task'].sudo().create(values)
         self.task_id = task
-        # post message on task
-        task_msg = _("This task has been created from: %(order_link)s (%(product_name)s)",
-            order_link=self.order_id._get_html_link(),
-            product_name=self.product_id.name,
-        )
-        task.message_post(body=task_msg)
         return task
 
     def _get_so_lines_task_global_project(self):
@@ -344,7 +338,7 @@ class SaleOrderLine(models.Model):
         )
         so_line_task_global_project = sale_order_lines._get_so_lines_task_global_project()
         so_line_new_project = sale_order_lines._get_so_lines_new_project()
-        task_templates = self.env['project.task']
+        map_so_task_templates = {sale_order: self.env['project.task'] for sale_order in sale_order_lines.order_id}
 
         # search so lines from SO of current so lines having their project generated, in order to check if the current one can
         # create its own project, or reuse the one of its order.
@@ -405,8 +399,8 @@ class SaleOrderLine(models.Model):
                         project = map_so_project_templates[(so_line.order_id.id, so_line.product_id.project_template_id.id)]
                     else:
                         project = map_so_project[so_line.order_id.id]
-                if not so_line.task_id and so_line.product_id.task_template_id not in task_templates:
-                    task_templates |= so_line.product_id.task_template_id
+                if not so_line.task_id and so_line.product_id.task_template_id not in map_so_task_templates[so_line.order_id]:
+                    map_so_task_templates[so_line.order_id] |= so_line.product_id.task_template_id
                     so_line._timesheet_create_task(project=project)
             so_line._handle_milestones(project)
 
@@ -420,8 +414,8 @@ class SaleOrderLine(models.Model):
             if not so_line.task_id:
                 project = map_sol_project.get(so_line.id) or so_line.order_id.project_id
                 if project and so_line.product_uom_qty > 0:
-                    if so_line.product_id.task_template_id not in task_templates:
-                        task_templates |= so_line.product_id.task_template_id
+                    if so_line.product_id.task_template_id not in map_so_task_templates[so_line.order_id]:
+                        map_so_task_templates[so_line.order_id] |= so_line.product_id.task_template_id
                         so_line._timesheet_create_task(project)
                     so_line._handle_milestones(project)
 

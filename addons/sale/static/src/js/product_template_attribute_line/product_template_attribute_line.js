@@ -15,7 +15,7 @@ export class ProductTemplateAttributeLine extends Component {
             name: t.string(),
             display_type: t.customValidator(
                 t.string(),
-                (type) => ["color", "multi", "pills", "radio", "select", "image"].includes(type)
+                (type) => ["color", "multi", "pills", "radio", "select", "image", "range"].includes(type)
             ),
         }),
         attribute_values: t.array(
@@ -23,7 +23,7 @@ export class ProductTemplateAttributeLine extends Component {
                 id: t.number(),
                 name: t.string(),
                 html_color: t.or([t.boolean(), t.string()]), // backend sends 'false' when there is no color
-                image: t.or([t.boolean(), t.string()]), // backend sends 'false' when there is no image set
+                image: t.or([t.boolean(), t.object()]), // backend sends 'false' when there is no image set
                 is_custom: t.boolean(),
                 price_extra: t.number(),
                 excluded: t.boolean().optional(),
@@ -35,7 +35,6 @@ export class ProductTemplateAttributeLine extends Component {
             (type) => ["always", "dynamic", "no_variant"].includes(type)
         ),
         customValue: t.or([t.literal(false), t.string()]).optional(),
-        show_extra_price: t.boolean(),
     });
 
     //--------------------------------------------------------------------------
@@ -94,6 +93,8 @@ export class ProductTemplateAttributeLine extends Component {
                 return 'sale.ptav_multi';
             case 'image':
                 return 'sale.ptav_image';
+            case 'range':
+                return 'sale.ptav_pills';
         }
     }
 

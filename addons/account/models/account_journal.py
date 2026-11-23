@@ -77,7 +77,7 @@ class AccountJournal(models.Model):
                                    else ('asset_receivable', 'asset_cash', 'asset_current', 'asset_non_current',
                                          'asset_prepayments', 'asset_fixed', 'liability_payable',
                                          'liability_credit_card', 'liability_current', 'liability_non_current',
-                                         'equity', 'equity_unaffected', 'income', 'income_other', 'expense',
+                                         'equity', 'equity_unaffected', 'equity_retained', 'income', 'income_other', 'expense',
                                          'expense_depreciation', 'expense_direct_cost', 'off_balance'))
         ]"""
 
@@ -85,7 +85,6 @@ class AccountJournal(models.Model):
     name_placeholder = fields.Char(compute='_compute_name_placeholder')
     code = fields.Char(
         string='Sequence Prefix',
-        size=7,
         compute='_compute_code', readonly=False, store=True,
         required=True, precompute=True,
         help="Shorter name used for display. "
@@ -287,7 +286,7 @@ class AccountJournal(models.Model):
 
     incoming_einvoice_notification_email = fields.Char(  # no longer incoming-specific, rename in master
         string="Send Copy To",
-        help="Email addresses that will receive copy for sent and received invoices. Separate entries with ';'.",
+        help="Email addresses that should receive invoices copy/return reminders. Separate entries with ';'.",
     )
 
     _code_company_uniq = models.Constraint(
@@ -761,15 +760,14 @@ class AccountJournal(models.Model):
             code_prefix = re.sub(r'\d+', '', copy_code).strip()
             counter = 1
             while counter <= len(all_journal_codes) and copy_code in all_journal_codes:
-                counter_str = str(counter)
-                copy_prefix = code_prefix[:journal._fields['code'].size - len(counter_str)]
-                copy_code = "%s%s" % (copy_prefix, counter_str)
+                copy_code = "%s%s" % (code_prefix, counter)
                 counter += 1
 
             if counter > len(all_journal_codes):
                 # Should never happen, but put there just in case.
                 raise UserError(_("Could not compute any code for the copy automatically. Please create it manually."))
 
+            all_journal_codes.add(copy_code)
             vals.update(
                 code=copy_code,
             )
@@ -947,6 +945,7 @@ class AccountJournal(models.Model):
         random_account = self.env['account.account'].with_company(company).search(
             self.env['account.account']._check_company_domain(company),
             limit=1,
+            order='id',
         )
         digits = len(random_account.code or '') if random_account else 6
 
@@ -1033,7 +1032,11 @@ class AccountJournal(models.Model):
                 vals['default_account_id'] = default_account_id
 
         if is_import and not vals.get('code'):
-            code = vals['name'][:self._fields['code'].size]
+            code, name = self.env['account.account']._split_code_name(vals['name'])
+            if code and name:
+                vals['name'] = name
+            else:
+                code = vals['name']
             vals['code'] = code if not protected_codes or code not in protected_codes else self._get_next_journal_default_code(journal_type, company, protected_codes)
             if not vals['code']:
                 raise UserError(_("Cannot generate an unused journal code. Please change the name for journal %s.", vals['name']))
@@ -1041,9 +1044,9 @@ class AccountJournal(models.Model):
         # === Fill missing alias name for sale / purchase / bank / credit / cash, to force alias creation ===
         if journal_type in {'sale', 'purchase', 'bank', 'credit', 'cash'}:
             if 'alias_name' not in vals:
-                val_name = vals.get('name', self.name)
+                val_name = vals.get('name') or ''
                 if isinstance(val_name, dict):
-                    val_name = val_name.get(self.env.lang or 'en_US', self.name)
+                    val_name = val_name.get(self.env.lang or 'en_US') or ''
                 vals['alias_name'] = self._alias_prepare_alias_name(
                 False, val_name, vals.get('code'), journal_type, company
             )
@@ -1162,6 +1165,7 @@ class AccountJournal(models.Model):
             .with_context(
                 default_journal_id=self.id,
                 skip_is_manually_modified=True,
+                einvoice_notification_author_id=self.env.user.partner_id.id,
             ) \
             ._create_records_from_attachments(attachments)
 
@@ -1317,6 +1321,13 @@ class AccountJournal(models.Model):
         invoice.ensure_one()
 
         recipients = set(email_normalize_all(self.incoming_einvoice_notification_email or ''))
+        if not recipients:
+            return
+
+        author = self.env['res.partner'].browse(self.env.context.get('einvoice_notification_author_id'))
+        partners = author | invoice.invoice_user_id.partner_id
+        recipients -= {email for partner in partners for email in email_normalize_all(partner.email or '')}
+
         if not recipients:
             return
 

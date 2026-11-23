@@ -70,7 +70,7 @@ class HrJob(models.Model):
     alias_id = fields.Many2one(help="Email alias for this job position. New emails will automatically create new applicants for this job position.", groups="hr_recruitment.group_hr_recruitment_interviewer")
     color = fields.Integer("Color Index")
     is_favorite = fields.Boolean(compute='_compute_is_favorite', inverse='_inverse_is_favorite', compute_sql="_compute_sql_is_favorite", compute_sudo=True)
-    favorite_recruiter_ids = fields.Many2many('hr.employee', 'job_favorite_recruiter_rel', 'job_id', 'recruiter_id', default=_get_default_favorite_recruiter_ids)
+    favorite_recruiter_ids = fields.Many2many('hr.employee', 'job_favorite_recruiter_rel', 'job_id', 'recruiter_id')
     interviewer_ids = fields.Many2many(
         "res.users",
         domain="[('share', '=', False), ('company_ids', '=?', company_id)]",
@@ -174,12 +174,13 @@ class HrJob(models.Model):
 
         unfavorited_jobs = favorited_jobs = self.env['hr.job']
         for job in self:
-            if employee in job.favorite_recruiter_ids:
+            if employee in job.sudo().favorite_recruiter_ids:
                 unfavorited_jobs |= job
             else:
                 favorited_jobs |= job
-        favorited_jobs.write({'favorite_recruiter_ids': [Command.link(employee.id)]})
-        unfavorited_jobs.write({'favorite_recruiter_ids': [Command.unlink(employee.id)]})
+        # the user only (un)links its own employee, which it may not be allowed to read
+        favorited_jobs.sudo().write({'favorite_recruiter_ids': [Command.link(employee.id)]})
+        unfavorited_jobs.sudo().write({'favorite_recruiter_ids': [Command.unlink(employee.id)]})
 
     def _compute_sql_is_favorite(self, table):
         employee = self.env.user.employee_id
@@ -334,6 +335,11 @@ class HrJob(models.Model):
     def create(self, vals_list):
         jobs = super().create(vals_list)
         jobs.sudo().interviewer_ids._create_recruitment_interviewers()
+        # the creator's employee is a favorite recruiter of the new jobs, linked with sudo as a
+        # recruitment officer is not always allowed to read the employees
+        jobs_without_favorites = self.browse(job.id for job, vals in zip(jobs, vals_list) if 'favorite_recruiter_ids' not in vals)
+        if jobs_without_favorites:
+            jobs_without_favorites.sudo().favorite_recruiter_ids = self._get_default_favorite_recruiter_ids()
         return jobs
 
     def write(self, vals):
@@ -382,6 +388,9 @@ class HrJob(models.Model):
     def _creation_subtype(self):
         return self.env.ref('hr_recruitment.mt_job_new')
 
+    def _get_accessible_applicants(self):
+        return self.application_ids
+
     def action_open_attachments(self):
         return {
             'type': 'ir.actions.act_window',
@@ -399,7 +408,7 @@ class HrJob(models.Model):
             'search_view_id': self.env.ref('hr_recruitment.ir_attachment_view_search_inherit_hr_recruitment').ids,
             'domain': ['|',
                 '&', ('res_model', '=', 'hr.job'), ('res_id', 'in', self.ids),
-                '&', ('res_model', '=', 'hr.applicant'), ('res_id', 'in', self.application_ids.ids),
+                '&', ('res_model', '=', 'hr.applicant'), ('res_id', 'in', self._get_accessible_applicants().ids),
             ],
         }
 

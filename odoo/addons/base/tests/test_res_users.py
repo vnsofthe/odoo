@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from lxml import etree
+
 from odoo.api import SUPERUSER_ID
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command
@@ -509,6 +511,19 @@ class TestUsers2(UsersCommonCase):
             "is missing from all_group_ids",
         )
 
+    def test_role_search(self):
+        for user in [
+            self.env.ref('base.user_admin'),
+            self.env.ref('base.public_user'),
+            *self.env['res.users'].create([
+                {'name': 'portal', 'login': 'test_role_portal', 'group_ids': self.env.ref('base.group_portal')},
+                {'name': 'user', 'login': 'test_role_user', 'group_ids': self.env.ref('base.group_user')},
+            ]),
+        ]:
+            with self.subTest(user_id=user.id, role=user.role):
+                found = user.with_context(active_test=False).search([('role', '=', user.role), ('id', '=', user.id)])
+                self.assertEqual(found, user)
+
     def test_selection_groups(self):
         # create 3 groups that should be in a selection
         app = self.env['res.groups.privilege'].create({'name': 'Foo'})
@@ -644,9 +659,12 @@ class TestUsers2(UsersCommonCase):
         hr_manager = self.env['res.groups'].create({'name': 'HR Manager', 'privilege_id': hr.id})
         hr_manager.implied_ids += hr_user
 
-        light_groups = ('base.group_user', hr_interviewer.id)
+        # Converted the HR group to a light group
+        light_groups = self.env['res.groups']._get_light_group_xmlids() + (hr_interviewer.id,)
         with patch.object(ResGroups, '_get_light_group_xmlids', lambda s: light_groups):
+            hr_interviewer.implied_ids = []
 
+        with patch.object(ResGroups, '_get_light_group_xmlids', lambda s: light_groups):
             self.assertEqual(hr_manager._reduce_to_light_groups().mapped('name'), hr_interviewer.mapped('name'))
 
             user = self.user_internal
@@ -715,6 +733,25 @@ class TestUsers2(UsersCommonCase):
         # Disallow to write a field not in the user_writeable_fields on another user
         with self.assertRaises(AccessError):
             other.login = "foo"
+
+    def test_write_group_ids_access_cache(self):
+        group = self.env['res.groups'].create({'name': 'Read test parameters'})
+        self.env['ir.access'].create({
+            'name': 'Read test parameters',
+            'model_id': self.env['ir.model']._get('ir.config_parameter').id,
+            'group_id': group.id,
+            'operation': 'r',
+        })
+        parameter = self.env['ir.config_parameter'].create({
+            'key': 'test_res_users.access_cache',
+            'value': 'test',
+        }).with_user(self.user_internal)
+
+        self.user_internal.write({'group_ids': [Command.link(group.id)]})
+        self.assertTrue(parameter.has_access('read'))  # fills the cache
+
+        self.user_internal.write({'group_ids': [Command.unlink(group.id)]})
+        self.assertFalse(parameter.has_access('read'))
 
     @warmup
     def test_write_group_ids_performance(self):
@@ -976,3 +1013,23 @@ class TestResUsersForm(TransactionCase):
         user_form.login = 'a user login'
         user_form.name = 'a user name'
         user_form.save()
+
+    def test_light_user_preferences(self):
+        """ A light user has no calendar settings in its preferences. """
+        light_user = self.env['res.users'].create({
+            'login': 'light_preferences',
+            'name': 'Light Preferences',
+            'group_ids': [Command.set(self.env.ref('base.group_user').ids)],
+        })
+        self.assertEqual(light_user.role, 'light_user')
+        arch = self.env['res.users'].with_user(light_user).get_view(
+            self.env.ref('base.view_users_form_simple_modif').id, 'form')['arch']
+        tree = etree.fromstring(arch)
+        calendar_page = tree.xpath('//page[@name="calendar"]')
+        self.assertTrue(calendar_page, "the calendar page should still be in the preferences view")
+        self.assertEqual(calendar_page[0].get('invisible'), "role == 'light_user'")
+        # the phone and the security settings stay available to a light user
+        for xpath in ('//div[@name="phone"]', '//page[@name="page_security"]'):
+            node = tree.xpath(xpath)
+            self.assertTrue(node, f"{xpath} should be in the preferences view")
+            self.assertFalse(node[0].get('invisible'))

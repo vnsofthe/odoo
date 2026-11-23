@@ -754,7 +754,10 @@ export class OdooPivotModel extends PivotModel {
         const allGroupBys = params.groupingSets.flat();
         const order = columns
             .concat(rows)
-            .filter((dimension) => allGroupBys.includes(dimension.nameWithGranularity) && !dimension.isCustomField) // the order should not contain the custom groups
+            .filter(
+                (dimension) =>
+                    allGroupBys.includes(dimension.nameWithGranularity) && !dimension.isCustomField
+            ) // the order should not contain the custom groups
             .map((dimension) =>
                 dimension.order
                     ? `${dimension.nameWithGranularity} ${dimension.order}`
@@ -779,9 +782,13 @@ export class OdooPivotModel extends PivotModel {
         }
         const subGroup = { ...subGroups[0] };
         for (const measure of measures) {
+            if (measure === "__count") {
+                continue;
+            }
             const aggregator = measure.split(":")[1];
             switch (aggregator) {
                 case "sum":
+                case "sum_currency":
                 case "count":
                     subGroup[measure] = subGroups.reduce((sum, sg) => sum + sg[measure], 0);
                     break;
@@ -790,6 +797,12 @@ export class OdooPivotModel extends PivotModel {
                     break;
                 case "max":
                     subGroup[measure] = Math.max(...subGroups.map((sg) => sg[measure]));
+                    break;
+                case "bool_and":
+                    subGroup[measure] = subGroups.every((sg) => sg[measure]);
+                    break;
+                case "bool_or":
+                    subGroup[measure] = subGroups.some((sg) => sg[measure]);
                     break;
                 case "avg": {
                     const totalCount = subGroups.reduce((sum, sg) => sum + (sg.__count || 0), 0);
@@ -802,6 +815,8 @@ export class OdooPivotModel extends PivotModel {
                     }
                     break;
                 }
+                default:
+                    throw new Error(`Unsupported aggregator: ${aggregator}`);
             }
         }
         subGroup.__count = subGroups.reduce((sum, sg) => sum + (sg.__count || 0), 0);

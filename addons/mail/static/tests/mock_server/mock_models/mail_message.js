@@ -11,9 +11,9 @@ const { DateTime } = luxon;
 export class MailMessage extends models.ServerModel {
     _name = "mail.message";
 
-    author_id = fields.Generic({ default: () => serverState.partnerId });
+    author_id = fields.Many2one({ default: () => serverState.partnerId });
     date = fields.Datetime({ default: () => serializeDateTime(DateTime.now()) });
-    pinned_at = fields.Generic({ default: false });
+    pinned_at = fields.Datetime({ default: false });
 
     /** @type {typeof models.Model["prototype"]["create"]} */
     create(vals) {
@@ -74,10 +74,7 @@ export class MailMessage extends models.ServerModel {
         return messageIds;
     }
 
-    _store_message_fields(
-        res,
-        { format_reply = true, chatter_fields, inbox_fields = false, followers } = {}
-    ) {
+    _store_message_fields(res, { format_reply = true, inbox_fields = false } = {}) {
         /** @type {import("mock_models").MailFollowers} */
         const MailFollowers = this.env["mail.followers"];
         /** @type {import("mock_models").MailThread} */
@@ -125,6 +122,13 @@ export class MailMessage extends models.ServerModel {
         });
         // keep "record_name" and "res_id" for iOS app
         res.extend(["record_name", "res_id"]);
+        const hasPoll = (m) => m.started_poll_ids.length || m.ended_poll_ids.length;
+        res.many("started_poll_ids", "_store_poll_fields", {
+            fields_params: { with_start_message_id: false },
+            predicate: hasPoll,
+            sudo: true,
+        });
+        res.many("ended_poll_ids", "_store_poll_fields", { predicate: hasPoll, sudo: true });
         res.attr("subject");
         res.one("subtype_id", ["description"], { sudo: true });
         res.attr("write_date");
@@ -272,6 +276,51 @@ export class MailMessage extends models.ServerModel {
 
     _store_extra_fields(res, { format_reply } = {}) {
         if (format_reply) {
+            /** @type {import("mock_models").DiscussChannel} */
+            const DiscussChannel = this.env["discuss.channel"];
+            const topChannelIds = DiscussChannel.browse(
+                this.filter((m) => m.model === "discuss.channel").map((m) => m.res_id)
+            )
+                .filter(
+                    (channel) =>
+                        ["channel", "group"].includes(channel.channel_type) &&
+                        !channel.parent_channel_id
+                )
+                .map((channel) => channel.id);
+            const channelMessageIds = this.filter(
+                (m) => m.model === "discuss.channel" && topChannelIds.includes(m.res_id)
+            ).map((m) => m.id);
+            if (channelMessageIds.length) {
+                const subChannels = DiscussChannel.browse(
+                    DiscussChannel.search([["from_message_id", "in", channelMessageIds]])
+                );
+                const subChannelIdByMessageId = Object.fromEntries(
+                    subChannels.map((channel) => [channel.from_message_id, channel.id])
+                );
+                res.one("linkedSubChannel", ["name"], {
+                    predicate: (m) => channelMessageIds.includes(m.id),
+                    value: (m) => DiscussChannel.browse(subChannelIdByMessageId[m.id] ?? []),
+                });
+                /** @type {import("mock_models").MailMessage} */
+                const MailMessage = this.env["mail.message"];
+                const lastMessageIdByChannelId = {};
+                for (const message of MailMessage.browse(
+                    MailMessage.search([
+                        ["model", "=", "discuss.channel"],
+                        ["res_id", "in", subChannels.map((channel) => channel.id)],
+                    ])
+                )) {
+                    lastMessageIdByChannelId[message.res_id] = Math.max(
+                        lastMessageIdByChannelId[message.res_id] ?? 0,
+                        message.id
+                    );
+                }
+                res.many("sub_channel_last_messages", "_store_message_fields", {
+                    only_data: true,
+                    predicate: (m) => m.id === channelMessageIds[0],
+                    value: MailMessage.browse(Object.values(lastMessageIdByChannelId)),
+                });
+            }
             // discuss override: parent message of channel messages
             res.one("parent_id", "_store_message_fields", {
                 fields_params: { format_reply: false },
@@ -571,8 +620,6 @@ export class MailMessage extends models.ServerModel {
                 ["message_type", "!=", "user_notification"],
             ]);
         }
-        // keep in sync with `MESSAGE_SEARCH_FILTERS` in `mail/models/mail_message.py`
-        const isFiltered = ["messages", "notes", "activities", "changes"].includes(search_filter);
         if (search_filter === "messages") {
             domain.push(
                 [
@@ -603,12 +650,18 @@ export class MailMessage extends models.ServerModel {
         if (search_term) {
             domain = new Domain(domain || []);
             search_term = search_term.replace(" ", "%");
+            // Escape <, >, and & for body search to match html_sanitize storage
+            // Equivalent to Python's html.escape(searchTerm, quote=False)
+            const html_search_term = search_term
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
             const subtypeIds = MailMessageSubtype.search([["description", "ilike", search_term]]);
             const irAttachmentIds = IrAttachment.search([["name", "ilike", search_term]]);
             const authorIds = this.env["res.partner"].search([["name", "ilike", search_term]]);
             const guestIds = this.env["mail.guest"].search([["name", "ilike", search_term]]);
             const message_domain = Domain.or([
-                [["body", "ilike", search_term]],
+                [["body", "ilike", html_search_term]],
                 [["attachment_ids", "in", irAttachmentIds]],
                 [["author_id", "in", authorIds]],
                 [["author_guest_id", "in", guestIds]],
@@ -616,9 +669,6 @@ export class MailMessage extends models.ServerModel {
                 [["subtype_ids", "in", subtypeIds]],
             ]);
             domain = Domain.and([domain, message_domain]).toList();
-        }
-        if (search_term || isFiltered) {
-            res.count = this.search_count(domain);
         }
         if (around !== undefined) {
             const messagesBefore = this._filter(domain.concat([["id", "<=", around]])).sort(

@@ -15,6 +15,11 @@ export class PaymentMollie extends PaymentInterface {
                     (line) => line.transaction_id === payload.payment_id
                 );
 
+                if (paymentLine && paymentLine.uuid !== payload.payment_uuid) {
+                    console.warn("Ignoring mismatched Mollie webhook");
+                    return;
+                }
+
                 if (
                     paymentLine &&
                     !paymentLine.isDone() &&
@@ -53,7 +58,23 @@ export class PaymentMollie extends PaymentInterface {
             ]);
             return true;
         } catch (error) {
+            // If terminal payments can't be cancelled check the status
+            const status = await this.callPaymentMethod("mollie_get_payment", [
+                this.payment_method_id.id,
+                line.transaction_id,
+            ]).then(
+                (result) => result.status,
+                () => null
+            );
+            if (["canceled", "failed", "expired"].includes(status)) {
+                return true;
+            }
             this._showMollieError(error);
+            if (status && !this.paymentLineResolvers[line.uuid]) {
+                this._waitForPaymentConfirmation(line).then((isSuccessful) =>
+                    line.handlePaymentResponse(isSuccessful)
+                );
+            }
             return false;
         }
     }
@@ -147,7 +168,13 @@ export class PaymentMollie extends PaymentInterface {
                 connectionLost = false;
                 if (!["open", "pending"].includes(result.status) && isPaymentStillValid()) {
                     clearInterval(intervalId);
-                    this.handleMollieStatusResponse(paymentLine, result);
+                    this.handleMollieStatusResponse(paymentLine, {
+                        status: result.status,
+                        card_no: result.details?.cardNumber,
+                        card_type: result.details?.cardFunding,
+                        card_brand: result.details?.cardLabel,
+                        status_reason: result.statusReason,
+                    });
                 }
             } catch {
                 if (!connectionLost) {

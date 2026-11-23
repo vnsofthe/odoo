@@ -58,6 +58,7 @@ function getComboRecords(listRecords, record) {
 }
 
 export class SaleOrderLineListRenderer extends ProductLabelSectionAndNoteListRender {
+    static template = "sale.SaleOrderLineListRenderer";
     static recordRowTemplate = 'sale.ListRenderer.RecordRow';
 
     setup() {
@@ -68,6 +69,12 @@ export class SaleOrderLineListRenderer extends ProductLabelSectionAndNoteListRen
         useSubEnv({
             shouldCollapse: this.shouldCollapse.bind(this),
         });
+    }
+
+    get lineNumberOffset() {
+        const { offset, records } = this.props.list;
+        const savedRecords = records.filter((record) => !record.isNew);
+        return Math.min(offset, ...savedRecords.map((record) => record.data.line_number_offset));
     }
 
     /**
@@ -177,6 +184,14 @@ export class SaleOrderLineListRenderer extends ProductLabelSectionAndNoteListRen
         return super.isFieldReadonly(column, record) || (
             this.isComboItem(record)
                 && !['name', 'tax_ids', 'qty_delivered'].includes(column.name)
+        );
+    }
+
+    isColumnGroupFieldVisible(column, fieldInfo, record) {
+        return super.isColumnGroupFieldVisible(column, fieldInfo, record) && (
+            !this.isCombo(record)
+                || this.comboColumns.includes(column.name)
+                || this.comboColumns.includes(fieldInfo.name)
         );
     }
 

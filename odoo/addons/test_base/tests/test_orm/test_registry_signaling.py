@@ -64,6 +64,33 @@ class TestOrmCache(TransactionCase):
         self.assertEqual(counter.tx_miss, tx_miss + 1)
         self.assertIn(key, cache)
 
+    def test_ormcache_get_value(self):
+        """ get_value() returns the cached value without ever computing it,
+        and keeps the statistics like a regular lookup. """
+        IMD = self.env['ir.model.data']
+        XMLID = 'base.group_no_one'
+        self.env.transaction.invalidate_ormcache()
+        from odoo.orm.cache import get_cache_key_counter  # noqa: PLC0415
+        cache, key, counter = get_cache_key_counter(IMD._xmlid_lookup, XMLID)
+        hit = counter.hit
+        miss = counter.miss
+        tx_hit = counter.tx_hit
+        tx_miss = counter.tx_miss
+
+        self.assertEqual(IMD._xmlid_lookup.__cache__.get_value(IMD, XMLID, cache_default='none'), 'none')
+        self.assertNotIn(key, cache, "get_value() should not compute the value")
+        self.assertEqual(counter.hit, hit)
+        self.assertEqual(counter.miss, miss + 1)
+        self.assertEqual(counter.tx_hit, tx_hit)
+        self.assertEqual(counter.tx_miss, tx_miss + 1)
+
+        value = IMD._xmlid_lookup(XMLID)
+        self.assertEqual(IMD._xmlid_lookup.__cache__.get_value(IMD, XMLID), value)
+        self.assertEqual(counter.hit, hit + 1)
+        self.assertEqual(counter.miss, miss + 2)
+        self.assertEqual(counter.tx_hit, tx_hit)
+        self.assertEqual(counter.tx_miss, tx_miss + 1)
+
     def test_ormcache_invalidation(self):
         transaction = self.env.transaction
         transaction.invalidate_ormcache('default')
@@ -255,6 +282,33 @@ class TestOrmCacheSignaling(BaseCase):
             ["INFO:odoo.registry:Invalidating caches after database signaling: ['assets', 'default', 'templates.cached_values']"],
         )
 
+    def test_signaling_after_hooks(self):
+        """ The transaction following a commit or a rollback starts after the
+        hooks, so that it sees what they committed in other cursors, including
+        the invalidation of caches. """
+        def hook():
+            with self.registry.cursor() as hook_cr:
+                api.Environment(hook_cr, api.SUPERUSER_ID, {}).transaction.invalidate_ormcache()
+                hook_cr.execute("UPDATE res_users SET login = login WHERE id = %s", [api.SUPERUSER_ID])
+
+        def commit(cr):
+            cr.postcommit.add(hook)
+            cr.commit()
+
+        def rollback(cr):
+            cr.postrollback.add(hook)
+            cr.rollback()
+
+        for end_transaction in (commit, rollback):
+            with self.subTest(end_transaction.__name__), self.registry.cursor() as cr:
+                # the transaction checks the signaling, hence takes a snapshot, on reset
+                IMD = api.Environment(cr, api.SUPERUSER_ID, {})['ir.model.data']
+                IMD._xmlid_lookup('base.group_no_one')
+                end_transaction(cr)
+                # SerializationFailure if the snapshot predates the hook
+                cr.execute("UPDATE res_users SET login = login WHERE id = %s", [api.SUPERUSER_ID])
+                self.assertEqual(IMD._xmlid_lookup.__cache__.get_value(IMD, 'base.group_no_one', cache_default='none'), 'none')
+
 
 @tagged('at_install', '-post_install')
 class TestRealCursor(BaseCase):
@@ -301,6 +355,16 @@ class TestRealCursor(BaseCase):
             cr.execute('SHOW transaction_read_only')
             self.assertEqual(cr.fetchone(), ('on',))
             self.assertTrue(cr._cnx.readonly)
+
+    def test_locked_registry_no_transaction(self):
+        from odoo.orm.environments import Transaction  # noqa: PLC0415
+        with self.registry.cursor() as cr:
+            with (
+                patch.object(Transaction, '_check_signaling', side_effect=AssertionError),
+                self.assertRaises(AssertionError),
+            ):
+                api.Environment(cr, api.SUPERUSER_ID, {})
+            self.assertIsNone(cr.transaction, "Failing to check signaling must not set a Transaction")
 
 
 @tagged('at_install', '-post_install')  # LEGACY at_install

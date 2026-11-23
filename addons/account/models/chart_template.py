@@ -3,7 +3,7 @@
 import ast
 import csv
 from collections import defaultdict
-from functools import wraps
+from functools import cache, wraps
 from inspect import getmembers
 from copy import deepcopy
 
@@ -34,6 +34,24 @@ TAX_TAG_DELIMITER = '||'
 
 SYSCOHADA_LIST = ['BJ', 'BF', 'CM', 'CF', 'KM', 'CG', 'CI', 'GA', 'GN', 'GW', 'GQ', 'ML', 'NE',
                   'CD', 'SN', 'TD', 'TG']
+
+# Territories that don't have their own fiscal localization and whose
+# chart of accounts should default to their parent country's template.
+# French DROM-COM territories all use the French PCG.
+CHART_TEMPLATE_COUNTRY_FALLBACK = {
+    'gp': 'fr',
+    'mq': 'fr',
+    're': 'fr',
+    'gf': 'fr',
+    'yt': 'fr',
+    'bl': 'fr',
+    'mf': 'fr',
+    'pm': 'fr',
+    'pf': 'fr',
+    'wf': 'fr',
+    'tf': 'fr',
+    'nc': 'fr',
+}
 
 
 def get_python_translation(module, lang, value):
@@ -115,14 +133,15 @@ class AccountChartTemplate(models.AbstractModel):
         # This function is called many times. Avoid doing a search every time by using the ORM's cache.
         # We assume that the field is always computed for all the modules at once (by this function)
         modules = self.env['ir.module.module'].sudo()
-        modules = (
-            modules.browse(modules._fields['account_templates']._get_cache(self.env))
-            or modules.search([('state', '!=', 'uninstallable')])
+        mappings = (
+            # Read the cached values as mapped() deep-copies the Json value of every module
+            modules._fields['account_templates']._get_cache(self.env).values()
+            or modules.search([('state', '!=', 'uninstallable')]).mapped('account_templates')
         )
 
         return {
             name: template
-            for mapping in modules.mapped('account_templates')
+            for mapping in mappings
             if mapping
             for name, template in mapping.items()
             if get_all or template['visible']
@@ -131,6 +150,10 @@ class AccountChartTemplate(models.AbstractModel):
     def _select_chart_template(self, country=None):
         """Get the available templates in a format suited for Selection fields."""
         country = country if country is not None else self.env.company.country_id
+        if country and country.code:
+            fallback_code = CHART_TEMPLATE_COUNTRY_FALLBACK.get(country.code.lower())
+            if fallback_code:
+                country = self.env.ref(f'base.{fallback_code}', raise_if_not_found=False) or country
         chart_template_mapping = self._get_chart_template_mapping()
         return [
             (template_code, template['name'])
@@ -246,6 +269,7 @@ class AccountChartTemplate(models.AbstractModel):
         self._load_data(data)
         self._post_load_data(template_code, company, template_data)
         self._load_translations(companies=company)
+        self.env.cr.cache.pop('account_product_accounts', None)
 
         # Install the demo data when the first localization is instanciated on the company
         if install_demo and not reload_template:
@@ -586,6 +610,9 @@ class AccountChartTemplate(models.AbstractModel):
                      of accounts. It is a mapping {model: {xml_id: values}}.
         :type data: dict[str, dict[(str, int), dict]]
         """
+        # Referenced records are not deleted while loading, so their existence is checked once
+        ref = cache(self.ref)
+
         def deref_values(values, model):
             """Replace xml_id references by database ids in all provided values.
 
@@ -601,7 +628,7 @@ class AccountChartTemplate(models.AbstractModel):
                     or (field.type in ('integer', 'many2one_reference') and not value.isdigit())
                 ):
                     try:
-                        values[fname] = self.ref(value).id if value not in ('', 'False', 'None') else False
+                        values[fname] = ref(value).id if value not in ('', 'False', 'None') else False
                     except ValueError:
                         if model._name == 'res.company':
                             # Try a fallback on the company when reloading/loading on a branch
@@ -621,12 +648,12 @@ class AccountChartTemplate(models.AbstractModel):
                         elif command == Command.SET:
                             for subvalue_idx, subvalue in enumerate(last_part):
                                 if isinstance(subvalue, str):
-                                    last_part[subvalue_idx] = self.ref(subvalue).id
+                                    last_part[subvalue_idx] = ref(subvalue).id
                         elif command == Command.LINK and isinstance(_id, str):
-                            value[i] = Command.link(self.ref(_id).id)
+                            value[i] = Command.link(ref(_id).id)
                 elif field.type in ('one2many', 'many2many') and isinstance(value, str):
                     values[fname] = [Command.set([
-                        self.ref(v).id
+                        ref(v).id
                         for v in value.split(',')
                         if v
                     ])]
@@ -712,8 +739,10 @@ class AccountChartTemplate(models.AbstractModel):
                     if '@' in key or key == '__translation_module__':
                         del record_vals[key]
 
-                # Manage ids given as database id or xml_id
-                if isinstance(xml_id, str) and (record := self.ref(xml_id, raise_if_not_found=False)):
+                # _load_records matches own xml_ids, only a branch can fall back to its root's
+                if isinstance(xml_id, str) and self.env.company.parent_id and (
+                    record := self.ref(xml_id, raise_if_not_found=False)
+                ):
                     xml_id = record.id
 
                 if isinstance(xml_id, int):
@@ -1244,7 +1273,7 @@ class AccountChartTemplate(models.AbstractModel):
     def ref(self, xmlid, raise_if_not_found=True):
         return (
             self.env.ref(self.company_xmlid(xmlid), raise_if_not_found=False)
-            or self.env.ref(self.company_xmlid(xmlid, self.env.company.parent_ids[0]), raise_if_not_found)
+            or self.env.ref(self.company_xmlid(xmlid, self.env.company.root_id), raise_if_not_found)
         )
 
     def _get_parent_template(self, code):

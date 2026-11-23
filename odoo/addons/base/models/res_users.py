@@ -1,7 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from __future__ import annotations
 
-import binascii
 import collections
 import contextlib
 import datetime
@@ -9,7 +8,7 @@ import hmac
 import ipaddress
 import json
 import logging
-import os
+import secrets
 import time
 from functools import wraps
 from hashlib import sha256
@@ -427,17 +426,20 @@ class ResUsers(models.Model):
             else:
                 user.password = user.new_password
 
-    @api.depends('group_ids')
+    @api.depends('all_group_ids')
     def _compute_role(self):
         group_system = self.env.ref('base.group_system', raise_if_not_found=False)
         group_user = self.env.ref('base.group_user', raise_if_not_found=False)
 
         for user in self:
-            groups = user.group_ids._origin
+            # A group is almost never held directly: ``base.group_user`` and the
+            # light/regular tier both come from the application groups the user
+            # is given, so the role is determined on the implied groups.
+            all_groups = user.group_ids._origin.all_implied_ids
             user.role = (
-                'group_system' if group_system and group_system in groups else
-                'light_user' if group_user and group_user in groups and groups._is_light_groups() else
-                'regular_user' if group_user and group_user in groups else
+                'group_system' if group_system and group_system in all_groups else
+                'light_user' if group_user and group_user in all_groups and all_groups._is_light_groups() else
+                'regular_user' if group_user and group_user in all_groups else
                 False
             )
 
@@ -464,13 +466,18 @@ class ResUsers(models.Model):
         if operator != 'in':
             return NotImplemented
 
+        group_definitions = self.env['res.groups']._get_group_definitions()
+        light_group_ids = {group_definitions.get_id(xid) for xid in self.env['res.groups']._get_light_group_xmlids()}
+        regular_group_ids = set(group_definitions.get_all_ids()) - light_group_ids
+
         is_system = Domain('all_group_ids', 'in', [self.env.ref('base.group_system').id])
-        is_user_regular = Domain('all_group_ids', 'in', [self.env.ref('base.group_user_regular').id])
+        is_user_regular = Domain('all_group_ids', 'in', regular_group_ids)
         is_user = Domain('all_group_ids', 'in', [self.env.ref('base.group_user').id])
         domains_by_role = {
             'light_user': is_user & ~is_user_regular,
             'regular_user': is_user & is_user_regular & ~is_system,
             'group_system': is_system,
+            False: ~is_user,
         }
         return Domain.OR([domains_by_role[v] for v in value if v in domains_by_role])
 
@@ -480,7 +487,12 @@ class ResUsers(models.Model):
             user.all_group_ids = user.group_ids.all_implied_ids
 
     def _search_all_group_ids(self, operator, value):
-        return [('group_ids.all_implied_ids', operator, value)]
+        if operator in Domain.NEGATIVE_OPERATORS:
+            return NotImplemented
+        domain = Domain('group_ids.all_implied_ids', operator, value)
+        if operator == 'in' and False in value:  # relation may be falsy
+            domain |= Domain('group_ids', '=', False)
+        return domain
 
     @api.depends('name')
     def _compute_signature(self):
@@ -708,6 +720,8 @@ class ResUsers(models.Model):
         if 'group_ids' in vals and any(self._ids):
             # clear caches linked to the users
             self.env.invalidate_all()
+            # Record-access results are cached per (uid, companies), not per groups.
+            self.env.transaction.invalidate_access_cache()
             self.env.transaction.invalidate_ormcache()
 
         # per-method / per-model caches have been removed so the various
@@ -858,7 +872,7 @@ class ResUsers(models.Model):
                     # zones, which ZoneInfo resolves to the canonical one
                     with contextlib.suppress(KeyError, ValueError):
                         tz = ZoneInfo(browser_tz).key
-                if tz in all_timezones and (not user.tz or not user.login_date):
+                if tz in all_timezones and (not user.tz or not user.login_date) and user.tz != tz:
                     # first login or missing tz -> set tz to browser tz
                     user.tz = tz
                 user._update_last_login()
@@ -1259,6 +1273,11 @@ class ResUsers(models.Model):
         self.ensure_one()
         return self.sudo().has_group('base.group_user')
 
+    def _is_regular(self):
+        """ An internal user that is not a light one. """
+        self.ensure_one()
+        return self.sudo().role in ('regular_user', 'group_system')
+
     def _is_portal(self):
         self.ensure_one()
         return self.sudo().has_group('base.group_portal')
@@ -1574,9 +1593,11 @@ class ChangePasswordOwn(models.TransientModel):
         # would be great to update the session id in-place, but it seems dicey
         return {'type': 'ir.actions.client', 'tag': 'reload'}
 
+
 # API keys support
-API_KEY_SIZE = 20 # in bytes
-INDEX_SIZE = 8 # in hex digits, so 4 bytes, or 20% of the key
+API_KEY_SIZE = 20  # in bytes
+API_KEY_SUFFIX = '_oak'
+INDEX_SIZE = 8  # in hex digits, so 4 bytes, or 20% of the key
 KEY_CRYPT_CONTEXT = CryptContext(
     # default is 29000 rounds which is 25~50ms, which is probably unnecessary
     # given in this case all the keys are completely random data: dictionary
@@ -1673,7 +1694,7 @@ class ResUsersApikeys(models.Model):
         """
         self._check_expiration_date(expiration_date)
         # no need to clear the LRU when *adding* a key, only when removing
-        k = binascii.hexlify(os.urandom(API_KEY_SIZE)).decode()
+        k = secrets.token_hex(API_KEY_SIZE) + API_KEY_SUFFIX
         self.env.cr.execute(SQL("""
             INSERT INTO %s (name, user_id, scope, expiration_date, key, index)
             VALUES (%s, %s, %s, %s, %s, %s)

@@ -33,6 +33,7 @@ import { describe, expect, test } from "@odoo/hoot";
 import {
     animationFrame,
     press,
+    queryOne,
     queryRect,
     rightClick,
     tick,
@@ -1437,6 +1438,47 @@ test("out-of-focus notif takes new inbox messages into account", async () => {
     await expect.waitForSteps(["(1) Odoo"]);
 });
 
+test("out-of-focus notif respects push subscription eligibility", async () => {
+    const pyEnv = await startServer();
+    pyEnv["res.users"].write(serverState.userId, { notification_type: "inbox" });
+    const partnerId = pyEnv["res.partner"].create({ name: "Hagrid" });
+    const userId = pyEnv["res.users"].create({ partner_id: partnerId });
+    patchWithCleanup(OutOfFocusService.prototype, {
+        async notify() {
+            expect.step("notification handled");
+            await super.notify(...arguments);
+        },
+        async hasServiceWorkInstalledAndPushSubscriptionActive() {
+            return true;
+        },
+        sendNotification() {
+            expect.step("send_notification");
+        },
+    });
+    listenStoreFetch("init_messaging");
+    await start();
+    await waitStoreFetch("init_messaging");
+    await openDiscuss();
+    const adminId = serverState.partnerId;
+    const post = (author, message_type) =>
+        withUser(author, () =>
+            rpc("/mail/message/post", {
+                post_data: { body: "hello", partner_ids: [adminId], message_type },
+                thread_id: partnerId,
+                thread_model: "res.partner",
+            })
+        );
+    // pushed type, not self-authored → JS bails, push handles it
+    await post(userId, "comment");
+    await expect.waitForSteps(["notification handled"]);
+    // non-pushed type → whitelist rejects → JS fires
+    await post(userId, "auto_comment");
+    await expect.waitForSteps(["notification handled", "send_notification"]);
+    // self-authored → author excluded from push → JS fires
+    await post(serverState.userId, "comment");
+    await expect.waitForSteps(["notification handled", "send_notification"]);
+});
+
 test("out-of-focus notif on needaction message in group chat contributes only once", async () => {
     const pyEnv = await startServer();
     patchWithCleanup(document, {
@@ -2386,6 +2428,91 @@ test("Escape key should focus the composer if it's not focused", async () => {
     await contains(".o-mail-Composer-input:focus");
 });
 
+test("header fits a narrow content area", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    await patchUiSize({ width: 800 });
+    await animationFrame();
+    const content = queryOne(".o-mail-DiscussContent");
+    expect(content.scrollWidth).toBe(content.clientWidth);
+});
+
+test("long description does not truncate the parent channel name", async () => {
+    const pyEnv = await startServer();
+    const parentId = pyEnv["discuss.channel"].create({ name: "General" });
+    const subChannelId = pyEnv["discuss.channel"].create({
+        name: "Troubleshooting",
+        parent_channel_id: parentId,
+        description: "A description too long for the header. ".repeat(5),
+    });
+    await start();
+    await openDiscuss(subChannelId);
+    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    await patchUiSize({ width: 1400 });
+    await animationFrame();
+    const parentName = queryOne(".o-mail-DiscussContent-header span[title='General']");
+    expect(parentName.scrollWidth).toBe(parentName.clientWidth);
+});
+
+test("short description keeps the width of its text", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General", description: "Short" });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    await patchUiSize({ width: 1400 });
+    await animationFrame();
+    const description = queryOne(".o-mail-DiscussContent-threadDescription");
+    expect(description.scrollWidth).toBe(description.clientWidth);
+});
+
+test("thread name stays inside a narrow header", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "Customer Support",
+        description: "Desc",
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    // the sidebar is 30vw of the real window: same header width in any window of at least 900px
+    await patchUiSize({ width: 500 + queryRect(".o-mail-DiscussApp-sidebar").width });
+    await animationFrame();
+    const actionsLeft = queryRect(".o-mail-DiscussContent-header .o-mail-ActionList").left;
+    const headerBoxRight = queryRect(".o-mail-DiscussContent-headerBox").right;
+    expect(headerBoxRight).toBeLessThan(actionsLeft);
+    expect(queryRect(".o-mail-DiscussContent-threadNameBox").right).toBeLessThan(headerBoxRight);
+});
+
+test("parent channel chevron does not cover the sub-channel name in a narrow header", async () => {
+    const pyEnv = await startServer();
+    const parentId = pyEnv["discuss.channel"].create({ name: "General" });
+    const subChannelId = pyEnv["discuss.channel"].create({
+        name: "Troubleshooting of the warehouse scanners",
+        parent_channel_id: parentId,
+    });
+    await start();
+    await openDiscuss(subChannelId);
+    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    await patchUiSize({ width: 900 });
+    await animationFrame();
+    const getVisibleWidth = (selector) =>
+        new Promise((resolve) => {
+            const observer = new IntersectionObserver(([entry]) => {
+                observer.disconnect();
+                resolve(entry.intersectionRect.width);
+            });
+            observer.observe(queryOne(selector));
+        });
+    expect(await getVisibleWidth(".o-mail-DiscussContent-threadNameBox")).toBeGreaterThan(0);
+    expect(
+        await getVisibleWidth(".o-mail-DiscussContent-header [data-icon='chevron_forward']")
+    ).toBe(0);
+});
+
 test("Notification settings: basic rendering", async () => {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({
@@ -2614,7 +2741,7 @@ test("Read-only channel member has bottom banner instead of composer", async () 
         is_readonly: true,
         channel_member_ids: [
             Command.create({ partner_id: serverState.partnerId, channel_role: "owner" }),
-            Command.create({ partner_id: memberPartnerId, channel_role: "member" }),
+            Command.create({ partner_id: memberPartnerId }),
         ],
     });
     pyEnv["mail.message"].create({
@@ -2644,6 +2771,41 @@ test("Read-only channel member has bottom banner instead of composer", async () 
     await contains(".o-mail-Composer", { count: 0 });
 });
 
+test("Read-only channel info is only editable by channel admins", async () => {
+    const pyEnv = await startServer();
+    const memberPartnerId = pyEnv["res.partner"].create({ name: "Member User" });
+    pyEnv["res.users"].create({
+        partner_id: memberPartnerId,
+        login: "test_member",
+        password: "test_member",
+    });
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "General",
+        description: "Read-only channel description",
+        group_public_id: false,
+        is_readonly: true,
+        channel_member_ids: [
+            Command.create({ partner_id: serverState.partnerId, channel_role: "owner" }),
+            Command.create({ partner_id: memberPartnerId, channel_role: "admin" }),
+        ],
+    });
+    await start({
+        authenticateAs: { login: "test_member", password: "test_member" },
+    });
+    await openDiscuss(channelId);
+    await contains(".o-mail-DiscussContent-threadName:enabled");
+    await contains(".o-mail-DiscussContent-threadDescription:enabled");
+    await contains(".o-mail-DiscussContent-header a[title='Change Picture']");
+    const memberId = pyEnv["discuss.channel.member"].search([
+        ["channel_id", "=", channelId],
+        ["partner_id", "=", memberPartnerId],
+    ])[0];
+    pyEnv["discuss.channel.member"].write([memberId], { channel_role: false });
+    await contains(".o-mail-DiscussContent-threadName:disabled");
+    await contains(".o-mail-DiscussContent-threadDescription:disabled");
+    await contains(".o-mail-DiscussContent-header a[title='Change Picture']", { count: 0 });
+});
+
 test("Read-only channel admin has composer", async () => {
     const pyEnv = await startServer();
     const adminPartnerId = pyEnv["res.partner"].create({ name: "Admin User" });
@@ -2670,7 +2832,7 @@ test("Read-only channel admin has composer", async () => {
         ["channel_id", "=", channelId],
         ["partner_id", "=", adminPartnerId],
     ])[0];
-    pyEnv["discuss.channel.member"].write([memberId], { channel_role: "member" });
+    pyEnv["discuss.channel.member"].write([memberId], { channel_role: false });
     await contains(".o-mail-DiscussContent-core span:text('This channel is read-only.')");
     await contains(".o-mail-Composer", { count: 0 });
     pyEnv["discuss.channel.member"].write([memberId], { channel_role: "admin" });
@@ -2693,7 +2855,7 @@ test("Read-only channel member cannot respond or create subthread", async () => 
         is_readonly: true,
         channel_member_ids: [
             Command.create({ partner_id: serverState.partnerId, channel_role: "owner" }),
-            Command.create({ partner_id: memberPartnerId, channel_role: "member" }),
+            Command.create({ partner_id: memberPartnerId }),
         ],
     });
     const memberId = pyEnv["discuss.channel.member"].search([
@@ -2763,7 +2925,7 @@ test("Cannot call read-only channels", async () => {
         name: "General",
         is_readonly: true,
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, channel_role: "member" }),
+            Command.create({ partner_id: serverState.partnerId }),
             Command.create({ partner_id: adminPartnerId, channel_role: "owner" }),
         ],
     });

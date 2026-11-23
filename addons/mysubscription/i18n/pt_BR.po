@@ -1,0 +1,408 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * mysubscription
+#
+# "Maitê Dietze (madi)" <madi@odoo.com>, 2026.
+# Weblate Translation Memory <noreply-mt-weblate-translation-memory@weblate.org>, 2026.
+# OpenAI <noreply-mt-openai@weblate.org>, 2026.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 20.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-18 17:39+0000\n"
+"PO-Revision-Date: 2026-10-29 18:57+0000\n"
+"Last-Translator: OpenAI <noreply-mt-openai@weblate.org>\n"
+"Language-Team: Portuguese (Brazil) <https://translate.odoo.com/projects/odoo-"
+"20/mysubscription/pt_BR/>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=2; plural=n > 1;\n"
+"Language: pt_BR\n"
+"X-Generator: Weblate 2026.8.1\n"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/subscription_dialog.xml:0
+msgid "'Subscription'"
+msgstr "Assinatura"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/database_dialog.js:0
+msgid "A network error occurred."
+msgstr "Ocorreu um erro de rede."
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/database_dialog.js:0
+msgid "Action completed successfully!"
+msgstr "Ação concluída com sucesso!"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/database_dialog.js:0
+msgid "Action failed. Invalid or missing master password."
+msgstr "A ação falhou. Senha mestra inválida ou ausente."
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/database_dialog.xml:0
+msgid ""
+"All the data for this database will be deleted for all the users and cannot "
+"be restored."
+msgstr ""
+"Todos os dados desta base de dados serão excluídos para todos os usuários e "
+"não poderão ser recuperados."
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/subscription_dialog.xml:0
+msgid "Apply"
+msgstr "Aplicar"
+
+#. module: mysubscription
+#: model:ir.module.module,summary:base.module_mysubscription
+msgid "Backend Subscription App"
+msgstr "Aplicativo de assinatura do backend"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/database_dialog.xml:0
+msgid "Backup Format"
+msgstr "Formato de backup"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "Backups"
+msgstr "Backups"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/database_dialog.xml:0
+#: code:addons/mysubscription/static/src/components/subscription_dialog.xml:0
+msgid "Cancel"
+msgstr "Cancelar"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "Cancel Subscription"
+msgstr "Cancelar assinatura"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/plan_section.xml:0
+msgid "Contact your dedicated account manager or the"
+msgstr "Entre em contato com seu gerente de conta dedicado ou com o"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/plan_section.xml:0
+msgid "Current Plan"
+msgstr "Plano atual"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "Danger Zone"
+msgstr "Zona de perigo"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "Database"
+msgstr "base de dados"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "Delete"
+msgstr "Apagar"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "Delete Database"
+msgstr "Excluir base de dados"
+
+#. module: mysubscription
+#: model:ir.model.fields,field_description:mysubscription.field_mysubscription_mysubscription__display_name
+msgid "Display Name"
+msgstr "Nome exibido"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "Download Backup"
+msgstr "Baixar backup"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "Duplicate"
+msgstr "Duplicar"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/database_dialog.xml:0
+msgid "Duplicate Name"
+msgstr "Nome duplicado"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "Duplicate for testing or production purpose"
+msgstr "Duplicar para fins de teste ou produção"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/database_dialog.xml:0
+msgid "Filename"
+msgstr "Nome do arquivo"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/plan_section.xml:0
+msgid "Flexible, change at any time"
+msgstr "Flexível, altere a qualquer momento"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/navbar.xml:0
+msgid "Home Menu"
+msgstr "Menu principal"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/iap_section.xml:0
+msgid "IAP Icon"
+msgstr "Ícone do IAP"
+
+#. module: mysubscription
+#: model:ir.model.fields,field_description:mysubscription.field_mysubscription_mysubscription__id
+msgid "ID"
+msgstr "ID"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/iap_section.xml:0
+msgid "In-App Purchases"
+msgstr "Compras dentro do aplicativo (IAP)"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/plan_section.xml:0
+msgid "Manage your"
+msgstr "Gerencie sua equipe"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/database_dialog.xml:0
+msgid "Master Password"
+msgstr "Senha mestra"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/navbar.js:0
+#: code:addons/mysubscription/static/src/user_menu.js:0
+#: model:ir.actions.client,name:mysubscription.action_mysubscription_dashboard
+#: model:ir.module.module,shortdesc:base.module_mysubscription
+msgid "My Subscription"
+msgstr "Minhas assinaturas"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/plan_section.xml:0
+msgid "Need Help?"
+msgstr "Precisa de ajuda?"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/database_dialog.xml:0
+msgid "New Name"
+msgstr "Novo nome"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/plan_section.xml:0
+msgid "Odoo Account"
+msgstr "Conta Odoo"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "Open a transfer request ticket and provide relevant documentation"
+msgstr ""
+"Abra um ticket de solicitação de transferência e forneça a documentação "
+"relevante"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid ""
+"Proceed with caution as these actions will affect your access to this "
+"database"
+msgstr ""
+"Proceda com cautela, pois estas ações afetarão seu acesso a esta base de "
+"dados"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/iap_section.xml:0
+msgid ""
+"Provide Services to Odoo Users directly from their database through In-App "
+"Purchases"
+msgstr ""
+"Forneça serviços aos usuários do Odoo diretamente de suas bases de dados "
+"através de compras no aplicativo"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "Rename"
+msgstr "Renomear"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "SLA policy"
+msgstr "Política de SLA"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "Select the database you want to act on"
+msgstr "Selecione a base de dados na qual deseja atuar"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "Selection"
+msgstr "Seleção"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/iap_section.xml:0
+msgid "Services"
+msgstr "Serviços"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/subscription_dialog.xml:0
+msgid "Subscription Code"
+msgstr "Código de assinatura"
+
+#. module: mysubscription
+#: model:ir.model,name:mysubscription.model_mysubscription_mysubscription
+msgid "Subscription Dashboard Helper"
+msgstr "Assistente do painel de subscrição"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/plan_section.xml:0
+msgid "Switch Plan"
+msgstr "Mudar de plano"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/database_dialog.xml:0
+msgid "Testing purposes:"
+msgstr "Propósitos de teste:"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "This action will delete the database and close the subscription"
+msgstr "Esta ação excluirá a base de dados e encerrará a subscrição"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/iap_section.xml:0
+msgid "Top Up"
+msgstr "Recarregar"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "Transfer Ownership"
+msgstr "Transferir propriedade"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "Upgrade"
+msgstr "Fazer upgrade"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "Version"
+msgstr "Versão"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/database_dialog.xml:0
+msgid "We advise you to"
+msgstr "Recomendamos que você"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/database_dialog.xml:0
+msgid "You are going to definitively delete"
+msgstr "Você excluirá definitivamente"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "Your data is safe, check our"
+msgstr "Seus dados estão seguros, verifique nosso"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "Your database runs on"
+msgstr "Sua base de dados roda em"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/database_section.xml:0
+msgid "Your version:"
+msgstr "Sua versão:"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/database_dialog.xml:0
+msgid "Zip (includes filestore)"
+msgstr "Zip (inclui filestore)"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/database_dialog.xml:0
+msgid "backup your database"
+msgstr "faça backup da sua base de dados"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/database_dialog.xml:0
+msgid "before deleting it."
+msgstr "antes de excluí-lo."
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/database_dialog.xml:0
+msgid "disable external integrations, outgoing emails and scheduled actions."
+msgstr "desativar integrações externas, e-mails de saída e ações agendadas."
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/components/database_dialog.xml:0
+msgid "pg_dump (custom format without filestore)"
+msgstr "pg_dump (formato personalizado sem filestore)"
+
+#. module: mysubscription
+#. odoo-javascript
+#: code:addons/mysubscription/static/src/plan_section.xml:0
+msgid "support"
+msgstr "Suporte"

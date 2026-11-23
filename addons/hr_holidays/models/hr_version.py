@@ -20,30 +20,39 @@ class HrVersion(models.Model):
     _description = 'Employee Contract'
 
     def _get_hr_responsible_domain(self):
-        return "[('share', '=', False), ('company_ids', 'in', company_id), ('all_group_ids', 'in', %s)]" % self.env.ref('hr_holidays.group_hr_holidays_user').id
-    hr_responsible_id = fields.Many2one(domain=_get_hr_responsible_domain)
+        return [('share', '=', False), ('company_ids', 'in', self.env.company.ids), ('all_group_ids', 'in', self.env.ref('hr_holidays.group_hr_holidays_user').id)]
+    hr_responsible_id = fields.Many2one(domain=lambda self: self._get_hr_responsible_domain())
     allocation_from_working_schedule_id = fields.Many2one('hr.leave.allocation', string="Allocation from working schedule", copy=False, groups="hr.group_hr_user")
 
     @api.constrains('contract_date_start', 'contract_date_end')
     def _check_contracts(self):
+        """Check that the time off of the versions does not span different working schedules."""
         self._get_leaves()._check_contracts()
 
     @api.model_create_multi
     def create(self, vals_list):
+        """Create versions, moving the time off of the employees to the new working schedules.
+
+        See the class docstring; also creates the allocation of the working schedule's accrual
+        plan (:meth:`_action_trigger_accrual_plan_working_schedule`).
+        """
         if self.env.context.get('salary_simulation'):
             return super().create(vals_list)
         all_new_leave_origin = []
         all_new_leave_vals = []
         leaves_state = {}
         created_versions = self.env['hr.version']
+        versions_to_trigger = self.env['hr.version']
         for vals in vals_list:
             if not 'employee_id' in vals or not 'resource_calendar_id' in vals:
                 created_versions |= super().create(vals)
                 continue
             leaves = self._get_leaves_from_vals(vals)
+            contract_date_start = fields.Date.to_date(vals.get('contract_date_start'))
             is_created = False
             for leave in leaves:
-                leaves_state = self._update_leave_state(leave, leaves_state, leave.request_date_from < vals['contract_date_start'])
+                refuse_leave = bool(contract_date_start) and leave.request_date_from < contract_date_start
+                leaves_state = self._update_leave_state(leave, leaves_state, refuse_leave)
                 if not is_created:
                     created_versions |= super().create([vals])
                     is_created = True
@@ -57,7 +66,8 @@ class HrVersion(models.Model):
             # to keep creation order, not ideal but ok for now.
             if not is_created:
                 created_versions |= super().create([vals])
-            created_versions._action_trigger_accrual_plan_working_schedule()
+            versions_to_trigger |= created_versions[-1]
+        versions_to_trigger._action_trigger_accrual_plan_working_schedule()
         try:
             if all_new_leave_vals:
                 self._create_all_new_leave(all_new_leave_origin, all_new_leave_vals)
@@ -79,6 +89,12 @@ class HrVersion(models.Model):
         return created_versions
 
     def write(self, vals):
+        """Write on versions, moving the time off when the contract dates or the schedule change.
+
+        Time off spanning versions with different schedules is split, others get the new
+        schedule. Changing the schedule also preserves the hours of allocations in hours and
+        recreates the working schedule's accrual allocation.
+        """
         # we do not want to run this logic if these fields were not affected or if we are in a simulated contract
         if not any(field in vals for field in ['contract_date_start', 'contract_date_end', 'date_version', 'resource_calendar_id']) or self.env.context.get('salary_simulation'):
             return super().write(vals)
@@ -140,6 +156,9 @@ class HrVersion(models.Model):
             # the recomputation order is not guaranteed.
             allocations = self.env['hr.leave.allocation'].search([
                 ('employee_id', 'in', self.employee_id.ids),
+                '|',
+                    ('date_to', '=', False),
+                    ('date_to', '>=', min(self.mapped('date_start'))),
             ])
             hour_allocations = allocations.filtered(lambda a: a.type_request_unit == 'hour')
             for allocation in hour_allocations:
@@ -152,13 +171,19 @@ class HrVersion(models.Model):
         return result
 
     def _get_leaves(self, extra_domain=None, min_date=None):
+        """Return the time off of the versions' employees ending after ``min_date``.
+
+        :param extra_domain: domain added to the search
+        :param datetime.date min_date: defaults to the earliest start of the versions
+        :rtype: hr.leave
+        """
         if min_date is None:
             min_date = min(
                 max(c.contract_date_start or c.date_version, c.date_version)
                 for c in self.sudo()
             )
         domain = [
-            ('state', '!=', 'refuse'),
+            ('state', 'not in', ['refuse', 'cancel']),
             ('employee_id', 'in', self.employee_id.ids),
             ('date_to', '>=', min_date),
         ]
@@ -167,6 +192,14 @@ class HrVersion(models.Model):
         return self.env['hr.leave'].search(domain)
 
     def _get_leaves_from_vals(self, vals):
+        """Return the time off a version created with ``vals`` impacts.
+
+        The employee's requests not refused or cancelled, on another schedule, within the
+        contract.
+
+        :param dict vals: creation values of a version
+        :rtype: hr.leave
+        """
         today = fields.Date.context_today(self)
         contract_date_start = fields.Date.from_string(vals.get('contract_date_start') or vals.get('date_version', today))
         version_date_start = fields.Date.from_string(vals.get('date_version', today))
@@ -182,9 +215,18 @@ class HrVersion(models.Model):
         return self.env['hr.leave'].search(domain)
 
     def _check_overlapping_contract(self, leave):
-        return leave._get_overlapping_contracts().sorted(key=lambda c: c.contract_date_start)
+        """Return the versions in contract overlapping ``leave``, sorted by start date.
+
+        :rtype: hr.version
+        """
+        return leave._get_overlapping_contracts().sorted('date_start')
 
     def _update_leave_calendar(self, leave, overlapping_contracts):
+        """Give ``leave`` the schedule of the first overlapping version and recompute its dates.
+
+        :param leave: ``hr.leave``
+        :param overlapping_contracts: see :meth:`_check_overlapping_contract`
+        """
         if not overlapping_contracts:
             return
         first_contract = overlapping_contracts[0]
@@ -201,6 +243,14 @@ class HrVersion(models.Model):
                 leave._validate_leave_request()
 
     def _update_leave_state(self, leave, leaves_state, refuse_leave=False):
+        """Remember the state of ``leave``, then refuse it or reset it to ``'confirm'``.
+
+        :param leave: ``hr.leave``
+        :param dict leaves_state: ``{leave_id: state}``, updated
+        :param bool refuse_leave: refuse instead of resetting
+        :return: ``leaves_state``
+        :rtype: dict
+        """
         if leave.id not in leaves_state:
             leaves_state[leave.id] = leave.state
         if leave.state not in ['refuse', 'confirm']:
@@ -211,10 +261,17 @@ class HrVersion(models.Model):
         return leaves_state
 
     def _populate_all_new_leave_vals_from_split_leave(self, all_new_leave_origin, all_new_leave_vals, overlapping_contracts, leave, leaves_state):
+        """Prepare one request per overlapping version to replace ``leave``.
+
+        The parts keep the original state, except the last one which is to approve again.
+
+        :return: ``(all_new_leave_origin, all_new_leave_vals)``, extended
+        :rtype: tuple
+        """
         last_version = overlapping_contracts[-1]
         for overlapping_contract in overlapping_contracts:
-            new_request_date_from = max(leave.request_date_from, overlapping_contract.contract_date_start)
-            new_request_date_to = min(leave.request_date_to, overlapping_contract.contract_date_end or date.max)
+            new_request_date_from = max(leave.request_date_from, overlapping_contract.date_start)
+            new_request_date_to = min(leave.request_date_to, overlapping_contract.date_end or date.max)
             new_leave_vals = leave.copy_data({
                 'request_date_from': new_request_date_from,
                 'request_date_to': new_request_date_to,
@@ -231,6 +288,10 @@ class HrVersion(models.Model):
         return all_new_leave_origin, all_new_leave_vals
 
     def _create_all_new_leave(self, all_new_leave_origin, all_new_leave_vals):
+        """Create the requests prepared by :meth:`_populate_all_new_leave_vals_from_split_leave`.
+
+        Validated ones get their resource leaves; each one gets a link to its origin.
+        """
         # seems 'tracking_disable' is wanted to speedup leaves batch creation
         new_leaves = self.env['hr.leave'].with_context(
             tracking_disable=True,
@@ -248,12 +309,21 @@ class HrVersion(models.Model):
 
     # override to add work_entry_type from leave
     def _get_leave_work_entry_type(self, leave):
+        """Return the type of the time off of the leave (``holiday_id``), else the leave's type.
+
+        :param leave: ``resource.calendar.leaves``
+        :rtype: hr.work.entry.type
+        """
         if leave.holiday_id:
             return leave.holiday_id.work_entry_type_id
         else:
             return leave.work_entry_type_id
 
     def _get_more_vals_leave_interval(self, interval, leaves):
+        """Add ``('leave_ids', time off)`` for the leaves of time off containing ``interval``.
+
+        :rtype: list
+        """
         result = super()._get_more_vals_leave_interval(interval, leaves)
         for leave in leaves:
             if interval[0] >= leave[0] and interval[1] <= leave[1]:
@@ -262,6 +332,16 @@ class HrVersion(models.Model):
         return result
 
     def _get_interval_leave_work_entry_type(self, interval, leaves, bypassing_codes):
+        """Return the type of a leave interval, arbitrating overlapping leaves.
+
+        Priority: time off whose type code is in ``bypassing_codes``, then global leaves (public
+        holidays), then other time off.
+
+        :param tuple interval: ``(start, stop, payload)``
+        :param list leaves: ``(start, stop, resource.calendar.leaves)`` tuples
+        :param list bypassing_codes: codes of the types winning over public holidays
+        :rtype: hr.work.entry.type
+        """
         # returns the work entry time related to the leave that
         # includes the whole interval.
         # Overriden in hr_work_entry_holiday to select the
@@ -270,6 +350,8 @@ class HrVersion(models.Model):
         if 'work_entry_type_id' in interval[2]:
             work_entry_types = interval[2].work_entry_type_id
             if work_entry_types and work_entry_types[:1].code in bypassing_codes:
+                return work_entry_types[:1]
+            if work_entry_types and interval[2]._name == 'resource.calendar.attendance' and not any(a._is_work_period() for a in interval[2]):
                 return work_entry_types[:1]
 
         interval_start = interval[0].astimezone(UTC).replace(tzinfo=None)
@@ -296,11 +378,22 @@ class HrVersion(models.Model):
         return self.env.ref('hr_work_entry.generic_work_entry_type_leave')
 
     def _get_sub_leave_domain(self):
+        """Also accept the leaves of the time off of the employees, whatever their calendar.
+
+        :rtype: odoo.fields.Domain
+        """
         # see https://github.com/odoo/enterprise/pull/15091
         return super()._get_sub_leave_domain() | Domain('holiday_id.employee_id', 'in', self.employee_id.ids)
 
     @api.model
     def _generate_work_entries_postprocess_adapt_to_calendar(self, vals):
+        """Compute the duration of time off not requested in hours from the schedule.
+
+        Time rule outputs keep their real span.
+
+        :param dict vals: raw work entry value
+        :rtype: bool
+        """
         res = super()._generate_work_entries_postprocess_adapt_to_calendar(vals)
         if 'work_entry_type_id' not in vals or not vals.get('leave_ids'):
             return res
@@ -312,9 +405,21 @@ class HrVersion(models.Model):
 
     @api.model
     def _get_work_entry_source_fields(self):
+        """Add ``leave_ids`` to the keys merged when work entry values are combined.
+
+        :rtype: list[str]
+        """
         return super()._get_work_entry_source_fields() + ['leave_ids']
 
     def _action_trigger_accrual_plan_working_schedule(self):
+        """Recreate the allocation granted by the accrual plan of the working schedule.
+
+        Working schedules with a work time rate above 100% and a ``leave_accrual_plan_id`` give
+        the employee an accrual allocation over the version's period
+        (``allocation_from_working_schedule_id``), replacing the previous one.
+
+        :raise ValidationError: when the previous allocation was already used
+        """
 
         for version in self:
             previous_allocation = version.allocation_from_working_schedule_id
@@ -330,7 +435,7 @@ class HrVersion(models.Model):
                                    "Please review these leaves and/or allocations before changing anything\n\n"
                                    "This error has been triggered by:\n") + str(e))
 
-            if not working_schedule or (working_schedule.work_time_rate <= 1.0 or not working_schedule.leave_accrual_plan_id):
+            if not version.employee_id or not working_schedule or (working_schedule.work_time_rate <= 1.0 or not working_schedule.leave_accrual_plan_id):
                 continue
 
             version.allocation_from_working_schedule_id = self.env['hr.leave.allocation'].create({
@@ -338,7 +443,7 @@ class HrVersion(models.Model):
                 'accrual_plan_id': working_schedule.leave_accrual_plan_id.id,
                 'employee_id': version.employee_id.id,
                 'work_entry_type_id': working_schedule.leave_accrual_plan_id.work_entry_type_id.id,
-                'date_from': version.date_version,
+                'date_from': version.date_start,
                 'date_to': version.date_end,
                 'state': 'confirm',
             })

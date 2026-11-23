@@ -1,0 +1,325 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * hr_recruitment_skills
+#
+# Bone NI <bounkirdni@gmail.com>, 2026.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.4a1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-04 17:46+0000\n"
+"PO-Revision-Date: 2026-10-27 00:33+0000\n"
+"Last-Translator: Bone NI <bounkirdni@gmail.com>\n"
+"Language-Team: Lao <https://translate.odoo.com/projects/odoo-20/"
+"hr_recruitment_skills/lo/>\n"
+"Language: lo\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 2026.8.1\n"
+
+#. module: hr_recruitment_skills
+#: model:ir.model,name:hr_recruitment_skills.model_hr_applicant
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant_skill__applicant_id
+msgid "Applicant"
+msgstr "ຜູ້ສະໝັກ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model,website_form_label:hr_recruitment_skills.model_hr_applicant
+msgid "Apply for a Job"
+msgstr "ສະໝັກວຽກ"
+
+#. module: hr_recruitment_skills
+#: model_terms:ir.ui.view,arch_db:hr_recruitment_skills.hr_applicant_skill_view_form
+msgid "Category"
+msgstr "ໝວດໝູ່"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant_skill__certificate_file
+msgid "Certificate"
+msgstr "ໃບຢັ້ງຢືນ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant_skill__color
+msgid "Color"
+msgstr "ສີ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant_skill__create_uid
+msgid "Created by"
+msgstr "ສ້າງໂດຍ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant_skill__create_date
+msgid "Created on"
+msgstr "ສ້າງເມື່ອ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant__current_applicant_skill_ids
+msgid "Current Applicant Skill"
+msgstr "ທັກສະຂອງຜູ້ສະໝັກປະຈຸບັນ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant__degree_score
+msgid "Degree Score"
+msgstr "ຄະແນນວຸດທິການສຶກສາ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant__is_degree_score_matching
+msgid "Degree Score Matching"
+msgstr "ຄວາມກົງກັນຂອງຄະແນນວຸດທິການສຶກສາ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant__display_name
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant_skill__display_name
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_job__display_name
+msgid "Display Name"
+msgstr "ຊື່ສະແດງ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant_skill__display_warning_message
+msgid "Display Warning Message"
+msgstr "ສະແດງຂໍ້ຄວາມແຈ້ງເຕືອນ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant__id
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant_skill__id
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_job__id
+msgid "ID"
+msgstr "ລະຫັດ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant__job_expected_degree
+msgid "Job Degree"
+msgstr "ວຸດທິການສຶກສາສຳລັບຕຳແໜ່ງວຽກ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model,name:hr_recruitment_skills.model_hr_job
+msgid "Job Position"
+msgstr "ຕຳແໜ່ງວຽກ"
+
+#. module: hr_recruitment_skills
+#. odoo-javascript
+#: code:addons/hr_recruitment_skills/static/src/components/match_scores_gauge/match_scores_gauge.js:0
+#: model_terms:ir.ui.view,arch_db:hr_recruitment_skills.hr_applicant_view_form
+msgid "Job Position Matching"
+msgstr "ຄວາມເໝາະສົມກັບຕຳແໜ່ງວຽກ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant_skill__write_uid
+msgid "Last Updated by"
+msgstr "ປັບປຸງລ້າສຸດໂດຍ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant_skill__write_date
+msgid "Last Updated on"
+msgstr "ປັບປຸງລ້າສຸດເມື່ອ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant_skill__levels_count
+msgid "Levels Count"
+msgstr "ຈຳນວນລະດັບ"
+
+#. module: hr_recruitment_skills
+#: model:ir.module.module,summary:base.module_hr_recruitment_skills
+msgid "Manage skills of your employees"
+msgstr "ຈັດການທັກສະຂອງພະນັກງານຂອງທ່ານ"
+
+#. module: hr_recruitment_skills
+#: model_terms:ir.ui.view,arch_db:hr_recruitment_skills.hr_job_list_inherit_hr_recruitment_skills
+msgid "Matching"
+msgstr "ຄວາມກົງກັນ"
+
+#. module: hr_recruitment_skills
+#. odoo-python
+#: code:addons/hr_recruitment_skills/models/hr_job.py:0
+msgid "Matching Applicants"
+msgstr "ຜູ້ສະໝັກທີ່ເໝາະສົມ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant__matching_skill_ids
+msgid "Matching Factors"
+msgstr "ປັດໄຈທີ່ກົງກັນ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant__matching_score
+#: model_terms:ir.ui.view,arch_db:hr_recruitment_skills.crm_case_tree_view_job
+#: model_terms:ir.ui.view,arch_db:hr_recruitment_skills.hr_applicant_view_search_bis
+msgid "Matching Score"
+msgstr "ຄະແນນຄວາມກົງກັນ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_job__applicant_matching_score
+msgid "Matching Score(%)"
+msgstr "ຄະແນນຄວາມກົງກັນ(%)"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_job__matching_applicant_skill_ids
+msgid "Matching Skills"
+msgstr "ທັກສະທີ່ກົງກັນ"
+
+#. module: hr_recruitment_skills
+#. odoo-javascript
+#: code:addons/hr_recruitment_skills/static/src/components/search_job_applicant_menu/search_job_applicant_menu.xml:0
+#: model_terms:ir.ui.view,arch_db:hr_recruitment_skills.view_hr_job_form
+#: model_terms:ir.ui.view,arch_db:hr_recruitment_skills.view_hr_job_kanban
+msgid "Matching Talents"
+msgstr "ບຸກຄະລາກອນທີ່ເໝາະສົມ"
+
+#. module: hr_recruitment_skills
+#. odoo-javascript
+#: code:addons/hr_recruitment_skills/static/src/components/match_scores_gauge/match_scores_gauge.js:0
+msgid "Max Value"
+msgstr "ຄ່າສູງສຸດ"
+
+#. module: hr_recruitment_skills
+#. odoo-javascript
+#: code:addons/hr_recruitment_skills/static/src/components/match_scores_gauge/match_scores_gauge.js:0
+msgid "Max Value Field"
+msgstr "ຊ່ອງຂໍ້ມູນຄ່າສູງສຸດ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant__missing_skill_ids
+msgid "Missing Factors"
+msgstr "ປັດໄຈທີ່ຍັງຂາດ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_job__missing_applicant_skill_ids
+msgid "Missing Skills"
+msgstr "ທັກສະທີ່ຍັງຂາດ"
+
+#. module: hr_recruitment_skills
+#: model_terms:ir.ui.view,arch_db:hr_recruitment_skills.crm_case_tree_view_inherit_hr_recruitment_skills
+msgid "Move to this Job Position"
+msgstr "ຍ້າຍໄປຕຳແໜ່ງວຽກນີ້"
+
+#. module: hr_recruitment_skills
+#. odoo-python
+#: code:addons/hr_recruitment_skills/models/hr_job.py:0
+msgid "No Matching Talents"
+msgstr "ບໍ່ມີບຸກຄະລາກອນທີ່ກົງກັບເງື່ອນໄຂ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,help:hr_recruitment_skills.field_hr_applicant_skill__levels_count
+msgid "Number of levels linked to this skill type"
+msgstr "ຈຳນວນລະດັບທີ່ເຊື່ອມໂຍງກັບປະເພດທັກສະນີ້"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant_skill__level_progress
+msgid "Progress"
+msgstr "ຄວາມຄືບໜ້າ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,help:hr_recruitment_skills.field_hr_applicant_skill__level_progress
+msgid "Progress from zero knowledge (0%) to fully mastered (100%)."
+msgstr ""
+"ຄວາມຄືບໜ້າເລີ່ມຈາກບໍ່ມີຄວາມຮູ້ເລີຍ (0%) ຈົນເຖິງຊ່ຽວຊານຢ່າງເຕັມສ່ວນ (100%)."
+
+#. module: hr_recruitment_skills
+#: model:ir.module.module,shortdesc:base.module_hr_recruitment_skills
+msgid "Recruitment - Skills Management"
+msgstr "ການຮັບສະໝັກງານ - ການຈັດການທັກສະ"
+
+#. module: hr_recruitment_skills
+#. odoo-javascript
+#: code:addons/hr_recruitment_skills/static/src/components/match_scores_gauge/match_scores_gauge.js:0
+msgid "Remaining"
+msgstr "ທີ່ເຫຼືອ"
+
+#. module: hr_recruitment_skills
+#. odoo-javascript
+#: code:addons/hr_recruitment_skills/static/src/components/match_scores_gauge/match_scores_gauge.js:0
+msgid "Score Fields"
+msgstr "ຊ່ອງຂໍ້ມູນຄະແນນ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant__skill_ids
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant_skill__skill_id
+msgid "Skill"
+msgstr "ທັກສະ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant_skill__skill_level_id
+msgid "Skill Level"
+msgstr "ລະດັບທັກສະ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant_skill__skill_type_id
+msgid "Skill Type"
+msgstr "ປະເພດທັກສະ"
+
+#. module: hr_recruitment_skills
+#: model:ir.ui.menu,name:hr_recruitment_skills.hr_recruitment_skill_type_menu
+msgid "Skill Types"
+msgstr "ປະເພດທັກສະຕ່າງໆ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model,name:hr_recruitment_skills.model_hr_applicant_skill
+msgid "Skill level for an applicant"
+msgstr "ລະດັບທັກສະສຳລັບຜູ້ສະໝັກ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant__applicant_skill_ids
+#: model_terms:ir.ui.view,arch_db:hr_recruitment_skills.crm_case_tree_view_job
+#: model_terms:ir.ui.view,arch_db:hr_recruitment_skills.hr_applicant_skill_view_form
+#: model_terms:ir.ui.view,arch_db:hr_recruitment_skills.hr_applicant_view_form
+#: model_terms:ir.ui.view,arch_db:hr_recruitment_skills.hr_applicant_view_search
+#: model_terms:ir.ui.view,arch_db:hr_recruitment_skills.hr_applicant_view_search_bis
+msgid "Skills"
+msgstr "ທັກສະ"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant__skills_score
+msgid "Skills Score"
+msgstr "ຄະແນນທັກສະ"
+
+#. module: hr_recruitment_skills
+#: model_terms:ir.ui.view,arch_db:hr_recruitment_skills.hr_applicant_skill_view_form
+msgid "The end date must be after the start date."
+msgstr "ວັນທີສິ້ນສຸດຕ້ອງຢູ່ຫຼັງວັນທີເລີ່ມຕົ້ນ."
+
+#. module: hr_recruitment_skills
+#. odoo-javascript
+#: code:addons/hr_recruitment_skills/static/src/components/match_scores_gauge/match_scores_gauge.js:0
+msgid "Title"
+msgstr "ຫົວຂໍ້"
+
+#. module: hr_recruitment_skills
+#: model_terms:ir.ui.view,arch_db:hr_recruitment_skills.hr_applicant_skill_view_form
+msgid "To"
+msgstr "ຫາ"
+
+#. module: hr_recruitment_skills
+#: model_terms:ir.ui.view,arch_db:hr_recruitment_skills.hr_applicant_skill_view_form
+msgid "Valid from"
+msgstr "ນຳໃຊ້ໄດ້ຕັ້ງແຕ່"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant_skill__valid_from
+msgid "Validity Start"
+msgstr "ເລີ່ມມີຜົນນຳໃຊ້"
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,field_description:hr_recruitment_skills.field_hr_applicant_skill__valid_to
+msgid "Validity Stop"
+msgstr "ໝົດຜົນນຳໃຊ້"
+
+#. module: hr_recruitment_skills
+#. odoo-python
+#: code:addons/hr_recruitment_skills/models/hr_job.py:0
+msgid ""
+"We do not have any talents who meet the skill requirements for this job "
+"position in the database at the moment."
+msgstr ""
+"ປະຈຸບັນພວກເຮົາບໍ່ມີບຸກຄະລາກອນທີ່ມີທັກສະກົງກັບຄວາມຕ້ອງການຂອງຕຳແໜ່ງງານນີ້ຢູ່ໃນຖານຂໍ້ມູນເທື່ອ."
+
+#. module: hr_recruitment_skills
+#: model:ir.model.fields,help:hr_recruitment_skills.field_hr_applicant_skill__is_certification
+msgid "if checked the skill type become a certification type"
+msgstr "ຖ້າໝາຍເລືອກ ປະເພດທັກສະຈະກາຍເປັນປະເພດໃບຢັ້ງຢືນ"
+
+#. module: hr_recruitment_skills
+#: model_terms:ir.ui.view,arch_db:hr_recruitment_skills.hr_applicant_skill_view_form
+msgid "indefinite"
+msgstr "ບໍ່ມີກຳນົດ"

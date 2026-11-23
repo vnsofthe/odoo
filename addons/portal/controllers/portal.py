@@ -555,7 +555,7 @@ class CustomerPortal(Controller):
         # Parse form data into address values, and extract incompatible data as extra form data.
         address_values, extra_form_data = self._parse_form_data(form_data)
 
-        if verify_address_values:
+        if partner_sudo or not partner_sudo.env.context.get('partial_address_before_checkout'):
             # Validate the address values and highlights the problems in the form, if any.
             invalid_fields, missing_fields, error_messages = self._validate_address_values(
                 address_values,
@@ -743,16 +743,19 @@ class CustomerPortal(Controller):
             def get_commercial_field_error_msg(field_description):
                 if partner_sudo.commercial_partner_id.is_company:
                     return self.env._(
-                        "The %(field_description)s is managed on your company account."
+                        "The %(field_description)s is managed on your company account.",
+                        field_description=field_description,
                     )
                 elif current_partner != partner_sudo:
                     return self.env._(
-                        "The %(field_description)s is managed on your main account address."
+                        "The %(field_description)s is managed on your main account address.",
+                        field_description=field_description,
                     )
                 else:
                     return self.env._(
                         "Changing %(field_description)s is not allowed once document(s) have been"
-                        " issued for your account. Please contact us directly for this operation."
+                        " issued for your account. Please contact us directly for this operation.",
+                        field_description=field_description,
                     )
 
             # Prevent changing commercial fields on sub-addresses, as they are expected to match
@@ -791,7 +794,7 @@ class CustomerPortal(Controller):
                     else:
                         address_values.pop(commercial_field_name, None)
 
-                for additional_identifier, value in address_values.get("additional_identifiers", {}).items():
+                for additional_identifier, value in list(address_values.get("additional_identifiers", {}).items()):
                     partner_sudo_value = partner_sudo._get_additional_identifier(additional_identifier)
                     # Allow to update additional identifiers on individual addresses, if not set.
                     if is_main_contact and not bool(partner_sudo_value):
@@ -801,6 +804,10 @@ class CustomerPortal(Controller):
                         error_messages.append(get_commercial_field_error_msg(additional_identifier))
                     else:
                         address_values["additional_identifiers"].pop(additional_identifier, None)
+
+                # Remove the empty additional_identifiers key to avoid resetting all the values
+                if "additional_identifiers" in address_values and not address_values.get("additional_identifiers"):
+                    address_values.pop("additional_identifiers")
 
                 # Company name shouldn't be updated anywhere but the main and company address, even
                 # if it's not in the fields returned by _commercial_fields.

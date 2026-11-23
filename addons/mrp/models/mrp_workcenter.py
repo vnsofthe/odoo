@@ -148,7 +148,7 @@ class MrpWorkcenter(models.Model):
             return load_data
 
         result = self.env['mrp.workorder']._read_group(
-            [('workcenter_id', 'in', self.ids), ('state', 'in', ('pending', 'waiting', 'ready', 'progress')),
+            [('workcenter_id', 'in', self.ids), ('state', 'in', ('blocked', 'ready', 'progress')),
              ('production_date', '>=', date_start), ('production_date', '<=', date_stop)],
             ['workcenter_id', 'production_date:week'], ['duration_expected:sum'])
         for r in result:
@@ -393,7 +393,7 @@ class MrpWorkcenter(models.Model):
                         interval_minutes = (stop - start).total_seconds() / 60
                         start_interval, remaining = start if interval_minutes else None, duration
                     if float_compare(interval_minutes, remaining, precision_digits=3) >= 0:
-                        return revert(start_interval), revert(start + timedelta(minutes=remaining))
+                        return revert(start_interval), revert(start) + timedelta(minutes=remaining)
                     remaining -= interval_minutes
             else:
                 # same process but starting from end on reversed intervals
@@ -411,7 +411,7 @@ class MrpWorkcenter(models.Model):
                         interval_minutes = (stop - start).total_seconds() / 60
                         stop_interval, remaining = stop if interval_minutes else None, duration
                     if float_compare(interval_minutes, remaining, precision_digits=3) >= 0:
-                        return revert(stop - timedelta(minutes=remaining)), revert(stop_interval)
+                        return revert(stop) - timedelta(minutes=remaining), revert(stop_interval)
                     remaining -= interval_minutes
                 if date_start <= now:
                     break

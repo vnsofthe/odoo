@@ -1,9 +1,31 @@
-import { Dialog } from "@web/core/dialog/dialog";
-import { Component, onMounted, proxy, useProps, signal, t } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { useService } from "@web/core/utils/hooks";
+import { Component, onMounted, proxy, signal, t, useProps, useScope } from "@odoo/owl";
 import { useAutoFocusToLast } from "@point_of_sale/app/hooks/hooks";
 import { AutoComplete } from "@web/core/autocomplete/autocomplete";
+import { Dialog } from "@web/core/dialog/dialog";
+import { _t } from "@web/core/l10n/translation";
+import { useService } from "@web/core/utils/hooks";
+
+function useDelayedFocus(inputRef) {
+    const scope = useScope();
+    onMounted(async () => {
+        const input = inputRef();
+        const dialogContent = input.closest(".modal-content");
+        // The click toggles the dropdown: don't open it automatically if the
+        // user already interacted with the input during the animation.
+        let interacted = false;
+        const onInteraction = () => (interacted = true);
+        input.addEventListener("pointerdown", onInteraction);
+        input.addEventListener("keydown", onInteraction);
+        await Promise.allSettled(
+            dialogContent.getAnimations().map((animation) => animation.finished)
+        );
+        input.removeEventListener("pointerdown", onInteraction);
+        input.removeEventListener("keydown", onInteraction);
+        if (!scope.isDestroyed() && !interacted) {
+            input.click();
+        }
+    });
+}
 
 export class SelectLotPopup extends Component {
     static template = "pos_stock.SelectLotPopup";
@@ -37,9 +59,7 @@ export class SelectLotPopup extends Component {
         useAutoFocusToLast(this.rootRef);
         this.notification = useService("notification");
         this.inputRef = signal.ref();
-        onMounted(() => {
-            this.inputRef().click();
-        });
+        useDelayedFocus(this.inputRef);
     }
     _nextId() {
         return this._id++;
@@ -90,6 +110,9 @@ export class SelectLotPopup extends Component {
             },
         ];
     }
+    onInput({ inputValue }) {
+        this.state.value = inputValue;
+    }
     onSelect(lot) {
         if (this.state.values.some((item) => item.text == lot.currentInput)) {
             return this.notification.add(_t("The Lot/Serial number is already added."), {
@@ -105,7 +128,7 @@ export class SelectLotPopup extends Component {
         }
         const newItem = lot.currentInput
             ? { text: lot.currentInput, id: lot.id }
-            : { text: lot.label, id: lot.id, expiration_date: lot.expiration_date };
+            : { text: lot.label ?? "", id: lot.id, expiration_date: lot.expiration_date };
         this.state.values = this.props.isSingleItem ? [newItem] : [...this.state.values, newItem];
         this.state.value = this.props.isSingleItem ? newItem.text : "";
     }
@@ -113,6 +136,12 @@ export class SelectLotPopup extends Component {
         this.state.values = this.state.values.filter((item) => item.id !== id);
     }
     confirm() {
+        const currentInput = this.state.value;
+        this.onSelect({
+            currentInput,
+            id: currentInput,
+            create: true,
+        });
         const validItems = this.state.values.filter((item) => {
             const itemValue = item.text.trim();
             return (

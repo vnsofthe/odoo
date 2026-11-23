@@ -80,24 +80,21 @@ export class ProductTemplateAccounting extends Base {
         const standardPrice = variant ? variant.standard_price : this.standard_price;
         const basePrice = variant ? variant.lst_price : this.list_price;
         let price = basePrice + (price_extra || 0);
+        const variantExtraPrice = variant ? variant.lst_price - productTmpl.list_price : 0;
+        const attributesExtraPrice = variantExtraPrice + (price_extra || 0);
 
         if (!pricelist) {
             return price;
         }
 
-        if (original_line && original_line.isLotTracked() && product) {
-            related_lines.push(
-                ...original_line.order_id.lines.filter((line) => line.product_id.id == product.id)
-            );
-            quantity = related_lines.reduce((sum, line) => sum + line.getQuantity(), 0);
-        }
-
         let rule = null;
+        let isVariantSpecificRule = false;
 
         // 1. Variant Rules
         if (product) {
             const productRules = pricelist.getRulesByProductId(product.id);
             rule = pricelist.findBestRule(productRules, quantity);
+            isVariantSpecificRule = Boolean(rule);
         }
 
         // 2. Template Rules
@@ -148,6 +145,14 @@ export class ProductTemplateAccounting extends Base {
 
         if (rule.compute_price === "fixed") {
             price = rule.fixed_price;
+            const fixedPriceExtraPrice = isVariantSpecificRule
+                ? price_extra || 0
+                : attributesExtraPrice;
+            if (fixedPriceExtraPrice) {
+                price += needsCurrencyConversion
+                    ? fixedPriceExtraPrice * (pricelistCurrency.rate / posCurrency.rate)
+                    : fixedPriceExtraPrice;
+            }
         } else {
             var price_limit = price;
             price -= price * ((rule.price_discount || 0) / 100);
@@ -304,6 +309,20 @@ export class ProductTemplateAccounting extends Base {
                 .map((attr) => attr?.price_extra || 0)
                 .reduce((acc, price) => acc + price, 0);
 
+        let sequenceCounter = 0;
+        const mapSequence = this.combo_ids.reduce((acc, combo) => {
+            combo.combo_item_ids.forEach((item) => {
+                acc[item.id] = sequenceCounter++;
+            });
+            return acc;
+        }, {});
+        const sortBySequence = (a, b) =>
+            (mapSequence[a.combo_item_id.id] ?? Infinity) -
+            (mapSequence[b.combo_item_id.id] ?? Infinity);
+        // Sorted as the combo lines: the split last line must be the same when the combo is added
+        // (configurator order) and when its prices are recomputed
+        childLineConf.sort(sortBySequence);
+
         let remainingTotal = parentLstPrice;
         const ProductPrice =
             this.config.currency_id || decimalPrecision.find((dp) => dp.name === "Product Price");
@@ -377,19 +396,7 @@ export class ProductTemplateAccounting extends Base {
             });
         }
 
-        let sequenceCounter = 0;
-        const mapSequence = this.combo_ids.reduce((acc, combo) => {
-            combo.combo_item_ids.forEach((item) => {
-                acc[item.id] = sequenceCounter++;
-            });
-            return acc;
-        }, {});
-
-        comboItems.sort(
-            (a, b) =>
-                (mapSequence[a.combo_item_id.id] ?? Infinity) -
-                (mapSequence[b.combo_item_id.id] ?? Infinity)
-        );
+        comboItems.sort(sortBySequence);
         return comboItems;
     }
 }

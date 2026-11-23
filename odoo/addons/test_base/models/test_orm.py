@@ -4,7 +4,7 @@ import logging
 
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, ValidationError
-from odoo.fields import Command
+from odoo.fields import Command, Domain
 from odoo.tools import SQL
 from odoo.tools.float_utils import float_round
 from odoo.tools.translate import mark_as_copy
@@ -125,6 +125,7 @@ class TestOrmMessage(models.Model):
     name = fields.Char(string='Title', compute='_compute_name', store=True)
     display_name = fields.Char(string='Abstract')
     size = fields.Integer(compute='_compute_size', search='_search_size')
+    author_message_count = fields.Integer(compute='_compute_author_message_count')
     double_size = fields.Integer(compute='_compute_double_size')
     discussion_name = fields.Char(related='discussion.name', string="Discussion Name", readonly=False)
     author_partner = fields.Many2one(
@@ -135,6 +136,7 @@ class TestOrmMessage(models.Model):
     priority = fields.Integer()
     active = fields.Boolean(default=True)
     has_important_sibling = fields.Boolean(compute='_compute_has_important_sibling', search='_search_has_important_sibling')
+    body_search = fields.Char(compute='_compute_body_search', search='_search_body_search')
 
     attributes = fields.Properties(
         string='Discussion Properties',
@@ -152,6 +154,14 @@ class TestOrmMessage(models.Model):
             return NotImplemented
         # not entirely correct, but sufficent for tests
         return [('discussion.messages.important', '=', True)]
+
+    @api.depends('body')
+    def _compute_body_search(self):
+        for message in self:
+            message.body_search = message.body
+
+    def _search_body_search(self, operator, value):
+        return [('id', 'in', self._search([('body', operator, value)]))]
 
     @api.constrains('author', 'discussion')
     def _check_author(self):
@@ -183,6 +193,12 @@ class TestOrmMessage(models.Model):
     def _compute_size(self):
         for message in self:
             message.size = len(message.body or '')
+
+    @api.depends('author')
+    def _compute_author_message_count(self):
+        counts = dict(self._read_group([], ['author'], ['__count']))
+        for message in self:
+            message.author_message_count = counts.get(message.author, 0)
 
     def _search_size(self, operator, value):
         if operator not in ('=', '!=', '<', '<=', '>', '>=', 'in', 'not in'):
@@ -219,7 +235,12 @@ class TestOrmMessage(models.Model):
 
     @api.model
     def _search_author_partner(self, operator, value):
-        return [('author.partner_id', operator, value)]
+        if operator in Domain.NEGATIVE_OPERATORS:
+            return NotImplemented
+        domain = Domain('author.partner_id', operator, value)
+        if operator == 'in' and False in value:  # relation may be falsy
+            domain |= Domain('author', '=', False)
+        return domain
 
     def write(self, vals):
         if 'priority' in vals:

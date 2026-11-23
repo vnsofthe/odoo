@@ -36,19 +36,19 @@ export class PosOrderAccounting extends Base {
     }
 
     get paymentAmountInCurrency() {
-        const otherCurrencyPayments = this.payment_ids.filter(
-            (payment) => payment.foreign_currency_id
-        );
-        if (!otherCurrencyPayments.length) {
-            return formatCurrency(this.totalDue, this.config.currency_id.id);
-        }
+        return this.formatAmountInCurrency(this.totalDue, this.orderCurrency);
+    }
 
-        const currency = otherCurrencyPayments[0].currency;
-        const totalOtherCurrencyAmount = otherCurrencyPayments.reduce(
-            (total, payment) => total + payment.amount_currency,
-            0
-        );
-        return formatCurrency(totalOtherCurrencyAmount, currency.id);
+    convertAmountToCurrency(amount, currency) {
+        if (currency.id === this.currency.id) {
+            return amount;
+        }
+        const amountInCompanyCurrency = this.currency.convertToDefaultCurrency(amount);
+        return currency.convert(amountInCompanyCurrency);
+    }
+
+    formatAmountInCurrency(amount, currency) {
+        return formatCurrency(this.convertAmountToCurrency(amount, currency), currency.id);
     }
 
     /**
@@ -343,7 +343,9 @@ export class PosOrderAccounting extends Base {
      */
     _constructPriceData(opts = {}) {
         const data = this._computeAllPrices(opts);
-        const noDiscount = this._computeAllPrices({ baseLineOpts: { discount: 0.0 }, ...opts });
+        const addedBlOpts = opts.baseLineOpts || {};
+        const ndBaseLineOpts = { ...addedBlOpts, discount: 0.0 };
+        const noDiscount = this._computeAllPrices({ ...opts, baseLineOpts: ndBaseLineOpts });
         const currency = this.currency;
 
         for (const key of Object.keys(data.baseLineByLineUuids)) {

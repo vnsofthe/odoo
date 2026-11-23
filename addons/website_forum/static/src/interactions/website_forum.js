@@ -105,15 +105,22 @@ export class WebsiteForum extends Interaction {
             const props = {
                 textareaEl,
                 fullEdit: hasFullEdit,
-                getRecordInfo: () => ({
-                    context: this.services.website_page.context,
-                    resModel: "forum.post",
+                getRecordInfo: () => {
                     // Id is retrieved from URL, which is either:
                     // - /forum/name-1/post/something-5
                     // - /forum/name-1/post/something-5/edit
+                    // - /forum/name-1/ask (returns null resId to avoid matching
+                    //   forum_id with resModel forum.post)
                     // TODO: Make this more robust.
-                    resId: +location.pathname.split("-").slice(-1)[0].split("/")[0],
-                }),
+                    const pathname = location.pathname;
+                    const isPostPage = pathname.includes("/post/");
+                    const rawId = +pathname.split("-").slice(-1)[0].split("/")[0];
+                    return {
+                        context: this.services.website_page.context,
+                        resModel: "forum.post",
+                        resId: isPostPage && !isNaN(rawId) ? rawId : null,
+                    };
+                },
                 ...(!isReply && {
                     resizable: !isMobileOS(),
                     height: "350px",
@@ -223,8 +230,9 @@ export class WebsiteForum extends Interaction {
                 currentTarget
                     .querySelectorAll("button[type='submit'], a.a-submit")
                     .forEach((btnEl) => {
-                        btnEl.querySelector("i").remove();
+                        btnEl.querySelector("span").remove();
                         btnEl.disabled = false;
+                        btnEl.classList.remove("o_btn_loading", "disabled", "pe-none");
                     });
             }, 0);
         }
@@ -525,9 +533,8 @@ export class WebsiteForum extends Interaction {
         cookie.set("forum_welcome_message", false, 24 * 60 * 60 * 365, "optional");
         const forumIntroEl = this.el.querySelector(".forum_intro");
         forumIntroEl.style.height = getComputedStyle(forumIntroEl).height;
-        forumIntroEl.classList.add("overflow-hidden");
-        forumIntroEl.style.transition = "height 1s";
-        forumIntroEl.classList.add("h-0");
+        void forumIntroEl.offsetHeight;
+        forumIntroEl.classList.add("o_wforum_intro_closing");
         return true;
     }
 

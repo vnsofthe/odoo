@@ -4,6 +4,7 @@ from datetime import timedelta
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools.sql import escape_like_value
 
 from odoo.addons.base.models.ir_qweb_fields import nl2br_enclose
 
@@ -68,9 +69,11 @@ class WithdrawalRequest(models.Model):
             .sudo()
             .search(
                 [
-                    ("name", "=ilike", order_reference),
-                    ("partner_id.email", "=ilike", email),
+                    ("name", "=ilike", escape_like_value(order_reference)),
+                    ("partner_id.email", "=ilike", escape_like_value(email)),
                     ("state", "=", "sale"),
+                    ("company_id", "=", self.env.website.company_id.id),
+                    ("website_id", "in", [self.env.website.id, False]),
                 ],
                 limit=1,
             )
@@ -141,3 +144,14 @@ class WithdrawalRequest(models.Model):
     def _gc_withdrawal_requests(self):
         """Delete withdrawal requests older than 1 hour."""
         self.search([("create_date", "<=", fields.Datetime.now() - timedelta(hours=1))]).unlink()
+
+
+class Website(models.Model):
+    _inherit = 'website'
+
+    @api.model
+    def _get_website_form_signature_fields(self, model_name):
+        signed_fields = super()._get_website_form_signature_fields(model_name)
+        if model_name == 'withdrawal.request':
+            signed_fields += ('recipient_emails',)
+        return signed_fields

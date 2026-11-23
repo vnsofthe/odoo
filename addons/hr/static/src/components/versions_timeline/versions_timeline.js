@@ -40,9 +40,12 @@ export class VersionsTimeline extends StatusBarField {
 
     /** @override **/
     getFieldNames(props) {
-        const fieldNames = super.getFieldNames(props);
-        fieldNames.push("employee_type_id", "contract_date_start", "contract_date_end");
-        return fieldNames.filter((fName) => fName in props.record.fields);
+        const contractFields = [
+            "employee_type_id",
+            "contract_date_start",
+            "contract_date_end",
+        ].filter((fName) => fName in props.record.fields);
+        return [...super.getFieldNames(props), ...contractFields];
     }
 
     displayContractLines() {
@@ -145,6 +148,9 @@ export const versionsTimeline = {
     ...statusBarField,
     component: VersionsTimeline,
     additionalClasses: ["o_field_statusbar", "o_records_timeline", "d-flex", "gap-1"],
+    fieldDependencies: [
+        { name: "display_name", type: "char" },
+    ],
 };
 
 registry.category("fields").add("versions_timeline", versionsTimeline);

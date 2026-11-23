@@ -38,9 +38,7 @@ class PaymentTransaction(models.Model):
             self._set_error(str(error))
             return {}
 
-        api_url = response_content[
-            "init_point" if self.provider_id.is_live else "sandbox_init_point"
-        ]
+        api_url = response_content["init_point"]
         return {
             "api_url": api_url,
             "http_method": "get",
@@ -132,7 +130,7 @@ class PaymentTransaction(models.Model):
 
         # A new token has to be generated based on 'card_id' for every payment.
         response_content = self._send_api_request(
-            "POST", "/v1/card_tokens", data={"card_id": self.token_id.provider_ref}
+            "POST", "/v1/card_tokens", json={"card_id": self.token_id.provider_ref}
         )
         data = self._mercado_pago_prepare_base_request_payload()
         # Send the payment request to Mercado Pago.

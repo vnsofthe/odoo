@@ -4,6 +4,7 @@ from itertools import product
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.tools import clean_context
 
 
 class ApplicantGetRefuseReason(models.TransientModel):
@@ -65,7 +66,8 @@ class ApplicantGetRefuseReason(models.TransientModel):
     def _compute_duplicate_applicant_ids_domain(self):
         for wizard in self:
             domain = (
-                self.applicant_ids._get_similar_applicants_domain()
+                # the talents are not applications: refusing an applicant must not archive them
+                self.applicant_ids._get_similar_applicants_domain(ignore_talent=True)
                 & Domain('id', 'not in', self.applicant_ids.ids)
                 & Domain('application_status', 'not in', ['hired', 'refused', 'archived'])
             )
@@ -140,11 +142,11 @@ class ApplicantGetRefuseReason(models.TransientModel):
                 }
             )
         refused_applications.write({'refuse_reason_id': self.refuse_reason_id.id, 'refuse_date': datetime.now()})
-        refused_applications.action_archive()
 
         if self.send_mail:
             self._prepare_send_refusal_mails()
 
+        refused_applications.action_archive()
         return {'type': 'ir.actions.act_window_close'}
 
     def _get_related_original_applicants(self):
@@ -165,24 +167,40 @@ class ApplicantGetRefuseReason(models.TransientModel):
         return related_original_applicants
 
     def _prepare_send_refusal_mails(self):
+        subtype_id = self.env['ir.model.data']._xmlid_to_res_id('mail.mt_note')
         for applicant in self.applicant_ids:
             mail_values = self._prepare_mail_values(applicant)
-            applicant.message_post(**mail_values)
+            if self.template_id:
+                # Ensure template custom recipients are used if needed. Clean the context of
+                # the refuse action (default_applicant_ids), as contacts may be created for them.
+                composer = self.env['mail.compose.message'].with_context(
+                    clean_context(self.env.context),
+                    default_composition_mode='comment',
+                    default_model=applicant._name,
+                    default_res_ids=applicant.ids,
+                    default_template_id=self.template_id.id,
+                ).create({
+                    'subtype_id': subtype_id,
+                    **mail_values,
+                })
+                composer._action_send_mail()
+            else:
+                # Need to explicitly set recipients in this case
+                applicant.message_post(
+                    partner_ids=applicant.partner_id.ids,
+                    **mail_values,
+                )
 
     def _prepare_mail_values(self, applicant):
         """ Create mail specific for recipient """
         lang = self._render_lang(applicant.ids)[applicant.id]
         subject = self._render_field('subject', applicant.ids, set_lang=lang)[applicant.id]
         body = self._render_field('body', applicant.ids, set_lang=lang)[applicant.id]
-        email_from = self.template_id.email_from if self.template_id and self.template_id.email_from else self.env.user.email_formatted
         return {
             'body': body,
-            'email_from': email_from,
             'subject': subject,
-            'author_id': self.env.user.partner_id.id,
             'scheduled_date': self.scheduled_date,
-            'attachment_ids': [(4, att.id) for att in self.attachment_ids],
-            'partner_ids': applicant.partner_id.ids
+            'attachment_ids': self.attachment_ids.ids,
         }
 
 

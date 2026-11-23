@@ -177,10 +177,11 @@ test("Can preview an image", async () => {
         <img class="img-fluid test-image" src="${base64Img}">
     `);
     await click("img.test-image");
-    await waitFor(".o-we-toolbar");
+    await expectElementCount(".o-we-toolbar", 1);
     await click(".o-we-toolbar button[name='image_preview']");
     await animationFrame();
-    expect(".o-FileViewer").toHaveCount(1);
+    await expectElementCount(".o-we-toolbar", 0);
+    await expectElementCount(".o-FileViewer", 1);
 });
 
 test("Can delete an image", async () => {
@@ -347,7 +348,7 @@ test("Preview an image on dblclick", async () => {
     expect(".o-FileViewer").toHaveCount(1);
 });
 
-test("should select image on pointerdown", async () => {
+test("should select image on pointerdown (1)", async () => {
     const { plugins } = await setupEditor(`
         <img src="${base64Img}">
         <p>test[]</p>
@@ -358,8 +359,29 @@ test("should select image on pointerdown", async () => {
     await animationFrame();
 
     const selectionPlugin = plugins.get("selection");
-    const selectedNode = selectionPlugin.getTargetedNodes()[0];
+    const targetedNodes = selectionPlugin.getTargetedNodes();
 
+    expect(targetedNodes.length).toBe(1);
+
+    const selectedNode = targetedNodes[0];
+    expect(selectedNode.tagName).toBe("IMG");
+});
+
+test("should select image on pointerdown (2)", async () => {
+    const { plugins } = await setupEditor(`
+        <div><img src="${base64Img}"><u>hello</u></div>
+    `);
+
+    const imgElement = document.querySelector("img");
+    await manuallyDispatchProgrammaticEvent(imgElement, "pointerdown");
+    await animationFrame();
+
+    const selectionPlugin = plugins.get("selection");
+    const targetedNodes = selectionPlugin.getTargetedNodes();
+
+    expect(targetedNodes.length).toBe(1);
+
+    const selectedNode = targetedNodes[0];
     expect(selectedNode.tagName).toBe("IMG");
 });
 

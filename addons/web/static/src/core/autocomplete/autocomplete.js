@@ -3,7 +3,7 @@ import { isScrollableY, scrollTo } from "@web/core/utils/scrolling";
 import { useDebounced } from "@web/core/utils/timing";
 import { getActiveHotkey } from "@web/core/hotkeys/hotkey_utils";
 import { usePosition } from "@web/core/position/position_hook";
-import { Component, onWillUpdateProps, proxy, signal, t, useListener, useProps } from "@odoo/owl";
+import { Component, onWillUpdateProps, proxy, signal, status, t, useListener, useProps } from "@odoo/owl";
 import { mergeClasses } from "@web/core/utils/classname";
 
 export const autoCompleteProps = {
@@ -172,6 +172,15 @@ export class AutoComplete extends Component {
         this.mouseSelectionActive = false;
     }
 
+    discardPendingInput() {
+        this.debouncedProcessInput.cancel();
+        this.pendingPromise?.resolve();
+        if (this.loadingPromise === this.pendingPromise) {
+            this.loadingPromise = null;
+        }
+        this.pendingPromise = null;
+    }
+
     cancel() {
         if (this.inputRef().value.length) {
             if (this.props.autoSelect) {
@@ -249,6 +258,7 @@ export class AutoComplete extends Component {
 
     selectOption(option) {
         this.inEdition = false;
+        this.discardPendingInput();
         if (option.unselectable) {
             return;
         }
@@ -390,6 +400,9 @@ export class AutoComplete extends Component {
             }
 
             await this.loadingPromise.promise;
+            if (status(this) === "destroyed") {
+                return;
+            }
         }
 
         switch (hotkey) {

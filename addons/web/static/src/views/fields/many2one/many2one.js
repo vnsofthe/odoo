@@ -62,8 +62,8 @@ export function computeM2OProps(fieldProps) {
         string: fieldProps.string || fieldProps.record.fields[fieldProps.name].string || "",
         update: (value, options = {}) =>
             fieldProps.record.update({ [fieldProps.name]: value }, options),
-        willOpenRecordInDialog: () => fieldProps.record.save(),
-        onRecordSaved: () => fieldProps.record.load(),
+        willOpenRecordInDialog: () => fieldProps.record.safeSave(),
+        onRecordSaved: () => fieldProps.record.safeLoad(),
         value: toRaw(fieldProps.record.data[fieldProps.name]),
     };
 }
@@ -124,7 +124,7 @@ export class Many2One extends Component {
                 fieldString: this.props.string,
                 isToMany: false,
                 onClose: () => {
-                    this.input.focus();
+                    this.input?.focus();
                 },
                 onRecordSaved: this.props.onRecordSaved,
                 onRecordDiscarded: () => {},

@@ -1,5 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from datetime import date, datetime, time, UTC
+from zoneinfo import ZoneInfo
+
 from odoo import _, api, fields, models, modules
 
 
@@ -213,8 +216,12 @@ class ResCompany(models.Model):
         self.ensure_one()
         if not self.env.user.has_group('base.group_multi_company'):
             return
+        # Need to update all other company's partner + their warehouses partner for this company.
         other_companies = self.env['res.company'].search([('id', '!=', self.id)])
-        other_companies.partner_id.with_company(self).write({
+        other_warehouses_partners = self.env['stock.warehouse'].search([('company_id', '!=', self.id)]).partner_id
+        other_partners = other_companies.partner_id | other_warehouses_partners
+
+        other_partners.with_company(self).write({
             'property_stock_customer': inter_company_location.id,
             'property_stock_supplier': inter_company_location.id,
         })
@@ -228,3 +235,18 @@ class ResCompany(models.Model):
     def _get_text_validation(self, confirmation_type):
         self.ensure_one()
         return bool(self.stock_text_confirmation and self.stock_confirmation_type == confirmation_type)
+
+    def _to_datetime_upper_bound(self, to_date):
+        """ Convert a ``to_date`` value into the naive UTC upper bound used to
+        filter ``stock.move.date``. A date is taken as the end of that day in the
+        timezone of the company; a datetime is an exact moment, kept as-is. """
+        original_value = to_date
+        to_date = fields.Datetime.to_datetime(to_date)
+        if to_date and (
+            (isinstance(original_value, date) and not isinstance(original_value, datetime))
+            or (isinstance(original_value, str) and len(original_value) == 10)
+        ):
+            tz = ZoneInfo(self._get_company_tz())
+            local_end_of_day = datetime.combine(to_date.date(), time.max.replace(fold=1), tzinfo=tz)
+            to_date = local_end_of_day.astimezone(UTC).replace(tzinfo=None)
+        return to_date

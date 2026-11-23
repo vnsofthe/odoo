@@ -35,6 +35,7 @@ const MENTION_CLASSNAMES = new Set([
     "o_channel_redirect",
     "o-discuss-mention",
 ]);
+const JS_HANDLED_LINK_ATTRIBUTES = new Set(["oeId", "oeModel", "oeType"]);
 
 /**
  * @param {string|ReturnType<markup>} rawBody
@@ -238,6 +239,18 @@ export function generateMentionElement({ className, id, model, text, readonly })
 }
 
 /**
+ * Name used to mention a partner, without leading/trailing spaces so that
+ * the mention text stays identical everywhere it is built or searched.
+ *
+ * @param {import("models").ResPartner} partner
+ * @param {import("models").Thread} [thread]
+ * @returns {string}
+ */
+export function getPartnerMentionName(partner, thread) {
+    return (thread?.getPersonaName?.(partner) ?? partner.name ?? "").trim();
+}
+
+/**
  * @param {import("models").ResPartner} partner
  * @param {Object} [params]
  * @param {import("models").Thread} [params.thread]
@@ -249,7 +262,7 @@ export function generatePartnerMentionElement(partner, { thread, readonly } = {}
         className: "o_mail_redirect",
         id: partner.id,
         model: "res.partner",
-        text: `@${thread?.getPersonaName(partner) ?? partner.name}`,
+        text: `@${getPartnerMentionName(partner, thread)}`,
         readonly,
     });
 }
@@ -288,7 +301,7 @@ function generateMentionsLinks(body, { partners = [], roles = [], specialMention
     const mentions = [];
     for (const partner of partners) {
         const placeholder = `@-mention-partner-${partner.id}!`;
-        const text = `@${thread?.getPersonaName(partner) ?? partner.name}`;
+        const text = `@${getPartnerMentionName(partner, thread)}`;
         mentions.push({
             link: generatePartnerMentionElement(partner, { thread }),
             placeholder,
@@ -373,14 +386,8 @@ export function prepareBodyForEditing(body) {
  */
 export function htmlToTextContentInline(htmlString) {
     htmlString = htmlReplace(htmlString, /<br\s*\/?>/gi, () => " ");
-    const div = document.createElement("div");
-    try {
-        setElementContent(div, htmlString);
-    } catch {
-        div.appendChild(createElementWithContent("pre", htmlString));
-    }
-    return div.textContent
-        .trim()
+    return createElementFromContent(htmlString)
+        .textContent.trim()
         .replace(/[\n\r]/g, "")
         .replace(/\s\s+/g, " ");
 }
@@ -552,6 +559,10 @@ export function inlineElement(element) {
             const href = node.getAttribute("href");
             if ([...node.classList].some((cls) => MENTION_CLASSNAMES.has(cls))) {
                 parent.append(node);
+            } else if (
+                Object.keys(node.dataset).some((attr) => JS_HANDLED_LINK_ATTRIBUTES.has(attr))
+            ) {
+                appendText(parent, node.textContent);
             } else if (href) {
                 const link = element.ownerDocument.createElement("a");
                 link.setAttribute("href", href);

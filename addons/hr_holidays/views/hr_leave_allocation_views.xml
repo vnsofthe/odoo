@@ -100,6 +100,7 @@
                 <field name="lastcall" invisible="1"/>
                 <field name="last_accrual" invisible="1"/>
                 <field name="nextcall" invisible="1"/>
+                <field name="yearly_accrued_days" invisible="1"/>
                 <field name="previous_carryover_number_of_days" invisible="1"/>
                 <field name="carried_over_days_expiration_date" invisible="1"/>
                 <header>
@@ -133,7 +134,7 @@
                                 <field name="date_from" nolabel="1"
                                     readonly="state == 'refuse' or (accrual_plan_id and state != 'confirm')"
                                     invisible="not accrual_plan_id and state != 'confirm'"/>
-                                <i class="oi mx-2" data-icon="east" aria-label="Arrow icon" title="Arrow"
+                                <i class="oi mx-2" data-icon="east" aria-label="to" title="To"
                                     invisible="accrual_plan_id or state != 'confirm'"/>
                                 <label class="mx-2" for="date_to" string="Run until"
                                     invisible="not accrual_plan_id"/>
@@ -215,7 +216,7 @@
                 <attribute name="invisible">0</attribute>
             </field>
             <xpath expr="//i[@data-icon='east']" position="replace">
-                <i class="oi oi-fw mx-2" data-icon="east" aria-label="Arrow icon" title="Arrow" invisible="accrual_plan_id"/>
+                <i class="oi oi-fw mx-2" data-icon="east" aria-label="to" title="To" invisible="accrual_plan_id"/>
             </xpath>
             <field name="date_to" position="attributes">
                 <attribute name="invisible">0</attribute>
@@ -281,7 +282,7 @@
                 <attribute name="invisible">1</attribute>
             </field>
             <label for="number_of_days_display" position="attributes">
-                <attribute name="string">Ask for</attribute>
+                <attribute name="string">Duration</attribute>
             </label>
         </field>
     </record>
@@ -452,7 +453,7 @@
                                                 </div>
                                                 <span class="text-muted">Amount</span>
                                             </div>
-                                            <div class="col-2 o_hr_holidays_card">
+                                            <div class="col-2 o_hr_holidays_card" invisible="1">
                                                 <div class="fw-bold d-flex gap-1 me-1">
                                                     <field name="virtual_remaining_leaves" widget="float" digits="[3,2]"/>
                                                     /

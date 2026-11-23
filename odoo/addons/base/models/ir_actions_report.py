@@ -17,12 +17,13 @@ from PIL import Image, ImageFile
 from odoo import _, api, fields, models, modules, tools
 from odoo.exceptions import AccessError, RedirectWarning, UserError, ValidationError
 from odoo.fields import Domain
-from odoo.tools import is_html_empty
+from odoo.tools import frozendict, is_html_empty
 from odoo.tools.barcode import (
     check_barcode_encoding,
     createBarcodeDrawing,
     get_barcode_font,
 )
+from odoo.tools.lru import LRU
 from odoo.tools.pdf import PdfFileReader, PdfFileWriter, PdfReadError
 from odoo.tools.safe_eval import safe_eval, time
 
@@ -62,7 +63,7 @@ class IrActionsReport(models.Model):
     print_report_name = fields.Char('Printed Report Name', translate=True,
                                     help="This is the filename of the report going to download. Keep empty to not change the report filename. You can use a python expression with the 'object' and 'time' variables.")
     save_as_attachment = fields.Boolean(help='Whether the report is saved as attachment when it is printed')
-    attachment_use = fields.Boolean(string='Generate new file each time the report is printed',
+    attachment_use = fields.Boolean(string='Reload from attachment',
                                     help='If enabled, then the second time the user prints with same attachment name, it returns the previous report.')
     attachment = fields.Char(string='Attachment Name',
                              help='This is the filename of the attachment used to store the printing result. Keep empty to not save the printed reports. You can use a python expression with the object and time variables.')
@@ -90,10 +91,9 @@ class IrActionsReport(models.Model):
 
     @api.onchange('name')
     def _onchange_name(self):
-        for action in self:
-            if action.name:
-                name = re.sub(r'[^a-z0-9_]', '', action.name.replace(' ', '_').lower())
-                action.report_name = "report_name." + name
+        for action in self.filtered(lambda a: not a._origin and a.name):
+            name = re.sub(r'[^a-z0-9_]', '', action.name.replace(' ', '_').lower())
+            action.report_name = "report_name." + name
 
     def _search_model_id(self, operator, value):
         if operator in Domain.NEGATIVE_OPERATORS:
@@ -266,14 +266,14 @@ class IrActionsReport(models.Model):
             'base_url': base_url,
             'report_xml_id': self.xml_id,
             'debug': self.env.context.get("debug"),
-        })
+        }) if len(header_node) else None
         footer = self.env['ir.qweb']._render(layout.id, {
             'subst': True,
             'body': Markup(lxml.html.tostring(footer_node, encoding='unicode')),
             'base_url': base_url,
             'report_xml_id': self.xml_id,
             'debug': self.env.context.get("debug"),
-        })
+        }) if len(footer_node) else None
 
         return bodies, res_ids, header, footer, specific_paperformat_args
 
@@ -363,17 +363,19 @@ class IrActionsReport(models.Model):
             barcode_type = 'Code128'
 
         try:
-            barcode = createBarcodeDrawing(barcode_type, value=value, format='png', **kwargs)
-
-            # If a mask is asked and it is available, call its function to
-            # post-process the generated QR-code image
+            mask_to_apply = None
             if kwargs['mask']:
                 available_masks = self.get_available_barcode_masks()
                 mask_to_apply = available_masks.get(kwargs['mask'])
+            frozen_kwargs = frozendict(kwargs)
+            cache = self.env.cr.cache.setdefault('ir_actions_report_barcode', LRU(256))
+            cache_key = (barcode_type, value, frozen_kwargs, mask_to_apply)
+            if cache_key not in cache:
+                barcode = createBarcodeDrawing(barcode_type, value=value, format='png', **frozen_kwargs)
                 if mask_to_apply:
-                    mask_to_apply(kwargs['width'], kwargs['height'], barcode)
-
-            return barcode.asString('png')
+                    mask_to_apply(frozen_kwargs['width'], frozen_kwargs['height'], barcode)
+                cache[cache_key] = barcode.asString('png')
+            return cache[cache_key]
         except (ValueError, AttributeError):
             if barcode_type == 'Code128':
                 raise ValueError("Cannot convert into barcode.")

@@ -276,10 +276,7 @@ export class TicketScreen extends Component {
         });
     }
     async onClickReprintAll(order) {
-        const printingChanges = order.lastPrints;
-        if (printingChanges.length) {
-            await this.pos.ticketPrinter.printOrderChanges({ order, opts: printingChanges });
-        }
+        await this.pos.ticketPrinter.printOrderChanges({ order, opts: { explicitReprint: true } });
     }
     async onNextPage() {
         if (this.state.page < this.getNbrPages()) {
@@ -489,6 +486,7 @@ export class TicketScreen extends Component {
         return {
             qty: -refundDetail.qty,
             price_unit: refundLine.price_unit,
+            price_subtotal_incl: refundLine.price_subtotal_incl,
             product_id: refundLine.product_id,
             order_id: destinationOrder,
             discount: refundLine.discount,
@@ -763,7 +761,7 @@ export class TicketScreen extends Component {
         let emptyOrderForPartner = null;
         let emptyOrder = null;
         for (const order of this.pos.models["pos.order"].filter(
-            (order) => !order.finalized && !this.pos.syncingOrders.has(order.uuid)
+            (order) => !order.finalized && !this.pos.isOrderSyncing(order, false)
         )) {
             if (order.isEmptyOrder()) {
                 if (order.getPartner() === partner) {

@@ -73,7 +73,7 @@ export class GeneratePrinterData {
                     category_name: productCat.name,
                     total_quantity: productCat.qty,
                     products: productsList,
-                    total: this.formatCurrency(productCat.total),
+                    total: this.formatCurrency(productCat.total_paid),
                 });
             }
 
@@ -203,7 +203,7 @@ export class GeneratePrinterData {
         return this.order.payment_ids.map((line) => ({
             ...line.raw,
             payment_method_data: { name: line.payment_method_id?.name || "" },
-            amount: this.formatCurrency(line.amount, line.currency),
+            amount: this.formatCurrency(line.amount_currency || line.amount, line.currency),
         }));
     }
 
@@ -237,8 +237,13 @@ export class GeneratePrinterData {
             };
         }
 
+        const order = this.order.raw;
+        let amount_return_currency = 0;
+        if (this.order.payment_ids[0]?.isDifferentCurrency) {
+            amount_return_currency = this.order.amount_return * this.order.orderCurrency.rate;
+        }
         return {
-            order: this.order.raw,
+            order: { ...order, amount_return_currency: amount_return_currency },
             config: this.config.raw,
             company: this.company.raw,
             partner: this.order.partner_id ? this.order.partner_id.raw : false,
@@ -375,7 +380,6 @@ export class GeneratePrinterData {
                 orderChange = [order.lastPrints.at(-1)];
                 reprint = true;
             } else {
-                order.pushLastPrints(orderChange);
                 orderChange = [orderChange];
             }
         }
@@ -410,6 +414,7 @@ export class GeneratePrinterData {
                         preset_time: order.presetDateTime || false,
                         // This is only used to generate a barcode on the preparation ticket.
                         prepTicketBarcode: opts.prepBarcode || false,
+                        customer: order.preset_id ? this.getPresetCustomerInfo() : false,
                     },
                     conditions: {
                         module_pos_restaurant: this.order.config_id.module_pos_restaurant,
@@ -420,5 +425,20 @@ export class GeneratePrinterData {
         }
 
         return receipts;
+    }
+    getPresetCustomerInfo() {
+        const order = this.order;
+        const partner = order.partner_id;
+        const address = partner
+            ? [partner.street, partner.street2, partner.city, partner.zip]
+                  .filter(Boolean)
+                  .join(", ") || false
+            : false;
+        const info = {
+            email: order.email || false,
+            phone: order.mobile || false,
+            address: address,
+        };
+        return Object.values(info).some(Boolean) ? info : false;
     }
 }

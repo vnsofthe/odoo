@@ -140,7 +140,8 @@ class SaleOrder(models.Model):
         new_template = self.env["sale.order.template"].create(template_vals)
 
         # Assign the newly created template to the current SO
-        self.sale_order_template_id = new_template.id
+        with self.env.protecting([self._fields["sale_order_template_id"]], self):
+            self.sale_order_template_id = new_template.id
 
         return new_template.get_record_default_action()
 
@@ -163,6 +164,7 @@ class SaleOrder(models.Model):
         return {
             "name": self.env._("Template from %s", self.name),
             "company_id": self.company_id.id,
+            "currency_id": self.currency_id.id,
             "journal_id": self.journal_id.id,
             "note": self.note,
             "require_signature": self.require_signature,

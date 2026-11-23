@@ -1,7 +1,7 @@
 import { proxy } from "@odoo/owl";
 import { Plugin } from "@html_editor/plugin";
 import { removeClass, unwrapContents } from "@html_editor/utils/dom";
-import { isRedundantElement } from "@html_editor/utils/dom_info";
+import { headingTags, isRedundantElement } from "@html_editor/utils/dom_info";
 import {
     closestElement,
     closestPath,
@@ -80,7 +80,7 @@ export class FontSizePlugin extends Plugin {
                             });
                         } else {
                             this.dependencies.format.requestFormat("fontSize", {
-                                formatProps: { size: resolvedSize },
+                                formatProps: resolvedSize,
                                 applyStyle: true,
                             });
                         }
@@ -100,6 +100,11 @@ export class FontSizePlugin extends Plugin {
                     },
                     document: this.document,
                     maxFontSize: this.config.maxFontSize,
+                    isSelectionInEditable: () =>
+                        this.dependencies.selection.isSelectionInEditable(
+                            this.document.getSelection()
+                        ),
+                    focusEditable: () => this.dependencies.selection.focusEditable(),
                 },
             }),
         ],
@@ -111,11 +116,17 @@ export class FontSizePlugin extends Plugin {
         ),
         on_history_commit_undone_handlers: this.updateFontSizeSelectorParams.bind(this),
         on_history_commit_redone_handlers: this.updateFontSizeSelectorParams.bind(this),
+        on_collapsed_formats_removed_handlers: this.updateFontSizeSelectorParams.bind(this),
         on_will_set_tag_handlers: this.removeFontSizeFormat.bind(this),
+        on_all_formats_removed_handlers: this.updateFontSizeSelectorParams.bind(this),
         normalize_processors: this.normalize.bind(this),
 
-        is_format_class_predicates: (className) => {
-            if ([...FONT_SIZE_CLASSES, "o_default_font_size", "o_rfs"].includes(className)) {
+        is_format_class_predicates: (className, targetClassName) => {
+            if (
+                [...FONT_SIZE_CLASSES, "o_default_font_size", "o_rfs"].includes(className) ||
+                (DEFAULT_FONT_SIZE_CLASSES.includes(className) &&
+                    DEFAULT_FONT_SIZE_CLASSES.includes(targetClassName))
+            ) {
                 return true;
             }
         },
@@ -129,14 +140,27 @@ export class FontSizePlugin extends Plugin {
                     const blockParent = closestBlock(node).parentElement;
                     const stopAtBlockParent = (el) => el === blockParent;
 
-                    const hasClass = (cls) =>
-                        !!findNode(path, (el) => el.classList?.contains(cls), stopAtBlockParent) ||
-                        li?.classList?.contains(cls);
+                    // Find the closest ancestor (or <li>) that has any font styling class applied
+                    const styledElement =
+                        findNode(
+                            path,
+                            (el) =>
+                                [
+                                    ...FONT_SIZE_CLASSES,
+                                    ...DEFAULT_FONT_SIZE_CLASSES,
+                                    ...TEXT_STYLE_CLASSES,
+                                ].some((cls) => el.classList?.contains(cls)),
+                            stopAtBlockParent
+                        ) ?? li;
 
+                    // Get the specific font size class active on that element (if any)
+                    const activeFontSizeClass =
+                        styledElement &&
+                        FONT_SIZE_CLASSES.find((cls) => styledElement.classList.contains(cls));
+
+                    // Check for an exact class match if props.className was provided.
                     if (props?.className) {
-                        return (
-                            FONT_SIZE_CLASSES.includes(props.className) && hasClass(props.className)
-                        );
+                        return props.className === activeFontSizeClass;
                     }
 
                     const inlineSize = (
@@ -145,7 +169,7 @@ export class FontSizePlugin extends Plugin {
                     if (props?.size) {
                         return inlineSize === props.size;
                     }
-                    return inlineSize || FONT_SIZE_CLASSES.some(hasClass);
+                    return inlineSize || !!activeFontSizeClass;
                 },
                 hasStyle: (node) =>
                     node.style?.["font-size"] ||
@@ -172,8 +196,21 @@ export class FontSizePlugin extends Plugin {
                     removeClass(node, ...FONT_SIZE_CLASSES, "o_rfs");
                     if (props.className) {
                         node.classList.add(props.className);
-                    } else if (props.size) {
-                        node.style["font-size"] = props.size;
+                    } else if (props.size || props.pixelSize) {
+                        // Replace font-size declarations to use both a fix pixel-based size and a
+                        // dynamic one. The dynamic one will override the fixed one in engines where
+                        // it is valid. Engines that don't support it will fallback to the fixed one.
+                        const cleaned = node.style.cssText
+                            .replace(/font-size\s*:[^;]+;?/g, "")
+                            .trim();
+                        let styleValue = cleaned ? cleaned + " " : "";
+                        if (props.pixelSize) {
+                            styleValue += `font-size: ${props.pixelSize}; `;
+                        }
+                        if (props.size) {
+                            styleValue += `font-size: ${props.size}; `;
+                        }
+                        node.setAttribute("style", styleValue.trim());
                         node.classList.toggle(
                             "o_rfs",
                             !!props.size && props.size.startsWith("clamp(")
@@ -192,7 +229,7 @@ export class FontSizePlugin extends Plugin {
                 },
                 addNeutralStyle: function (node) {
                     const block = closestBlock(node);
-                    if (["H1", "H2", "H3", "H4", "H5", "H6"].includes(block.nodeName)) {
+                    if (headingTags.includes(block.nodeName)) {
                         node.classList.add(block.nodeName.toLowerCase());
                     } else {
                         node.classList.add("o_default_font_size");
@@ -217,6 +254,12 @@ export class FontSizePlugin extends Plugin {
     }
 
     get fontSizeName() {
+        const pendingIntent = this.dependencies.format.getPendingIntents()["fontSize"];
+        const className = pendingIntent?.applyStyle && pendingIntent.formatProps?.className;
+        const item = this.fontSizeItems.find((i) => i.className === className);
+        if (item) {
+            return item.name;
+        }
         const sel = this.dependencies.selection.getSelectionData().deepEditableSelection;
         if (!sel) {
             return fontSizeItems[0].name;
@@ -277,7 +320,7 @@ export class FontSizePlugin extends Plugin {
             const maxPx = items[items.length - 1].name;
             if (desiredPx >= minPx && desiredPx <= maxPx) {
                 // Within the system-defined range: plain px is fine.
-                return `${desiredPx}px`;
+                return { size: `${desiredPx}px` };
             }
         }
         // Outside the system range => produce responsive value.
@@ -291,9 +334,16 @@ export class FontSizePlugin extends Plugin {
             // existing inline override.
             return null;
         }
-        return `clamp(8px, 1em + ${uiValue.toFixed(4)}vw, ${
+        const size = `clamp(8px, 1em + ${uiValue.toFixed(4)}vw, ${
             this.config.maxFontSize || MAX_FONT_SIZE
         }px)`;
+        if (this.config.responsiveFontSizeFallback ?? false) {
+            return { size };
+        }
+        return {
+            size,
+            pixelSize: `${desiredPx}px`,
+        };
     }
 
     updateFontSizeSelectorParams() {

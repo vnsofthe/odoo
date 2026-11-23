@@ -236,8 +236,7 @@ class PosConfig(models.Model):
     def _get_next_order_refs(self, device_identifier='0'):
         next_number = self.order_backend_seq_id._next()
         year_2_digits = str(datetime.now().year)[-2:]
-        tracking_number = f"{int(next_number) % 1000}"
-        return f"{year_2_digits}{device_identifier}-{self.id}-{next_number}", tracking_number
+        return f"{year_2_digits}{device_identifier}-{self.id}-{next_number}", False
 
     def notify_synchronisation(self, session_id, device_identifier, records={}):
         self._notify_synchronisation(session_id, device_identifier, records)
@@ -256,6 +255,7 @@ class PosConfig(models.Model):
         if len(models) == 0:
             self._notify('SYNCHRONISATION', {
                 'static_records': {},
+                'deleted_record_ids': deleted_record_ids,
                 'session_id': session_id,
                 'device_identifier': device_identifier,
                 'records': records,
@@ -284,6 +284,11 @@ class PosConfig(models.Model):
                 'login_number': 0,
                 'records': records,
             })
+
+    def _get_paid_orders_config_domain(self):
+        """Domain on pos.order matching configs whose paid orders are visible from this config."""
+        self.ensure_one()
+        return Domain('config_id', 'in', (self | self.trusted_config_ids).ids)
 
     def read_config_open_orders(self, domain, record_ids=[]):
         delete_record_ids = {}
@@ -341,6 +346,7 @@ class PosConfig(models.Model):
         record['_has_cash_move_perm'] = self.env.user._has_cash_move_permission()
         record['_has_cash_delete_perm'] = self.env.user._has_cash_delete_permission()
         record["_unit_uom_id"] = self.env.ref('uom.product_uom_unit').id
+        record['_limited_partner_count'] = config._get_limited_partner_count()
 
         session = config.current_session_id
         last_opening = config._get_opening_balance() if session else 0.0
@@ -513,7 +519,7 @@ class PosConfig(models.Model):
             statistics['orders']['paid'] = {
                 'amount': total_paid,
                 'count': paid_order_count,
-                'display': f"{currency.format(total_paid)} ({paid_order_count} {'order' if paid_order_count == 1 else 'orders'})",
+                'display': f"{currency.format(total_paid)} ({paid_order_count} {self.env._('order') if paid_order_count == 1 else self.env._('orders')})",
             }
 
         if draft_orders:
@@ -522,7 +528,7 @@ class PosConfig(models.Model):
             statistics['orders']['draft'] = {
                 'amount': total_draft,
                 'count': count_draft,
-                'display': f"{currency.format(total_draft)} ({count_draft} {'order' if count_draft == 1 else 'orders'})",
+                'display': f"{currency.format(total_draft)} ({count_draft} {self.env._('order') if count_draft == 1 else self.env._('orders')})",
             }
 
         return statistics
@@ -684,6 +690,9 @@ class PosConfig(models.Model):
         """Get or create the default PoS partner for the current company."""
         partner = self.env.ref('point_of_sale.default_session_closing_partner', raise_if_not_found=False)
         default_receivable = self.env.company.account_default_pos_receivable_account_id
+        # The closing invoice puts its payment_term lines on this account, so it must be receivable
+        if default_receivable.account_type != 'asset_receivable':
+            default_receivable = self.env.company.receivable_account_id
 
         if not partner:
             partner = self.env['res.partner'].create({
@@ -1104,8 +1113,9 @@ class PosConfig(models.Model):
             WHERE (
                 partner.company_id=%s OR partner.company_id IS NULL
             )
+            AND partner.active
             ORDER BY  COALESCE(pm.order_count, 0) DESC,
-                      NAME limit %s offset %s;
+                      NAME, partner.id limit %s offset %s;
         """, self.company_id.id, self._get_limited_partner_count(), offset))
 
     def action_pos_config_modal_edit(self):
@@ -1208,7 +1218,7 @@ class PosConfig(models.Model):
         journal_domain = [
             *self.env['account.journal']._check_company_domain(self.env.company),
             ('type', '=', 'bank'),
-            ('currency_id', '=', False),
+            ('currency_id', 'in', [False, self.env.company.currency_id.id]),
         ]
         bank_pm = self.env['pos.payment.method'].search([
             *self.env['pos.payment.method']._check_company_domain(self.env.company),
@@ -1481,13 +1491,10 @@ class PosConfig(models.Model):
         self.ensure_one()
         # Ensure rounding method record is set on the invoice if needed
         rounding_method = self.env['account.cash.rounding']
-        only_cash = self.only_round_cash_method
-        available_type = ['cash'] if only_cash else ['cash', 'bank']
-        use_rounding = orders.payment_ids.filtered_domain([
-            ('payment_method_id.type', 'in', available_type),
-            ('pos_order_id.amount_difference', '!=', 0),
-        ])
-        if self.cash_rounding and use_rounding:
+        domain = Domain([('pos_order_id.amount_difference', '!=', 0)])
+        if self.only_round_cash_method:
+            domain = Domain.AND([domain, [('payment_method_id.type', 'in', ['cash'])]])
+        if self.cash_rounding and orders.payment_ids.filtered_domain(domain):
             rounding_method = self.rounding_method
 
         return rounding_method

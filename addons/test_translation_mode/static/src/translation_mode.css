@@ -1,0 +1,61 @@
+.o-body-with-translate-side-panel {
+    --translate-side-panel-width: clamp(25rem, 30vw, 30rem);
+
+    width: calc(100vw - var(--translate-side-panel-width));
+}
+
+.o-translation-pointer {
+    --_rgb: var(--info-rgb);
+
+    border: 2px solid rgb(var(--_rgb));
+    box-shadow: 0 0 0.5rem 2px rgb(var(--_rgb));
+    border-radius: 0.25rem;
+    position: fixed;
+    z-index: 9999;
+    left: var(--_x, 0);
+    top: var(--_y, 0);
+    width: var(--_w, 0);
+    height: var(--_h, 0);
+    pointer-events: none;
+
+    animation: o-translation-pointer-animation 500ms infinite ease-in-out;
+}
+
+.o-translate-side-panel {
+    height: 100vh;
+    width: var(--translate-side-panel-width);
+    z-index: 2000;
+
+    .o-translate-card {
+        cursor: pointer;
+
+        &:hover {
+            background-color: color-mix(in srgb, var(--info-bg-subtle) 50%, transparent);
+        }
+
+        &:focus,
+        &:focus-within {
+            background-color: var(--info-bg-subtle);
+        }
+    }
+
+    .o-translation-flag {
+        object-fit: contain;
+        max-width: 1.5rem;
+    }
+}
+
+@keyframes o-translation-pointer-animation {
+    from {
+        background-color: rgba(var(--_rgb), 0.05);
+        box-shadow: 0 0 2px 0 rgb(var(--_rgb));
+    }
+    50% {
+        background-color: rgba(var(--_rgb), 0.25);
+        box-shadow: 0 0 1rem 2px rgb(var(--_rgb));
+    }
+    to {
+        background-color: rgba(var(--_rgb), 0.05);
+        box-shadow: 0 0 2px 0 rgb(var(--_rgb));
+    }
+}

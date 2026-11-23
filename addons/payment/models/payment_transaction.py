@@ -166,7 +166,7 @@ class PaymentTransaction(models.Model):
     partner_lang = fields.Selection(string="Language", selection=_lang_get)
     partner_email = fields.Char(string="Email")
     partner_address = fields.Char(string="Address")
-    partner_zip = fields.Char(string="Zip")
+    partner_zip = fields.Char(string="Zip Code")
     partner_city = fields.Char(string="City")
     partner_state_id = fields.Many2one(string="State", comodel_name="res.country.state")
     partner_country_id = fields.Many2one(string="Country", comodel_name="res.country")
@@ -689,6 +689,29 @@ class PaymentTransaction(models.Model):
         Note: `self.ensure_one()`
 
         :return: The dict of module-specific mandate values.
+        :rtype: dict
+        """
+        self.ensure_one()
+        return dict()
+
+    def _get_line_items(self):
+        """Return the details of the items paid by the transaction.
+
+        The items are returned as a dict mapping each line of the paid documents (invoice line or
+        sales order line records) to a dict with the following keys:
+
+        - `name`: The name of the item.
+        - `description`: The description of the item.
+        - `sku`: The internal reference of the product, if any.
+        - `barcode`: The barcode of the product, if any.
+        - `quantity`: The quantity of the item.
+        - `total`: The total amount of the line, taxes included.
+        - `url`: The URL of the product page, if any (optional).
+        - `image_url`: The URL of the product image, if any (optional).
+
+        Note: `self.ensure_one()`
+
+        :return: The details of the items.
         :rtype: dict
         """
         self.ensure_one()

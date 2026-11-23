@@ -104,6 +104,21 @@ export function checkProduct(name, price, quantity = "1") {
     };
 }
 
+export function removeProduct(name) {
+    return {
+        content: `Remove product ${name} from the cart`,
+        trigger: `.product-cart-item:has(div:contains("${name}")) button:has([data-icon="delete"])`,
+        run: "click",
+    };
+}
+
+export function checkNoProduct(name) {
+    return {
+        content: `Check that product ${name} is no longer in the cart`,
+        trigger: `.order_box:not(:has(.product-cart-item div:contains("${name}")))`,
+    };
+}
+
 export function checkAttribute(productName, attributes) {
     let attributeString = "";
     let attributeStringReadable = "";
@@ -165,22 +180,6 @@ export function cancelOrder() {
             run: "click",
         },
     ];
-}
-
-export function checkSlotUnavailable(slotValue) {
-    return {
-        content: `Check that the ${slotValue} slot is not available`,
-        trigger: `.self_order_pills_selection_popup`,
-        run: () => {
-            const slots = Array.from(
-                document.querySelectorAll(".self_order_pills_selection_popup .option-item")
-            );
-            const firstSlotText = slots[0]?.textContent.trim();
-            if (firstSlotText === slotValue) {
-                throw new Error(`${slotValue} should not be available`);
-            }
-        },
-    };
 }
 
 export function isShown() {

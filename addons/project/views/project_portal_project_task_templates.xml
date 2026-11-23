@@ -10,7 +10,7 @@
     </template>
 
     <template id="portal_my_tasks_priority_widget_template" name="Priority Widget Template">
-        <t t-set="priority_label" t-value="priority_labels[task.priority]"/>
+        <t t-set="priority_label" t-value="priority_labels.get(task.priority, priority_labels['0'])"/>
         <span t-attf-class="o_priority_star d-inline-block oi #{'oi-filled text-warning' if task.priority != '0' else 'opacity-75'} #{classes if classes else ''}" data-icon="star" t-att-title="priority_label"/>
         <span t-attf-class="o_priority_star d-inline-block oi #{'oi-filled text-warning' if task.priority in ['2', '3'] else 'opacity-75'} #{classes if classes else ''}" data-icon="star" t-att-title="priority_label"/>
         <span t-attf-class="o_priority_star d-inline-block oi #{'oi-filled text-warning' if task.priority == '3' else 'opacity-75'} #{classes if classes else ''}" data-icon="star" t-att-title="priority_label"/>
@@ -95,7 +95,9 @@
                                 <td class="ps-5">
                                     <t t-set="assignees" t-value="task.sudo().user_ids"/>
                                     <div t-if="assignees" class="flex-nowrap">
-                                        <img class="o_avatar rounded" t-attf-src="#{image_data_uri(assignees[:1].avatar_128)}" alt="User"/>
+                                        <t t-set="assignee" t-value="assignees[:1].partner_id"/>
+                                        <t t-set="avatar_128_access_token" t-value="assignee._get_avatar_128_access_token()"/>
+                                        <img class="o_avatar rounded" t-attf-src="/web/image/#{assignee._name}/#{assignee.id}/avatar_128?access_token=#{avatar_128_access_token}&amp;unique=#{assignee.avatar_128.checksum}" alt="User"/>
                                         <span class="align-middle" t-att-title="'\n'.join(assignees.mapped('name'))">
                                             <span t-field="assignees[:1].name"/><span t-if="len(assignees) &gt; 1" class="badge ms-1 rounded-pill bg-light"> +<span t-out="len(assignees) - 1"/></span>
                                         </span>

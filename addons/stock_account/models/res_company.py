@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import datetime, time
+from datetime import datetime
 
 from odoo import _, fields, models
 from odoo.fields import Domain
@@ -61,13 +61,13 @@ class ResCompany(models.Model):
             valued_product_context = valued_product_context.with_context(at_date=date, to_date=date)
         return valued_product_context.search(self._get_inventory_valuation_products_domain())
 
-    def _get_extra_closing_aml_vals(self, at_date):
+    def _get_closing_move_extra_aml_vals(self, at_date):
         # OVERRIDE: also account for location-to-location reclassification entries.
         return self._get_location_valuation_vals(at_date)
 
     def _get_closing_move_extra_vals(self, at_date):
         vals = super()._get_closing_move_extra_vals(at_date)
-        vals['closing_datetime'] = datetime.combine(at_date, time.max) if at_date else fields.Datetime.now()
+        vals['closing_datetime'] = self._to_datetime_upper_bound(at_date) if at_date else fields.Datetime.now()
         return vals
 
     def _get_closing_date_field(self):
@@ -96,7 +96,7 @@ class ResCompany(models.Model):
         if last_closing_date:
             moves_base_domain &= Domain([('date', '>', last_closing_date)])
         if at_date:
-            moves_base_domain &= Domain([('date', '<=', at_date)])
+            moves_base_domain &= Domain([('date', '<=', self._to_datetime_upper_bound(at_date))])
         moves_in_domain = Domain([
             ('is_out', '=', True),
             ('company_id', '=', self.id),

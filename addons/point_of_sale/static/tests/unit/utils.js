@@ -7,15 +7,19 @@ import {
     mountWithCleanup,
     patchWithCleanup,
     onRpc,
+    serverState,
 } from "@web/../tests/web_test_helpers";
 import { animationFrame, tick, waitFor, waitUntil } from "@odoo/hoot-dom";
 import { mountPosApp } from "@point_of_sale/../tests/unit/ui_utils";
 import { expect } from "@odoo/hoot";
 import { MainComponentsContainer } from "@web/core/main_components_container";
+import { ResCurrency } from "./data/res_currency.data";
+import { unmockedOrm } from "@web/../tests/_framework/module_set.hoot";
+import { PaymentInterface } from "@point_of_sale/app/utils/payment/payment_interface";
 
 const { DateTime } = luxon;
 
-export const setupPosEnv = async () => {
+export const setupPosEnv = async (opts = { setupCashier: true }) => {
     // Do not change these variables, they are in accordance with the demo data
     odoo.pos_session_id = 1;
     odoo.pos_config_id = 1;
@@ -24,13 +28,17 @@ export const setupPosEnv = async () => {
     odoo.info = {
         db: `pos-${uuidv4()}`, // Avoid indexedDB conflicts
         isEnterprise: true,
+        server_version: "1.0",
     };
+    serverState.currencies = ResCurrency._records;
 
     assignDialogTestEnv();
     await makeTestApp();
     onRpc("/css", () => "");
     const store = getService("pos");
-    store.setCashier(store.user);
+    if (opts.setupCashier) {
+        store.setCashier(store.user);
+    }
     patchWithCleanup(store.router, {
         navigate(routeName, routeParams = {}) {
             this.currentScreen.set(routeName);
@@ -40,10 +48,38 @@ export const setupPosEnv = async () => {
     return store;
 };
 
-export const getFilledOrder = async (store, data = {}) => {
+export const getFilledOrder = async (store, data = {}, paid = false, refund = false) => {
     const order = store.addNewOrder(data);
     const product1 = store.models["product.template"].get(5);
     const product2 = store.models["product.template"].get(6);
+    let refund1 = false;
+    let refund2 = false;
+
+    if (refund) {
+        order.is_refund = true;
+        const refundedOrder = store.models["pos.order"].create({
+            id: `refund_${order.id}`,
+            name: `Refund by ${order.name}`,
+            pos_session_id: store.session,
+            pos_config_id: store.config,
+            amount_paid: 185,
+            amount_total: 185,
+            state: "paid",
+        });
+        order.refunded_order_id = refundedOrder;
+        refund1 = store.models["pos.order.line"].create({
+            product_id: product1.product_variant_ids[0],
+            price_unit: product1.list_price,
+            order_id: refundedOrder,
+            qty: 3,
+        });
+        refund2 = store.models["pos.order.line"].create({
+            product_id: product2.product_variant_ids[0],
+            price_unit: product2.list_price,
+            order_id: refundedOrder,
+            qty: 2,
+        });
+    }
     const date = DateTime.now();
     order.write_date = date;
     order.create_date = date;
@@ -51,21 +87,35 @@ export const getFilledOrder = async (store, data = {}) => {
     await store.addLineToOrder(
         {
             product_tmpl_id: product1,
-            qty: 3,
+            qty: refund ? -3 : 3,
             write_date: date,
             create_date: date,
+            refunded_orderline_id: refund1,
         },
         order
     );
     await store.addLineToOrder(
         {
             product_tmpl_id: product2,
-            qty: 2,
+            qty: refund ? -2 : 2,
+            refunded_orderline_id: refund2,
             write_date: date,
             create_date: date,
         },
         order
     );
+
+    if (paid) {
+        const amountTotal = order.priceIncl;
+        order.state = "paid";
+
+        store.models["pos.payment"].create({
+            amount: amountTotal,
+            pos_order_id: order,
+            payment_method_id: store.models["pos.payment.method"].find((m) => m.name === "Cash"),
+        });
+    }
+
     store.addPendingOrder([order.id]);
     return order;
 };
@@ -457,9 +507,9 @@ export function expectConfiguredChairLine(line) {
     expect(line.getFullProductName()).toBe(
         "Configurable Chair (Blue, Wood, Fabrics: Other: Azerty, Cushion, Headrest)"
     );
-    expect(line.selectedAttributes[line.attribute_value_ids[0].attribute_id.id].selected.name).toBe(
-        "Blue"
-    );
+    expect(
+        line.selectedAttributes[line.attribute_value_ids[0].attribute_line_id.id].selected.name
+    ).toBe("Blue");
     expect(line.custom_attribute_value_ids[0].custom_product_template_attribute_value_id.name).toBe(
         "Other"
     );
@@ -563,6 +613,22 @@ export function createFiscalPosition(store, config = {}) {
     return store.models["account.fiscal.position"].create(opts);
 }
 
+export async function loadQwebTemplates(xmlIds) {
+    const views = await unmockedOrm(
+        "ir.ui.view",
+        "search_read",
+        [[["key", "in", xmlIds]], ["key"]],
+        {}
+    );
+    const idByKey = Object.fromEntries(views.map(({ id, key }) => [key, id]));
+    return Promise.all(
+        xmlIds.map(async (key) => ({
+            key,
+            _template: await unmockedOrm("ir.ui.view", "get_combined_arch", [[idByKey[key]]], {}),
+        }))
+    );
+}
+
 export function enableCashRounding(store, method = "UP", onlyCash = true) {
     const rounding = store.models["account.cash.rounding"].create({
         name: `Rounding ${method.toLowerCase()}`,
@@ -573,4 +639,28 @@ export function enableCashRounding(store, method = "UP", onlyCash = true) {
     store.config.cash_rounding = true;
     store.config.only_round_cash_method = onlyCash;
     return rounding;
+}
+
+/**
+ * Adds payment terminals sharing the same provider to the config, so that a
+ * default payment method can be selected for them.
+ */
+export function addTestTerminals(store, count = 2) {
+    const terminals = [];
+    for (let i = 1; i <= count; i++) {
+        const terminal = store.models["pos.payment.method"].create({
+            id: 1100 + i,
+            name: `Test Terminal ${i}`,
+            payment_provider: "test_terminal",
+            payment_method_type: "terminal",
+            type: "bank",
+            sequence: 10 + i,
+        });
+        terminal._payment_provider_name = "Test Provider";
+        terminal.payment_interface = new PaymentInterface(store, terminal);
+        terminals.push(terminal);
+    }
+    store.config.payment_method_ids = [...store.config.payment_method_ids, ...terminals];
+    store.paymentMethods.initDefaults();
+    return terminals;
 }

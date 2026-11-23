@@ -71,6 +71,7 @@ export class BlockTabPlugin extends Plugin {
                                 // Insert the selected snippet.
                                 closestDropzoneEl.after(snippetEl);
                                 this.dependencies.dropzone.removeDropzones();
+                                this.trigger("on_snippet_inserted_handlers", snippetEl);
                                 return snippetEl;
                             },
                             onClose: () => {
@@ -120,6 +121,7 @@ export class BlockTabPlugin extends Plugin {
      */
     async processDroppedSnippet(snippetEl, cancelInsertion, dragState = {}) {
         this.updateDroppedSnippet(snippetEl);
+        this.processThrough("html_compatibility_processors", snippetEl);
         // Build the snippet.
         for (const onSnippetDropped of this.getResource("on_snippet_dropped_handlers")) {
             const cancel = await onSnippetDropped({ snippetEl, dragState });

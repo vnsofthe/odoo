@@ -1,0 +1,373 @@
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
+
+from odoo import Command
+from odoo.exceptions import AccessError, UserError
+from odoo.tests import Form, HttpCase, new_test_user, tagged
+from odoo.tools import mute_logger
+
+from odoo.addons.hr_expense.tests.common import TestExpenseCommon
+
+
+@tagged('-at_install', 'post_install')
+class TestExpensesAccessRights(TestExpenseCommon, HttpCase):
+
+    _test_user_groups = None  # FIXME list needed groups
+
+    def test_expense_access_rights(self):
+        """ The expense employee can't be able to create an expense for someone else. """
+
+        expense_employee_2 = self.env['hr.employee'].sudo().create({
+            'name': 'expense_employee_2',
+            'user_id': self.env.user.id,
+            'work_contact_id': self.env.user.partner_id.id,
+        }).sudo(False)
+
+        with self.assertRaises(AccessError):
+            self.env['hr.expense'].with_user(self.expense_user_employee).create({
+                'name': "Superboy costume washing",
+                'employee_id': expense_employee_2.id,
+                'product_id': self.product_a.id,
+                'quantity': 1,
+            })
+
+        expense = self.env['hr.expense'].with_user(self.expense_user_employee).create({
+            'name': 'expense_1',
+            'date': '2016-01-01',
+            'product_id': self.product_a.id,
+            'quantity': 10.0,
+            'employee_id': self.expense_employee.id,
+        })
+
+        # The expense employee shouldn't be able to bypass the submit state.
+        with self.assertRaises(UserError):
+            expense.with_user(self.expense_user_employee).state = 'approved'
+        expense.with_user(self.expense_user_employee).state = 'draft'  # Should not raise
+
+        expense.with_user(self.expense_user_employee).action_submit()
+        self.assertEqual(expense.state, 'submitted')
+
+        # Employee can also revert from the submitted state to a draft state
+        expense.with_user(self.expense_user_employee).action_reset()
+        self.assertEqual(expense.state, 'draft')
+
+    def test_expense_access_rights_user(self):
+        # The expense base user (without other rights) is able to create and read sheet
+
+        user = new_test_user(self.env, login='test-expense', groups='base.group_user')
+        expense_employee = self.env['hr.employee'].sudo().create({
+            'name': 'expense_employee_base_user',
+            'user_id': user.id,
+            'work_contact_id': user.partner_id.id,
+            'expense_manager_id': self.expense_user_manager.id,
+            'address_id': user.partner_id.id,
+        }).sudo(False)
+
+        expense = self.env['hr.expense'].with_user(user).create({
+            'name': 'First Expense for employee',
+            'employee_id': expense_employee.id,
+            # Expense without foreign currency but analytic account.
+            'product_id': self.product_a.id,
+            'price_unit': 1000.0,
+        })
+        self.start_tour("/odoo", 'hr_expense_access_rights_test_tour', login="test-expense")
+        self.assertRecordValues(expense, [{'state': 'submitted'}])
+
+    def test_expense_user_cant_approve_own_expense(self):
+        expense = self.env['hr.expense'].with_user(self.expense_user_employee).create({
+            'name': "Superboy costume washing",
+            'employee_id': self.expense_employee.id,
+            'product_id': self.product_a.id,
+            'quantity': 1,
+            'price_unit': 1,
+        })
+        expense.with_user(self.expense_user_employee).action_submit()
+        with self.assertRaises(UserError):
+            expense.with_user(self.expense_user_employee).action_approve()
+
+    def test_expense_team_approver_cant_approve_expense_of_employee_he_does_not_manage(self):
+        another_standard_user = new_test_user(self.env, login='another_standard_user', groups='base.group_user')
+        another_standard_user_team_approver = new_test_user(self.env, login='another_standard_user_manager', groups='base.group_user,hr_expense.group_hr_expense_team_approver')
+
+        another_employee = self.env['hr.employee'].sudo().create({
+            'name': 'another_employee',
+            'user_id': another_standard_user.id,
+            'work_contact_id': another_standard_user.partner_id.id,
+            'expense_manager_id': self.expense_user_manager.id,
+        }).sudo(False)
+
+        expense = self.env['hr.expense'].with_user(another_standard_user).create({
+            'name': "Superboy costume washing",
+            'employee_id': another_employee.id,
+            'product_id': self.product_a.id,
+            'quantity': 1,
+            'price_unit': 1,
+        })
+        expense.with_user(another_standard_user).action_submit()
+        with self.assertRaises(AccessError):
+            expense.with_user(another_standard_user_team_approver).action_approve()
+
+    def test_expense_create_and_post_message_on_submitted_and_approved(self):
+        """ Test that different users can post (or not) a message and an attachment when the expense is submitted.
+        The employee can delete attachments in draft, and the managers until the expense is approved.
+        Once it's approved, attachments can still be added, but only someone using sudo should be able to delete
+        """
+
+        standard_user = self.expense_user_employee
+        another_standard_user = new_test_user(self.env, login='another_standard_user', groups='base.group_user')
+        standard_user_manager = self.expense_user_manager
+        admin_user = self.expense_user_manager_2
+        admin_user.group_ids |= self.env.ref('base.group_system')
+        admin_user.company_ids |= self.env.companies
+
+        expense = self.env['hr.expense'].with_user(standard_user).create({
+            'name': "Superboy costume washing",
+            'employee_id': self.expense_employee.id,
+            'product_id': self.product_a.id,
+            'quantity': 1,
+        })
+
+        expense.with_user(standard_user).action_submit()
+
+        expense.with_user(standard_user).message_post(body="Standard user posts a message on his own expense.")
+        with self.assertRaises(AccessError):
+            expense.with_user(another_standard_user).message_post(body="Another standard user tries to post a message on the expense.")
+        expense.with_user(standard_user_manager).message_post(body="Manager user posts a message on the expense.")
+        expense.with_user(admin_user).message_post(body="Admin user posts a message on the expense.")
+
+        self.assertEqual(len(expense.message_ids), 3)
+
+        # When testing for uploading the attachments, we can't simulate it through a tour as using inputFiles isn't possible
+        # with a AttachDocumentWidget since the input isn't added to the DOM.
+
+        # User that created the expense should be able to upload an attachment on the expense.
+        # But he shouldn't be able to delete it once it's submitted
+        self.authenticate(standard_user.login, standard_user.login)
+        user_response = self.url_open(
+            "/web/binary/upload_attachment",
+            {
+                'csrf_token': self.csrf_token(),
+                'id': expense.id,
+                'model': 'hr.expense',
+            },
+            files={'ufile': ('salut.txt', b"Salut !\n", 'text/plain')},
+        )
+        expense.with_user(standard_user).attach_document(attachment_ids=[attachment['id'] for attachment in user_response.json()])
+        self.assertEqual(user_response.status_code, 200)
+        self.assertEqual(len(expense.attachment_ids), 1)
+        self.assertEqual(expense.message_main_attachment_id.id, user_response.json()[0]['id'])
+
+        with self.assertRaises(UserError):
+            expense.with_user(standard_user).attachment_ids.unlink()
+        with mute_logger('odoo.http'):  # To avoid logging the AccessError raised when trying to delete the attachment.
+            delete_response = self.url_open(
+                "/mail/attachment/delete",
+                json={'params': {'access_token_by_attachment_id': {user_response.json()[0]['id']: None}}},
+            )
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertEqual(delete_response.json()['error']['data']['message'], "You can't delete attachments from an expense once it has been submitted.")
+        self.assertEqual(len(expense.attachment_ids), 1)
+
+        # User without any access to the expense shouldn't be able to upload an attachment on the expense.
+        self.authenticate(another_standard_user.login, another_standard_user.login)
+        with mute_logger('odoo.addons.web.controllers.binary'):  # To avoid logging the AccessError raised when trying to upload the attachment.
+            response = self.url_open(
+                "/web/binary/upload_attachment",
+                {
+                    'csrf_token': self.csrf_token(),
+                    'id': expense.id,
+                    'model': 'hr.expense',
+                },
+                files={'ufile': ('fail.txt', b"Fail\n", 'text/plain')},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()[0]['error'], 'You are not allowed to upload an attachment here.')
+        self.assertEqual(len(expense.attachment_ids), 1)  # No new attachment
+        self.assertEqual(expense.message_main_attachment_id.id, user_response.json()[0]['id'])
+
+        # The manager should be able to upload and delete an attachment on the expense.
+        self.authenticate(standard_user_manager.login, standard_user_manager.login)
+        manager_response = self.url_open(
+            "/web/binary/upload_attachment",
+            {
+                'csrf_token': self.csrf_token(),
+                'id': expense.id,
+                'model': 'hr.expense',
+            },
+            files={'ufile': ('manager.txt', b"Manager\n", 'text/plain')},
+        )
+        expense.with_user(standard_user_manager).attach_document(attachment_ids=[attachment['id'] for attachment in manager_response.json()])
+        self.assertEqual(manager_response.status_code, 200)
+        self.assertEqual(len(expense.attachment_ids), 2)
+        self.assertEqual(expense.message_main_attachment_id.id, manager_response.json()[0]['id'])
+
+        manager_attachment = expense.attachment_ids.filtered(lambda a: a.create_uid == standard_user_manager)
+        manager_attachment.with_user(standard_user_manager).unlink()
+        self.assertEqual(len(expense.attachment_ids), 1)
+
+        # The admin should be able to upload and delete an attachment on the expense.
+        self.authenticate(admin_user.login, admin_user.login)
+        admin_response = self.url_open(
+            "/web/binary/upload_attachment",
+            {
+                'csrf_token': self.csrf_token(),
+                'id': expense.id,
+                'model': 'hr.expense',
+            },
+            files={'ufile': ('admin.txt', b"Admin\n", 'text/plain')},
+        )
+        expense.with_user(admin_user).attach_document(attachment_ids=[attachment['id'] for attachment in admin_response.json()])
+        self.assertEqual(admin_response.status_code, 200)
+        self.assertEqual(len(expense.attachment_ids), 2)
+        self.assertEqual(expense.message_main_attachment_id.id, admin_response.json()[0]['id'])
+
+        admin_attachment = expense.attachment_ids.filtered(lambda a: a.create_uid == admin_user)
+        admin_attachment.with_user(admin_user).unlink()
+        self.assertEqual(len(expense.attachment_ids), 1)
+
+        expense.with_user(standard_user_manager).action_approve()
+
+        # Once the expense is approved, receipts can still be uploaded, but nobody should be able to delete them except someone with sudo.
+        self.authenticate(standard_user.login, standard_user.login)
+        with self.assertRaises(UserError):
+            expense.with_user(standard_user).attachment_ids.unlink()
+        user_response_after_approval = self.url_open(
+            "/web/binary/upload_attachment",
+            {
+                'csrf_token': self.csrf_token(),
+                'id': expense.id,
+                'model': 'hr.expense',
+            },
+            files={'ufile': ('salut2.txt', b"Salut 2 !\n", 'text/plain')},
+        )
+        expense.with_user(standard_user).attach_document(attachment_ids=[attachment['id'] for attachment in user_response_after_approval.json()])
+        self.assertEqual(user_response_after_approval.status_code, 200)
+        self.assertEqual(len(expense.attachment_ids), 2)
+        self.assertEqual(expense.message_main_attachment_id.id, user_response_after_approval.json()[0]['id'])
+
+        self.authenticate(standard_user_manager.login, standard_user_manager.login)
+        with self.assertRaises(UserError):
+            expense.with_user(standard_user_manager).attachment_ids.unlink()
+        with mute_logger('odoo.http'):  # To avoid logging the AccessError raised when trying to delete the attachment.
+            delete_response = self.url_open(
+                "/mail/attachment/delete",
+                json={'params': {'access_token_by_attachment_id': {user_response_after_approval.json()[0]['id']: None}}},
+            )
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertEqual(delete_response.json()['error']['data']['message'], "You can't delete attachments from an expense once it has been submitted.")
+        self.assertEqual(len(expense.attachment_ids), 2)
+        with self.assertRaises(UserError):  # Detaching them from the expense is the same as deleting them
+            expense.with_user(standard_user_manager).attachment_ids = [Command.clear()]
+
+        manager_response_after_approval = self.url_open(
+            "/web/binary/upload_attachment",
+            {
+                'csrf_token': self.csrf_token(),
+                'id': expense.id,
+                'model': 'hr.expense',
+            },
+            files={'ufile': ('manager2.txt', b"Manager 2\n", 'text/plain')},
+        )
+        expense.with_user(standard_user_manager).attach_document(attachment_ids=[attachment['id'] for attachment in manager_response_after_approval.json()])
+        self.assertEqual(manager_response_after_approval.status_code, 200)
+        self.assertEqual(len(expense.attachment_ids), 3)
+        self.assertEqual(expense.message_main_attachment_id.id, manager_response_after_approval.json()[0]['id'])
+
+        self.authenticate(admin_user.login, admin_user.login)
+        admin_response_after_approval = self.url_open(
+            "/web/binary/upload_attachment",
+            {
+                'csrf_token': self.csrf_token(),
+                'id': expense.id,
+                'model': 'hr.expense',
+            },
+            files={'ufile': ('admin2.txt', b"Admin 2\n", 'text/plain')},
+        )
+        expense.with_user(admin_user).attach_document(attachment_ids=[attachment['id'] for attachment in admin_response_after_approval.json()])
+        self.assertEqual(admin_response_after_approval.status_code, 200)
+        self.assertEqual(len(expense.attachment_ids), 4)
+        self.assertEqual(expense.message_main_attachment_id.id, admin_response_after_approval.json()[0]['id'])
+
+        # If really needed, sudo should always be able to delete the attachments
+        expense.attachment_ids.sudo().unlink()
+        self.assertEqual(len(expense.attachment_ids), 0)
+
+        # In draft, the employee can still delete a receipt through the mail route
+        draft_expense = self.env['hr.expense'].with_user(standard_user).create({
+            'name': "Superboy cape washing",
+            'employee_id': self.expense_employee.id,
+            'product_id': self.product_a.id,
+            'quantity': 1,
+        })
+        self.authenticate(standard_user.login, standard_user.login)
+        draft_response = self.url_open(
+            "/web/binary/upload_attachment",
+            {
+                'csrf_token': self.csrf_token(),
+                'id': draft_expense.id,
+                'model': 'hr.expense',
+            },
+            files={'ufile': ('draft.txt', b"Draft\n", 'text/plain')},
+        )
+        draft_expense.with_user(standard_user).attach_document(attachment_ids=[attachment['id'] for attachment in draft_response.json()])
+        self.assertEqual(draft_response.status_code, 200)
+        self.assertEqual(len(draft_expense.attachment_ids), 1)
+
+        delete_response = self.url_open(
+            "/mail/attachment/delete",
+            json={'params': {'access_token_by_attachment_id': {draft_response.json()[0]['id']: None}}},
+        )
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertEqual(len(draft_expense.attachment_ids), 0)
+
+    def test_expense_filter(self):
+        """ Tests '_search_filter_for_expense' domain filtering per user role.
+            - Expense Manager: Sees all employees across the company.
+            - Team Approver: Sees only themselves and their direct reports.
+            - Base Employee: Sees only their own employee record.
+        """
+        hr_admin_user = new_test_user(self.env, login='hr_admin_user', groups='base.group_user,hr.group_hr_user')
+        Employee = self.env['hr.employee'].with_user(hr_admin_user)
+        approver_user = new_test_user(self.env, login='approver_user', groups='base.group_user,hr_expense.group_hr_expense_team_approver')
+        approver_employee = Employee.create({'name': 'approver_emp', 'user_id': approver_user.id})
+        subordinate_employee = Employee.create({'name': 'subordinate_emp', 'parent_id': approver_employee.id})
+
+        base_user = new_test_user(self.env, login='base_user', groups='base.group_user')
+        base_employee = Employee.create({'name': 'base_emp', 'user_id': base_user.id})
+
+        test_cases = [
+            ('Expense Manager', self.expense_user_manager, self.expense_employee + base_employee + approver_employee + subordinate_employee),
+            ('Team Approver', approver_user, approver_employee + subordinate_employee),
+            ('Base Employee', base_user, base_employee),
+        ]
+
+        for case_name, user, expected_employees in test_cases:
+            with self.subTest(case_name=case_name):
+                employees = self.env['hr.employee'].with_user(user).search([('filter_for_expense', '=', True)])
+                self.assertEqual(employees, expected_employees)
+
+    def test_expense_create_without_employee_in_current_company(self):
+        """ A user whose employee belongs to another company than the current one must be able
+            to open a new expense and switch its company to retrieve their employee.
+        """
+        company_1 = self.env.company
+        company_2 = self.company_data_2['company']
+        user = new_test_user(
+            self.env,
+            login='team_approver_company_1',
+            groups='base.group_user,base.group_multi_company,hr_expense.group_hr_expense_team_approver',
+            company_id=company_1.id,
+            company_ids=[Command.set((company_1 + company_2).ids)],
+        )
+        employee = self.env['hr.employee'].sudo().create({
+            'name': 'team_approver_company_1',
+            'user_id': user.id,
+            'company_id': company_1.id,
+        })
+
+        expense_form = Form(self.env['hr.expense'].with_user(user).with_context(allowed_company_ids=(company_2 + company_1).ids))
+        self.assertFalse(expense_form.employee_id)
+        self.assertTrue(expense_form.is_editable)
+        expense_form.company_id = company_1
+        self.assertEqual(expense_form.employee_id, employee)
+        self.assertTrue(expense_form.is_editable)

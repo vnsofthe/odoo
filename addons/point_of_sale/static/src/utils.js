@@ -2,7 +2,7 @@
 
 import { session } from "@web/session";
 import { cookie } from "@web/core/browser/cookie";
-import { deserializeDateTime } from "@web/core/l10n/dates";
+import { deserializeDateTime, deserializeDate } from "@web/core/l10n/dates";
 import { Time } from "@web/core/l10n/time";
 import { _t } from "@web/core/l10n/translation";
 
@@ -177,6 +177,7 @@ export function isValidEmail(email) {
     return email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+// TODO master: remove, moved to @point_of_sale/app/utils/init_lna
 // Checks whether an ip address is on the local network. So one of the ranges:
 // 10.0.0.0 - 10.255.255.255
 // 127.0.0.0 - 127.255.255.255
@@ -294,7 +295,7 @@ export function imageDataUri(base64Source) {
 }
 
 export function getDisplayDateInfo(sqlDate) {
-    const dateTime = deserializeDateTime(sqlDate);
+    const dateTime = deserializeDate(sqlDate);
     if (!dateTime.isValid) {
         return {
             dayLabel: "",

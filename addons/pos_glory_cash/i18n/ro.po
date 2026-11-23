@@ -1,0 +1,499 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * pos_glory_cash
+#
+# Weblate <noreply-mt-weblate@weblate.org>, 2025, 2026.
+# Alin Ilie <alin.ilie@logit-solutions.com>, 2025.
+# Dorin Hongu <dhongu@gmail.com>, 2026.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-13 17:40+0000\n"
+"PO-Revision-Date: 2026-11-21 13:37+0000\n"
+"Last-Translator: Dorin Hongu <dhongu@gmail.com>\n"
+"Language-Team: Romanian <https://translate.odoo.com/projects/odoo-20/"
+"pos_glory_cash/ro/>\n"
+"Language: ro\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=3; plural=n==1 ? 0 : (n==0 || (n%100 > 0 && n%100 < "
+"20)) ? 1 : 2;\n"
+"X-Generator: Weblate 2026.11.2\n"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/constants.js:0
+msgid "Calculating change"
+msgstr "Se calculează restul"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/components/cancel_dialog.xml:0
+msgid "Cancel Operation"
+msgstr "Anulează operațiunea"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/constants.js:0
+msgid "Cancelling payment"
+msgstr "Anularea plății"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/payment_glory.js:0
+msgid "Cash Machine Error"
+msgstr "Eroare la bancomat"
+
+#. module: pos_glory_cash
+#: model:ir.model.fields,field_description:pos_glory_cash.field_pos_payment_method__glory_websocket_address
+msgid "Cash Machine IP"
+msgstr "IP bancomat"
+
+#. module: pos_glory_cash
+#: model:ir.model.fields,field_description:pos_glory_cash.field_pos_payment_method__glory_use_lna
+msgid "Cash Machine Local Network Access"
+msgstr "Acces la rețeaua locală a aparatului de numerar"
+
+#. module: pos_glory_cash
+#: model:ir.model.fields,field_description:pos_glory_cash.field_pos_payment_method__glory_password
+msgid "Cash Machine Password"
+msgstr "Parola bancomatului"
+
+#. module: pos_glory_cash
+#: model:ir.model.fields,field_description:pos_glory_cash.field_pos_payment_method__glory_username
+msgid "Cash Machine Username"
+msgstr "Nume de utilizator pentru bancomat"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/components/cancel_dialog.xml:0
+#: code:addons/pos_glory_cash/static/src/app/components/glory_error_dialog.xml:0
+msgid "Cash machine error"
+msgstr "Eroare la bancomat"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/backend/glory_admin_buttons/glory_admin_buttons.js:0
+msgid "Cash machine is disconnected"
+msgstr "Aparatul de numerar este deconectat"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/screens/payment_screen/payment_lines/payment_lines.xml:0
+msgid "Cash machine status:"
+msgstr "Starea bancomatului:"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/components/cancel_dialog.xml:0
+#: code:addons/pos_glory_cash/static/src/app/components/glory_error_dialog.xml:0
+msgid "Close"
+msgstr "Închide"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/constants.js:0
+msgid "Collection in progress"
+msgstr "Colectare în curs"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/screens/payment_screen/payment_lines/payment_lines.xml:0
+msgid ""
+"Consider emptying the cash machine, the following coins/bills are nearly "
+"full:"
+msgstr ""
+"Se recomandă golirea automatului de gestionare a numerarului; "
+"compartimentele pentru următoarele monede/bancnote sunt aproape pline:"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/constants.js:0
+msgid "Counting"
+msgstr "Numărare"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/constants.js:0
+msgid "Counting replenished cash"
+msgstr "Numărarea numerarului reîncărcat"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/backend/glory_admin_buttons/glory_admin_buttons.xml:0
+msgid "Current cash machine status:"
+msgstr "Starea curentă a aparatului de numerar:"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/constants.js:0
+msgid "Disconnected"
+msgstr "Deconectat"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/constants.js:0
+msgid "Dispensing"
+msgstr "Distribuire"
+
+#. module: pos_glory_cash
+#: model:ir.model.fields,field_description:pos_glory_cash.field_pos_payment_method__display_name
+msgid "Display Name"
+msgstr "Nume afișat"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/backend/glory_admin_buttons/glory_admin_buttons.xml:0
+msgid "Download Logs"
+msgstr "Descarcă jurnalele"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/constants.js:0
+msgid "Error"
+msgstr "Eroare"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/components/glory_error_dialog.xml:0
+msgid "Error code:"
+msgstr "Cod de eroare:"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/constants.js:0
+msgid "Failed to authenticate"
+msgstr "Autentificare eșuată"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/payment_glory.js:0
+msgid "Failed to cancel cash machine transaction: %s."
+msgstr "Anularea tranzacției aparatului de numerar a eșuat: %s."
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/payment_glory.js:0
+msgid ""
+"Failed to connect to Glory cash machine, please ensure it is switched on and "
+"connected to the network."
+msgstr ""
+"Nu s-a putut conecta la bancomatul Glory, vă rugăm să vă asigurați că este "
+"pornit și conectat la rețea."
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/payment_glory.js:0
+msgid ""
+"Failed to login to Glory cash machine, please check the configured username "
+"and password."
+msgstr ""
+"Nu s-a putut conecta la bancomatul Glory, vă rugăm să verificați numele de "
+"utilizator și parola configurate."
+
+#. module: pos_glory_cash
+#: model_terms:ir.ui.view,arch_db:pos_glory_cash.pos_payment_method_view_form_inherit_pos_glory_cash
+msgid "Glory Settings"
+msgstr "Setări Glory"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/components/glory_error_dialog.xml:0
+msgid "Glory error animation."
+msgstr "Animație de eroare Glory."
+
+#. module: pos_glory_cash
+#: model:ir.model.fields,field_description:pos_glory_cash.field_pos_payment_method__id
+msgid "ID"
+msgstr "ID"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/constants.js:0
+msgid "Idle"
+msgstr "Inactiv"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/constants.js:0
+msgid "Initializing"
+msgstr "Inițializare"
+
+#. module: pos_glory_cash
+#: model:ir.module.module,summary:base.module_pos_glory_cash
+msgid "Integrate your POS with a Glory automatic cash payment device"
+msgstr "Integrați POS-ul cu un aparat automat Glory pentru plăți în numerar"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/socket_io.js:0
+msgid ""
+"Local Network Access for the Glory machine is not supported on this browser. "
+"Please update your browser or disable Local Network Access."
+msgstr ""
+"Acest browser nu acceptă accesul la rețeaua locală pentru aparatul Glory. "
+"Actualizați browserul sau dezactivați accesul la rețeaua locală."
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/payment_glory.js:0
+msgid "Only managers can withdraw cash from the cash machine."
+msgstr "Numai managerii pot retrage numerar din bancomat."
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/backend/glory_admin_buttons/glory_admin_buttons.xml:0
+msgid "Open Admin Page"
+msgstr "Deschideți pagina de administrare"
+
+#. module: pos_glory_cash
+#: model:ir.module.module,shortdesc:base.module_pos_glory_cash
+msgid "POS Glory Cash Machines"
+msgstr "POS - Aparate de numerar Glory"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/backend/glory_admin_buttons/glory_admin_buttons.js:0
+msgid "Please configure the IP address before opening the admin page"
+msgstr "Configurați adresa IP înainte de a deschide pagina de administrare"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/payment_glory.js:0
+msgid ""
+"Please remove the cash from the exit of the cash machine before starting a "
+"transaction."
+msgstr ""
+"Scoateți numerarul de la ieșirea aparatului înainte de a începe o tranzacție."
+
+#. module: pos_glory_cash
+#: model:ir.model,name:pos_glory_cash.model_pos_payment_method
+msgid "Point of Sale Payment Method"
+msgstr "Metodă de plată POS"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/components/glory_error_dialog.xml:0
+msgid "Reset"
+msgstr "Resetează"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/backend/glory_admin_buttons/glory_admin_buttons.xml:0
+msgid "Reset Cash Machine"
+msgstr "Resetați aparatul de numerar"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/backend/glory_admin_buttons/glory_admin_buttons.js:0
+msgid "Reset complete"
+msgstr "Resetarea s-a încheiat"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/constants.js:0
+msgid "Resetting"
+msgstr "Resetare"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/backend/glory_admin_buttons/glory_admin_buttons.js:0
+msgid "Resetting cash machine..."
+msgstr "Se resetează aparatul de numerar..."
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/constants.js:0
+msgid "Starting payment"
+msgstr "Începerea plății"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/components/glory_error_dialog.xml:0
+msgid "The Glory machine is in an unknown error state."
+msgstr "Aparatul Glory se află într-o stare de eroare necunoscută."
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/payment_glory.js:0
+msgid "The cash machine has an error, please consult its display for details."
+msgstr ""
+"Bancomatul are o eroare, vă rugăm să consultați afișajul pentru detalii."
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/screens/payment_screen/payment_lines/payment_lines.xml:0
+msgid "The cash machine has run out of the following coins/bills:"
+msgstr ""
+"Automatul de gestionare a numerarului a rămas fără următoarele monede/"
+"bancnote:"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/payment_glory.js:0
+msgid ""
+"The cash machine is busy counting its inventory, please wait a few seconds "
+"and retry."
+msgstr ""
+"Aparatul de numerar își numără inventarul. Așteptați câteva secunde și "
+"încercați din nou."
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/payment_glory.js:0
+msgid ""
+"The cash machine is busy with another operation. Do you want to cancel it?"
+msgstr "Bancomatul este ocupat cu o altă operațiune. Doriți să anulați?"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/payment_glory.js:0
+msgid ""
+"The cash machine is currently in collection/replenishment mode, please "
+"finish this process on the machine before making a payment."
+msgstr ""
+"Bancomatul se află în prezent în modul de colectare/reaprovizionare. Vă "
+"rugăm să finalizați acest proces la bancomat înainte de a efectua o plată."
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/payment_glory.js:0
+msgid "The cash machine is disconnected."
+msgstr "Bancomatul este deconectat."
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/payment_glory.js:0
+msgid "The cash machine is in use by another POS."
+msgstr "Bancomatul este utilizat de un alt POS."
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/payment_glory.js:0
+msgid ""
+"The cash machine is not ready to start a transaction. Check all the covers "
+"are closed and then try again."
+msgstr ""
+"Aparatul de numerar nu este pregătit să înceapă o tranzacție. Verificați "
+"dacă toate capacele sunt închise, apoi încercați din nou."
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/screens/payment_screen/payment_lines/payment_lines.xml:0
+msgid "The cash machine is running low on the following coins/bills:"
+msgstr ""
+"Automatul de gestionare a numerarului are un stoc redus pentru următoarele "
+"monede/bancnote:"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/payment_glory.js:0
+msgid ""
+"The cash machine is unable to return the inserted cash, please refund the "
+"client %s via another method."
+msgstr ""
+"Aparatul de numerar nu poate returna numerarul introdus. Rambursați "
+"clientului suma de %s prin altă metodă."
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/screens/payment_screen/payment_lines/payment_lines.xml:0
+msgid "The cash machine must be emptied, the following coins/bills are full:"
+msgstr ""
+"Automatul de gestionare a numerarului trebuie golit; compartimentele pentru "
+"următoarele monede/bancnote sunt pline:"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/payment_glory.js:0
+msgid ""
+"The payment failed due to an unrecoverable error - see the cash machine "
+"screen for details."
+msgstr ""
+"Plata a eșuat din cauza unei erori irecuperabile - consultați ecranul "
+"bancomatului pentru detalii."
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/payment_glory.js:0
+msgid "The payment failed for an unknown reason: %s"
+msgstr "Plata a eșuat dintr-un motiv necunoscut: %s"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/payment_glory.js:0
+msgid ""
+"There is an error with the bill or coin device. The machine will now be "
+"reset and the contents verified. Once this is complete, the amount that must "
+"be returned to the customer will be displayed."
+msgstr ""
+"A apărut o eroare la dispozitivul pentru bancnote sau monede. Aparatul va fi "
+"resetat, iar conținutul va fi verificat. După finalizare, se va afișa suma "
+"care trebuie returnată clientului."
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/payment_glory.js:0
+msgid ""
+"There is insufficient cash in the machine to give change. You will need to "
+"refund %s via another method."
+msgstr ""
+"Aparatul nu are suficient numerar pentru a da rest. Va trebui să rambursați "
+"%s prin altă metodă."
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/app/payment_glory.js:0
+msgid ""
+"There is insufficient change in the cash machine to handle the payment. It "
+"must be cancelled to continue."
+msgstr ""
+"Nu există suficient rest în bancomat pentru a efectua plata. Aceasta trebuie "
+"anulată pentru a continua."
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/constants.js:0
+msgid "Waiting for cancellation"
+msgstr "Așteptare pentru anulare"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/constants.js:0
+msgid "Waiting for cash to be removed"
+msgstr "Așteptare pentru retragerea numerarului"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/constants.js:0
+msgid "Waiting for cash to be replenished"
+msgstr "În așteptarea reîncărcării numerarului"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/constants.js:0
+msgid "Waiting for coin overflow removal"
+msgstr "Așteptare pentru eliminarea surplusului de monede"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/constants.js:0
+msgid "Waiting for error recovery"
+msgstr "Așteptare recuperare eroare"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/constants.js:0
+msgid "Waiting for insertion of cash"
+msgstr "Așteptare pentru introducerea numerarului"
+
+#. module: pos_glory_cash
+#. odoo-javascript
+#: code:addons/pos_glory_cash/static/src/utils/constants.js:0
+msgid "Waiting for inventory"
+msgstr "Așteptare inventar"
+
+#~ msgid "There is insufficient cash in the machine to give change."
+#~ msgstr "Nu există suficienți bani în aparat pentru a da rest."

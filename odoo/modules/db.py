@@ -10,6 +10,7 @@ import logging
 import os
 import pathlib
 import re
+import secrets
 import shutil
 import subprocess
 import tempfile
@@ -223,6 +224,17 @@ def has_unaccent(cr: BaseCursor) -> FunctionStatus:
     return FunctionStatus.INDEXABLE if result[0] == 'i' else FunctionStatus.PRESENT
 
 
+def has_bytewise_collation(cr: BaseCursor) -> bool:
+    """ Test if the default collation of the database compares strings
+    character by character, like the "C" collation does.
+
+    Collations like glibc's en_US.UTF-8 ignore punctuation at first and sort
+    '12/14/' after '120', so a range on ``parent_path`` misses descendants.
+    """
+    cr.execute("SELECT '12/14/'::varchar < '120'::varchar")
+    return cr.fetchone()[0]
+
+
 def has_trigram(cr: BaseCursor) -> bool:
     """ Test if the database has the a word_similarity function.
 
@@ -362,7 +374,7 @@ def _create_empty_database(db_name: str) -> None:
         db = odoo.sql_db.db_connect(db_name)
         with db.cursor() as cr:
             cr.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
-            if odoo.tools.config['unaccent']:
+            if odoo.tools.config['unaccent'] and has_unaccent(cr) != FunctionStatus.INDEXABLE:
                 cr.execute("CREATE EXTENSION IF NOT EXISTS unaccent")
                 # From PostgreSQL's point of view, making 'unaccent' immutable is incorrect
                 # because it depends on external data - see
@@ -641,6 +653,7 @@ def restore(
             [
                 find_pg_tool('psql'),
                 '--dbname', db_name,
+                '--command', f'\\restrict {secrets.token_hex()}',
                 '--file', os.path.join(dump_dir, 'dump.sql'),
                 '--quiet',
             ],

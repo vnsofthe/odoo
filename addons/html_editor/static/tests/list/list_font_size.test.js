@@ -170,11 +170,12 @@ test("should carry list item font-size to new list item (2)", async () => {
     });
 });
 
-test("should carry font-size of paragraph to list item", async () => {
+test("should carry font-size of paragraph to list item while preserving font family", async () => {
     await testEditor({
-        contentBefore: '<p><span style="font-size: 18px;">[]abc</span></p>',
+        contentBefore: '<p><span style="font-size: 18px; font-family: Roboto;">[]abc</span></p>',
         stepFunction: toggleUnorderedList,
-        contentAfter: '<ul><li style="font-size: 18px;">[]abc</li></ul>',
+        contentAfter:
+            '<ul><li style="font-size: 18px;"><span style="font-family: Roboto;">[]abc</span></li></ul>',
     });
 });
 
@@ -393,5 +394,22 @@ test("should remove font-size and its classes from partially selected list item 
         contentBefore: `<ol><li class="h2-fs">a[bc</li><li class="h2-fs">def</li><li class="h2-fs">gh]i</li></ol>`,
         stepFunction: (editor) => execCommand(editor, "removeFormat"),
         contentAfter: `<ol><li class="h2-fs">a<span class="o_default_font_size">[bc</span></li><li>def</li><li class="h2-fs"><span class="o_default_font_size">gh]</span>i</li></ol>`,
+    });
+});
+
+test.tags("desktop");
+test("should properly pad list from header block", async () => {
+    await testEditor({
+        contentBefore: `<h4><span class="display-1-fs">[awdawd]</span></h4>`,
+        stepFunction: toggleUnorderedList,
+        contentAfter: `<ul style="padding-inline-start: 54px;"><li class="display-1-fs"><h4>[awdawd]</h4></li></ul>`,
+    });
+});
+
+test("should properly apply font size when header is child of list", async () => {
+    await testEditor({
+        contentBefore: `<ul><li><h1>[test]</h1></li></ul>`,
+        stepFunction: setFontSize("56px"),
+        contentAfter: `<ul><li><h1><span style="font-size: 56px;">[test]</span></h1></li></ul>`,
     });
 });

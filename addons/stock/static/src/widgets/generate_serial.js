@@ -81,7 +81,7 @@ export class GenerateDialog extends Component {
             )[0];
             this.nextCustomSerialNumber = await this.orm.call("ir.sequence", "get_next_char", [
                 this.sequence.id,
-                this.sequence.number_next,
+                this.sequence.number_next_actual,
             ]);
         }
     }
@@ -108,7 +108,7 @@ export class GenerateDialog extends Component {
                 default_quantity: qtyToProcess,
                 default_uom_id:
                     this.props.move.data.has_tracking === "lot"
-                        ? this.props.move.data.product_uom?.id
+                        ? this.props.move.data.uom_id?.id
                         : undefined,
             },
             this.props.mode,

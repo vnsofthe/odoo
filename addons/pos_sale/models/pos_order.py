@@ -44,6 +44,21 @@ class PosOrder(models.Model):
                 invoice_vals['invoice_payment_term_id'] = False
             if sale_orders[0].partner_invoice_id != sale_orders[0].partner_id:
                 invoice_vals['partner_id'] = sale_orders[0].partner_invoice_id.id
+            if not invoice_vals.get('reversed_entry_id'):
+                refs = list(dict.fromkeys(so.client_order_ref or so.name for so in sale_orders if so.client_order_ref or so.name))
+                invoice_vals['ref'] = ', '.join(refs)[:2000]
+
+            origins = []
+            for order in self:
+                order_sos = order.lines.sale_order_origin_id
+                if order_sos:
+                    origins.extend(order_sos.mapped('name'))
+                elif order.pos_reference:
+                    origins.append(order.pos_reference)
+                elif order.name:
+                    origins.append(order.name)
+            if origins:
+                invoice_vals['invoice_origin'] = ', '.join(dict.fromkeys(origins))
         return invoice_vals
 
     def action_pos_order_paid(self):
@@ -64,7 +79,7 @@ class PosOrder(models.Model):
         pos_orders = self.browse([o['id'] for o in data["pos.order"]])
         for pos_order in pos_orders:
             # TODO: the way to retrieve the sale order in not consistent... is it a bad code or intended?
-            used_pos_lines = pos_order.lines.sale_order_origin_id.order_line.pos_order_line_ids
+            used_pos_lines = pos_order.lines.sale_order_origin_id.order_line.pos_order_line_ids | pos_order.lines.refunded_orderline_id.sale_order_origin_id.order_line.pos_order_line_ids
             downpayment_pos_order_lines = pos_order.lines.filtered(lambda line: (
                 line not in used_pos_lines
                 and line.product_id == pos_order.config_id.down_payment_product_id
@@ -135,7 +150,7 @@ class PosOrder(models.Model):
 
             if pos_line.sale_order_origin_id:
                 move["name"] = pos_line.display_name
-                if move['extra_tax_data'].get('computation_key') == 'down_payment' and pos_line.down_payment_details:
+                if move.get('extra_tax_data', {}).get('computation_key') == 'down_payment' and pos_line.down_payment_details:
                     downpayment_details = ast.literal_eval(pos_line.down_payment_details)
                     if downpayment_details and downpayment_details[0].get('percentage_value'):
                         move["name"] += " of " + str(downpayment_details[0].get('percentage_value')) + "%"

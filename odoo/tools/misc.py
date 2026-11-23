@@ -764,6 +764,11 @@ class lower_logging(logging.Handler):
 
 class MungedTracebackLogRecord(logging.LogRecord):
     def getMessage(self):
+        if self.exc_info:
+            self.exc_text = logging.Formatter.formatException(None, self.exc_info).replace(
+                'Traceback (most recent call last):',
+                '_Traceback_ (most recent call last):',
+            )
         return super().getMessage().replace(
             'Traceback (most recent call last):',
             '_Traceback_ (most recent call last):',
@@ -1607,7 +1612,7 @@ def format_amount(env: Environment, amount: float, currency, lang_code: str | No
     formatted_amount = lang.format(fmt, currency.round(amount), grouping=True)\
         .replace(r' ', u'\N{NO-BREAK SPACE}').replace(r'-', u'-\N{ZERO WIDTH NO-BREAK SPACE}')
 
-    if not trailing_zeroes:
+    if not trailing_zeroes and currency.decimal_places:
         formatted_amount = re.sub(fr'{re.escape(lang.decimal_point)}?0+$', '', formatted_amount)
 
     pre = post = u''

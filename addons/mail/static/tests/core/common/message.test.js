@@ -10,12 +10,15 @@ import {
     triggerHotkey,
 } from "@mail/../tests/mail_test_helpers";
 
-import { describe, test } from "@odoo/hoot";
+import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-dom";
+import { preloadBundle } from "@web/../tests/web_test_helpers";
+import { cookie } from "@web/core/browser/cookie";
 import { getOrigin } from "@web/core/utils/urls";
 
 describe.current.tags("desktop");
 defineMailModels();
+preloadBundle("mail.assets_message_email");
 
 test("following internal link from chatter does not open chat window", async () => {
     const pyEnv = await startServer();
@@ -92,4 +95,62 @@ test("same-thread message link does not open the thread again but highlights the
     await click("a.o_message_redirect:contains(Lena)");
     await contains(".o-mail-Message.o-highlighted:contains(Hey)");
     await contains(".breadcrumb-item:contains(Alice)");
+});
+
+test("code block embedded in an email message's body should be ignored", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "Jeanne" });
+    pyEnv["mail.message"].create({
+        body: `<pre data-embedded="readonlySyntaxHighlighting" data-language-id="python">print('hello')</pre>`,
+        message_type: "email",
+        model: "res.partner",
+        res_id: partnerId,
+    });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await contains(
+        "pre[data-embedded='readonlySyntaxHighlighting']:not([data-embedded-mounted]):text(print('hello'))",
+        { parent: [".o-mail-Message-shadowBody", { shadowRoot: true }] }
+    );
+});
+
+test("read more button of an email message shows its icon", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "Jeanne" });
+    pyEnv["mail.message"].create({
+        body: `<p>Thanks</p><blockquote data-o-mail-quote="1">Previous message</blockquote>`,
+        message_type: "email",
+        model: "res.partner",
+        res_id: partnerId,
+    });
+    await start();
+    await openFormView("res.partner", partnerId);
+    const shadowBody = [".o-mail-Message-shadowBody", { shadowRoot: true }];
+    await contains(".o-mail-ellipsis i[data-icon='more_horiz']", {
+        parent: shadowBody,
+        visible: true,
+    });
+    await contains("blockquote:text(Previous message)", { parent: shadowBody, visible: false });
+    await click(".o-mail-ellipsis", { parent: shadowBody });
+    await contains("blockquote:text(Previous message)", { parent: shadowBody, visible: true });
+});
+
+test("read more button of an email message keeps its pill in dark theme", async () => {
+    cookie.set("color_scheme", "dark");
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "Jeanne" });
+    pyEnv["mail.message"].create({
+        body: `<p>Thanks</p><blockquote data-o-mail-quote="1">Previous message</blockquote>`,
+        message_type: "email",
+        model: "res.partner",
+        res_id: partnerId,
+    });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await contains(".o-mail-ellipsis", {
+        parent: [".o-mail-Message-body > div", { shadowRoot: true }],
+    });
+    expect(".o-mail-Message-body > div:shadow .o-mail-ellipsis").toHaveStyle({
+        backgroundColor: "rgb(239, 239, 239)",
+    });
 });

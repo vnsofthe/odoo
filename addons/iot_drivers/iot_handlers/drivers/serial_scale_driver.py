@@ -47,16 +47,20 @@ class ScaleDriver(SerialDriver):
         self._actions["read_once"] = self._read_once
         self.net_weight_char = b'N'
         self.tare_mode = False
+        self.weight_changed = True
 
     def _read_once(self, data: dict):
-        """Reads the scale current weight value and pushes it to the frontend."""
-        self.last_sent_value = self._read_weight()
+        weight = self._read_weight()
+        weight_changed = self.weight_changed or weight != self.last_sent_value
+        self.weight_changed = False
+        self.last_sent_value = weight
         if data.get("detailed_response"):
             return {
-                "weight": self.last_sent_value,
+                "weight": weight,
                 "tare_mode": self.tare_mode,
+                "weight_changed": weight_changed,
             }
-        return self.last_sent_value
+        return weight
 
     def _read_weight(self) -> float:
         """Asks for a new weight from the scale, checks if it is valid
@@ -76,6 +80,8 @@ class ScaleDriver(SerialDriver):
         """Reads the device's weight value, and pushes that value to the frontend."""
         with self._device_lock:
             weight = self._read_weight()
+            if weight != self.last_sent_value:
+                self.weight_changed = True
             if weight != self.last_sent_value or self.data["status"] == "error":
                 self.last_sent_value = weight
                 self.data.update({"status": "success", "result": weight})
@@ -136,12 +142,12 @@ class ScaleDriver(SerialDriver):
             for index, bit in enumerate(binary_status_char[1:][::-1]):  # Read the bits in reverse order (LSB is at the last char) + ignore the first "parity" bit
                 if index == 5:
                     # Index 5 is Net Weight status
-                    self.tare_mode = bool(bit)
+                    self.tare_mode = bool(int(bit))
                 elif int(bit):
                     _logger.debug(
                         "Scale error: %s. Status string: %s. Scale answer: %s.",
                         status_char_error_bits[index], binary_status_char, answer
                     )
-                    self.data.update({"status": "error", "result": 0})
+                    self.data["result"] = 0
                     return 0.0
         return self.data.get("result", 0.0)

@@ -1,6 +1,5 @@
 import { registry } from "@web/core/registry";
 import { stepUtils } from "@web_tour/tour_utils";
-import { delay } from "@web/core/utils/concurrency";
 
 registry.category("web_tour.tours").add("mail_template_dynamic_field_tour", {
     steps: () => [
@@ -38,12 +37,10 @@ registry.category("web_tour.tours").add("mail_template_dynamic_field_tour", {
         {
             content: "Wait for the drop down to disappear",
             trigger: 'div[name="model_id"] .o-autocomplete:not(:has(.ui-autocomplete))',
-            run: async () => {
-                // Ensure the system has registered a correct model value before
-                // we try to open the DPH.
-                // It seems that the autocomplete validation can be very slow.
-                await delay(200);
-            },
+        },
+        {
+            content: "Wait for the onchange of the model",
+            trigger: 'div[name="model_id"] .o_external_button',
         },
         {
             content: 'Retry insert # inside "Subject" input',
@@ -138,14 +135,18 @@ registry.category("web_tour.tours").add("mail_template_dynamic_field_tour", {
             trigger: `.note-editable.odoo-editor-editable t[t-out="object.parent_name"]:contains("defValue")`,
         },
         {
-            content: 'Type "Push Notification Device" model',
+            content: 'Search "Push Notification" models',
             trigger: 'div[name="model_id"] input[type="text"]',
-            run: "edit Push Notification Device",
+            run: "edit Push Notification",
         },
         {
             content: 'Select "Push Notification Device" model',
             trigger: 'a.dropdown-item:contains("Push Notification Device")',
             run: "click",
+        },
+        {
+            content: "Wait for the onchange of the model",
+            trigger: 'div[name="model_id"] input:value(Push Notification Device)',
         },
         {
             content: "Insert text inside editable",

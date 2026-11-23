@@ -12,6 +12,12 @@ export class FormOption extends BaseOptionComponent {
     static dependencies = ["websiteFormOption"];
     static components = { FormActionFieldsOption };
     static async cleanForSave(el, { dependencies, services }) {
+        for (const hiddenDescEl of el.querySelectorAll(
+            ".s_website_form_field_description.d-none"
+        )) {
+            hiddenDescEl.remove();
+        }
+
         for (const sigEl of el.querySelectorAll("input[name=website_form_signature]")) {
             sigEl.remove();
         }
@@ -46,9 +52,6 @@ export class FormOption extends BaseOptionComponent {
         // Get potential message
         const el = this.env.getEditingElement();
         this.messageEl = el.parentElement.querySelector(".s_website_form_end_message");
-        this.canChangeFieldsLayout = !!el.querySelector(
-            ".s_website_form_field:not(.s_website_form_dnone)"
-        );
         this.showEndMessage = false;
         this.state = useDomState(async (el) => {
             const modelName = getModelName(el);
@@ -71,6 +74,9 @@ export class FormOption extends BaseOptionComponent {
             return {
                 models,
                 activeForm,
+                canChangeFieldsLayout: !!el.querySelector(
+                    ".s_website_form_field:not(.s_website_form_dnone)"
+                ),
             };
         });
     }

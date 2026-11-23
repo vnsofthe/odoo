@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta, timezone
 from functools import partial
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 import babel
@@ -8,6 +9,7 @@ from dateutil.relativedelta import relativedelta, weekdays
 from freezegun import freeze_time
 
 from odoo.tests import BaseCase, TransactionCase, tagged
+from odoo.fields import Datetime
 from odoo.tools.date_utils import (
     add,
     date_range,
@@ -242,6 +244,39 @@ class TestDateUtils(TransactionCase):
         with freeze_time('2024-01-04 23:05:00'):
             self.assertEqual(parse('today'), date(2024, 1, 5))
 
+    def test_parse_date_relative_dst(self):
+        env = self.env(context={"tz": "Europe/Brussels"})
+        parse = partial(parse_date, env=env)
+
+        def at(value):
+            # freeze_time drops the fold of a time in the repeated hour of a DST change
+            return patch.object(Datetime, "now", return_value=datetime.fromisoformat(value))
+
+        with at("2026-10-25 00:50:00"):
+            self.assertEqual(parse("+30M"), datetime(2026, 10, 25, 1, 20))
+        with at("2026-10-25 01:05:00"):
+            self.assertEqual(parse("+15M"), datetime(2026, 10, 25, 1, 20))
+            self.assertEqual(parse("-2H"), datetime(2026, 10, 24, 23, 5))
+        with at("2026-03-28 12:00:00"):
+            self.assertEqual(parse("+1d"), datetime(2026, 3, 29, 11, 0))
+        with at("2026-03-29 01:05:00"):
+            self.assertEqual(parse("-15M"), datetime(2026, 3, 29, 0, 50))
+            self.assertEqual(parse("-2H"), datetime(2026, 3, 28, 23, 5))
+            self.assertEqual(parse("-600S"), datetime(2026, 3, 29, 0, 55))
+
+    @freeze_time("2026-07-15 12:00:00")
+    def test_parse_date_today_time(self):
+        for tz, offset in (("Europe/Brussels", -2), ("America/New_York", 4)):
+            parse = partial(parse_date, env=self.env(context={"tz": tz}))
+            with self.subTest(tz=tz):
+                self.assertEqual(parse("today +3H"), datetime(2026, 7, 15, 3 + offset))
+                self.assertEqual(parse("today =8H"), datetime(2026, 7, 15, 8 + offset))
+                self.assertEqual(parse("today -1d +2H"), datetime(2026, 7, 14, 2 + offset))
+                self.assertEqual(parse("today +1d"), date(2026, 7, 16))
+        parse = partial(parse_date, env=self.env(context={"tz": "Europe/Brussels"}))
+        with freeze_time("2026-03-29 10:00:00"):
+            self.assertEqual(parse("today +3H"), datetime(2026, 3, 29, 2))
+
     def test_monday_override_on_sunday_locale(self):
         locale = babel.Locale.parse('en_US')
         self.assertEqual(locale.first_week_day, 6)
@@ -311,6 +346,47 @@ class TestDateRangeFunction(BaseCase):
         ]
 
         self.assertEqual(list(date_range(start, end)), expected)
+
+    def test_date_range_with_mixed_date_and_datetime(self):
+        for tz in (None, UTC):
+            for start, end in (
+                (date(2018, 3, 25), datetime(2018, 3, 26, tzinfo=tz)),
+                (datetime(2018, 3, 25, tzinfo=tz), date(2018, 3, 26)),
+            ):
+                with self.subTest(start=start, end=end):
+                    with self.assertRaisesRegex(ValueError, 'start/end should be both date or both datetime type'):
+                        list(date_range(start, end))
+
+    def test_date_range_with_date_and_time_step(self):
+        start = date(2018, 3, 25)
+        end = date(2018, 3, 26)
+        for step in (
+            relativedelta(hours=1),
+            relativedelta(minutes=1),
+            relativedelta(seconds=1),
+            relativedelta(microseconds=1),
+            relativedelta(days=1, hours=1),
+            relativedelta(days=1, hour=0),
+        ):
+            with self.subTest(step=step):
+                with self.assertRaisesRegex(ValueError, 'the step interval must add only entire days'):
+                    list(date_range(start, end, step))
+
+    def test_date_range_with_date_and_day_step(self):
+        start = date(2018, 3, 25)
+        end = date(2018, 3, 27)
+        expected = [start, date(2018, 3, 26), end]
+        for step in (relativedelta(days=1), relativedelta(hours=24)):
+            with self.subTest(step=step):
+                self.assertEqual(list(date_range(start, end, step)), expected)
+
+    def test_date_range_with_utc_datetimes(self):
+        start = datetime(2018, 3, 25, tzinfo=UTC)
+        end = datetime(2018, 3, 25, 2, tzinfo=UTC)
+        self.assertEqual(
+            list(date_range(start, end, relativedelta(hours=1))),
+            [start, datetime(2018, 3, 25, 1, tzinfo=UTC), end],
+        )
 
     def test_date_range_with_timezone_aware_datetimes_other_than_utc(self):
         """ Check date_range with timezone-aware datetimes other than UTC."""

@@ -36,7 +36,7 @@ Outputs
 * ``static/src/libs/materialsymbols/material_symbols_backend.woff`` — outlined font for
   wkhtmltopdf and PIL
 * ``web/icons.py`` — icon list with fill-variant flags, codepoints for
-  PIL and search tags
+  PIL and translatable search tags
 
 odoo_ui_icons
 =============
@@ -370,6 +370,11 @@ def build_gsub(font: TTFont, ligatures: dict[str, str]) -> list[str]:
     how ``alternate_email_f`` ended up drawing ``mail_f`` (matching
     "e-**mail**-_f").  :func:`buildLigatureSubstSubtable` sorts every set
     longest-first, so the shaper always takes the longest match.
+
+    Ligatures of equal length are ordered by name before fontTools sees them:
+    from 4.47 on it keeps them in insertion order, where earlier releases sorted
+    them by components, and the same icons would otherwise compile differently
+    depending on the fontTools installed.
     """
     cmap = font.getBestCmap()
     mapping, unencodable = {}, []
@@ -383,7 +388,7 @@ def build_gsub(font: TTFont, ligatures: dict[str, str]) -> list[str]:
     liga_lookup = otTables.Lookup()
     liga_lookup.LookupType = 4
     liga_lookup.LookupFlag = 0
-    liga_lookup.SubTable = [buildLigatureSubstSubtable(mapping)]
+    liga_lookup.SubTable = [buildLigatureSubstSubtable(dict(sorted(mapping.items())))]
     liga_lookup.SubTableCount = 1
 
     lookups = [liga_lookup]
@@ -671,7 +676,8 @@ def save_font(font: TTFont, path) -> None:
     nothing about the icons.  The existing file is therefore compared against the
     new one with both dates equalized, and left untouched when they match --
     ``created`` is kept for the lifetime of the file, only ``modified`` follows a
-    real change.
+    real change.  Not rewriting it at all also keeps a different Brotli from
+    recompressing the same tables into different bytes.
     """
     head = font['head']
     head.created = head.modified = timeTools.timestampNow()
@@ -680,8 +686,9 @@ def save_font(font: TTFont, path) -> None:
         previous = TTFont(path, recalcTimestamp=False)
         head.created = previous['head'].created
         head.modified = previous['head'].modified
-        if compile_font(font) != compile_font(previous):
-            head.modified = timeTools.timestampNow()
+        if compile_font(font) == compile_font(previous):
+            return
+        head.modified = timeTools.timestampNow()
 
     font.save(path)
 
@@ -967,25 +974,14 @@ def write_font_face_css(ms_dir, style_lower: str, font_file: str, backend_font_p
     (ms_dir / f'material_symbols_{style_lower}.css').write_text(css, encoding='utf-8')
 
 
-ICON_SEARCH_CODE = '''
+def join_tags(tags) -> str:
+    """Join *tags* into the string an icon is searched by.
 
-_ICONS_INDEX = [
-    (name, icon['has_fill'], f"{name} {icon['tags']}".lower())
-    for name, icon in ICONS.items()
-]
-
-
-def search_icons(needle=''):
-    """Yield the ``(name, has_fill)`` of every icon matching ``needle``.
-
-    The needle is matched against the icon name and its search tags; an empty
-    needle matches every icon.  The haystacks are lowercased once, at import.
+    The tags are worded as phrases -- `add to cart`, `shopping cart` -- so they
+    are kept apart by `|` rather than merged into one bag of words, which
+    would leave the translators with the repeats and no phrase to translate.
     """
-    needle = needle.strip().lower()
-    for name, has_fill, haystack in _ICONS_INDEX:
-        if not needle or needle in haystack:
-            yield name, has_fill
-'''
+    return '|'.join(tags)
 
 
 def write_python_icon_list(
@@ -998,10 +994,10 @@ def write_python_icon_list(
 ) -> None:
     """Write Material Symbols and Odoo UI icon metadata as a Python dict.
 
-    The dict is imported server-side by the ``/html_editor/icons_search``
-    controller, so the (large) search tags never ship to the browser, and no file
-    has to be read at runtime.  Only the outlined codepoints are listed; the
-    filled ones are computed the way :func:`fill_codepoint` encodes them.
+    The dict is searched server-side by ``html_editor/tools.py``, so the (large)
+    search tags never ship to the browser, and no file has to be read at runtime.
+    Only the outlined codepoints are listed; the filled ones are computed the way
+    :func:`fill_codepoint` encodes them.
     """
     url = "https://fonts.google.com/metadata/icons?key=material_symbols&incomplete=true"
     with urllib.request.urlopen(url, timeout=30) as response:
@@ -1009,19 +1005,23 @@ def write_python_icon_list(
 
     # The response is prefixed with an anti-JSON-hijacking guard.
     metadata = json.loads(response_text.removeprefix(")]}'"))
-    for icon_data in metadata.get('icons', []):
+    # The metadata lists multiple times the same icon, we take the last version
+    # of the icon for the tags.
+    for icon_data in sorted(metadata.get('icons', []), key=lambda icon_data: icon_data['version']):
         if icon_data['name'] in icons:
-            icons[icon_data['name']]['tags'] = ' '.join(icon_data.get('tags', []))
+            icons[icon_data['name']]['tags'] = join_tags(icon_data.get('tags', []))
 
     ms_entries = [
         f"    {icon_name!r}: {{'has_fill': {icon['has_fill']}, "
-        f"'codepoint': 0x{codepoints[icon_name]:04X}, 'tags': {icon.get('tags', '')!r}}},"
+        f"'codepoint': 0x{codepoints[icon_name]:04X}, "
+        f"'tags': _lt({icon.get('tags', '')!r})}},"
         for icon_name, icon in icons.items()
     ]
     glyph_codepoints = {glyph: codepoint for codepoint, glyph in oi_codepoints.items()}
     oi_entries = [
         f"    {name!r}: {{'has_fill': False, "
-        f"'codepoint': 0x{glyph_codepoints[glyph]:04X}, 'tags': {oi_tags.get(name, '')!r}}},"
+        f"'codepoint': 0x{glyph_codepoints[glyph]:04X}, "
+        f"'tags': _lt({oi_tags.get(name, '')!r})}},"
         for name, glyph in sorted(oi_ligatures.items())
     ]
     entries = '\n'.join(ms_entries + oi_entries)
@@ -1032,17 +1032,13 @@ def write_python_icon_list(
         "\n"
         "Generated by ``odoo/addons/web/tooling/icons/generate_icons.py`` -- do not edit\n"
         "manually.\n"
-        "\n"
-        "Maps each icon name to its ``has_fill`` flag and the space-separated ``tags``\n"
-        "used to search it. The tags are only ever matched server-side (see the\n"
-        "``/html_editor/icons_search`` controller), so they never reach the browser.\n"
-        "Use :func:`search_icons` to match a needle against both.\n"
         '"""\n'
         "\n"
-        "from odoo.tools import frozendict\n"
+        "from odoo.tools import LazyTranslate, frozendict\n"
         "\n"
-        f"ICONS = frozendict({{\n{entries}\n}})\n"
-        + ICON_SEARCH_CODE,
+        "_lt = LazyTranslate(__name__)\n"
+        "\n"
+        f"ICONS = frozendict({{\n{entries}\n}})\n",
         encoding='utf-8',
     )
 
@@ -1234,10 +1230,10 @@ def build_odoo_ui_icons_font(module_path):
     woff_path = fonts_dir / f'{family}_backend.woff'
     save_font(font, woff_path)
 
-    # The name is searched on its own (see the `/html_editor/icons_search`
-    # controller), so it earns nothing as a tag of itself.
+    # The name is searched on its own (see `html_editor/tools.py`), so it earns
+    # nothing as a tag of itself.
     tags = {
-        prefix + icon['css']: ' '.join(
+        prefix + icon['css']: join_tags(
             tag for tag in icon.get('search', []) if tag != icon['css']
         )
         for icon in icons

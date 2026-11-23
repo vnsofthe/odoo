@@ -73,7 +73,8 @@ class ProjectProject(models.Model):
 
     @api.onchange('partner_id')
     def _onchange_partner_id(self):
-        self.allow_billable = bool(self.partner_id)
+        if not self.allow_billable and self.partner_id:
+            self.allow_billable = True
 
     @api.depends('allow_billable', 'partner_id.company_id')
     def _compute_partner_id(self):
@@ -152,7 +153,15 @@ class ProjectProject(models.Model):
             # Use sudo to avoid AccessErrors when the SOLs belong to different companies.
             all_sale_orders = sale_order_lines.sudo().order_id or project.reinvoiced_sale_order_id
             project.sale_order_count = len(all_sale_orders)
-            project.sale_order_amount_total = sum(all_sale_orders.mapped('amount_total'))
+            project.sale_order_amount_total = sum(
+                order.currency_id._convert(
+                    order.amount_total,
+                    project.currency_id,
+                    project.company_id or self.env.company,
+                    order.date_order,
+                )
+                for order in all_sale_orders
+            )
 
     def _compute_invoice_count(self):
         data = self.env['account.move.line']._read_group(

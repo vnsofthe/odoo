@@ -1,6 +1,7 @@
 import { patch } from "@web/core/utils/patch";
 import { ControlButtons } from "@point_of_sale/app/screens/product_screen/control_buttons/control_buttons";
 import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
+import { _t } from "@web/core/l10n/translation";
 
 patch(ControlButtons.prototype, {
     onClickQuotation() {
@@ -13,7 +14,10 @@ patch(ControlButtons.prototype, {
             ["state", "!=", "cancel"],
             ["invoice_status", "!=", "invoiced"],
             ["currency_id", "=", this.pos.currency.id],
+            // A down payment still has to be deducted when settling the order
+            "|",
             ["amount_unpaid", ">", 0],
+            ["order_line.is_downpayment", "=", true],
         ];
 
         const saleOrderIds = this.pos
@@ -25,6 +29,7 @@ patch(ControlButtons.prototype, {
         }
 
         this.dialog.add(SelectCreateDialog, {
+            title: _t("Quotation / Order"),
             resModel: "sale.order",
             noCreate: true,
             multiSelect: false,

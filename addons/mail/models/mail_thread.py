@@ -294,7 +294,12 @@ class MailThread(models.AbstractModel):
 
     @api.model
     def _search_message_needaction(self, operator, operand):
-        return [('message_ids.needaction', operator, operand)]
+        if operator in Domain.NEGATIVE_OPERATORS:
+            return NotImplemented
+        domain = Domain('message_ids.needaction', operator, operand)
+        if operator == 'in' and False in operand:  # relation may be falsy
+            domain |= Domain('message_ids', '=', False)
+        return domain
 
     def _compute_message_has_error(self):
         res = {}
@@ -376,18 +381,19 @@ class MailThread(models.AbstractModel):
 
         # automatic logging unless asked not to (mainly for various testing purpose)
         if not self.env.context.get('mail_create_nolog'):
-            threads_no_subtype = self.env[self._name]
+            threads_no_subtype_ids = []
             for thread in threads:
                 subtype = thread._creation_subtype()
                 if not subtype:
-                    threads_no_subtype += thread
+                    threads_no_subtype_ids.append(thread.id)
                     continue
                 # if we have a subtype, post message to notify users from _message_auto_subscribe
                 thread.sudo().message_post(
                     subtype_id=subtype.id, author_id=self.env.user.partner_id.id,
                     body=Markup('<div><p>%s</p></div>') % thread._creation_message()
                 )
-            if threads_no_subtype:
+            if threads_no_subtype_ids:
+                threads_no_subtype = threads.browse(threads_no_subtype_ids).with_prefetch(threads._prefetch_ids)
                 bodies = dict(
                     (thread.id, thread._creation_message())
                     for thread in threads_no_subtype)
@@ -1717,12 +1723,26 @@ class MailThread(models.AbstractModel):
 
                 filename = part.get_filename()  # I may not properly handle all charsets
 
-                mimetype, _, content_type_params = part.get('Content-Type').partition(';')
+                content_type = part.get('Content-Type')
+                if not content_type:
+                    _logger.warning(
+                        "Message %r has no Content-Type, assuming 'application/octet-stream'",
+                        message.get('Message-ID'),
+                    )
+                    content_type = 'application/octet-stream'
+                    part['Content-Type'] = content_type
+                mimetype, _, content_type_params = content_type.partition(';')
                 if not all(mimetype.partition('/')) or mimetype in BAD_CONTENT_TYPES:
-                    _logger.warning("Message containing an unexpected Content-Type %r, assuming 'application/octet-stream'", mimetype)
+                    _logger.warning(
+                        "Message %r containing an unexpected Content-Type %r, assuming 'application/octet-stream'",
+                        message.get('Message-ID'), mimetype,
+                    )
                     part.replace_header('Content-Type', f'application/octet-stream;{content_type_params}')
                 elif mimetype.startswith('pdf'):
-                    _logger.warning("Message containing an unexpected Content-Type %r, assuming 'application/pdf'", mimetype)
+                    _logger.warning(
+                        "Message %r containing an unexpected Content-Type %r, assuming 'application/pdf'",
+                        message.get('Message-ID'), mimetype,
+                    )
                     part.replace_header('Content-Type', f'application/pdf;{content_type_params}')
 
                 if part.get_content_type().startswith('text/') and not part.get_param('charset'):
@@ -3997,7 +4017,7 @@ class MailThread(models.AbstractModel):
         if not mail_body:
             _logger.warning('QWeb template %s not found or is empty when sending notification emails. Sending without layouting.', template_xmlid)
             mail_body = message.body
-        return mail_body
+        return self.env['mail.render.mixin']._replace_local_links(mail_body, self.get_base_url())
 
     def _notify_by_email_get_base_mail_values(self, message, recipients_data, additional_values=None):
         """ Return model-specific and message-related values to be used when
@@ -4025,14 +4045,16 @@ class MailThread(models.AbstractModel):
         # have a fallback in case replies mess with Messsage-Id in the In-Reply-To (e.g. amazon
         # SES SMTP may replace Message-Id and In-Reply-To refers an internal ID not stored in Odoo)
         message_sudo = message.sudo()
-        ancestors = self.env['mail.message'].sudo().search(
-            [
-                ('model', '=', message_sudo.model), ('res_id', '=', message_sudo.res_id),
-                ('id', '!=', message_sudo.id),
-                ('subtype_id', '!=', False),  # filters out logs
-                ('message_id', '!=', False),  # ignore records that somehow don't have a message_id (non ORM created)
-            ], limit=32, order='id DESC',  # take 32 last, hoping to find public discussions in it
-        )
+        ancestors = self.env['mail.message'].sudo()
+        if message_sudo.model and message_sudo.res_id:
+            ancestors = ancestors.search(
+                [
+                    ('model', '=', message_sudo.model), ('res_id', '=', message_sudo.res_id),
+                    ('id', '!=', message_sudo.id),
+                    ('subtype_id', '!=', False),  # filters out logs
+                    ('message_id', '!=', False),  # ignore records that somehow don't have a message_id (non ORM created)
+                ], limit=32, order='id DESC',  # take 32 last, hoping to find public discussions in it
+            )
 
         # filter out internal messages, to fetch 'public discussion' first
         outgoing_types = ('comment', 'auto_comment', 'email', 'email_outgoing')
@@ -4265,6 +4287,7 @@ class MailThread(models.AbstractModel):
                 'body': html2plaintext(body, include_references=False),
                 'icon': icon,
                 'data': {
+                    "message_id": message.id,
                     'model': message.model or '',
                     'res_id': message.res_id or '',
                 }
@@ -4864,6 +4887,8 @@ class MailThread(models.AbstractModel):
         adding_current = set(partner_ids) == set([self.env.user.partner_id.id])
         customer_ids = [] if adding_current else None
 
+        if adding_current and self.env.user._is_public():
+            return False
         if partner_ids and adding_current:
             try:
                 self.check_access('read')
@@ -5190,6 +5215,8 @@ class MailThread(models.AbstractModel):
         if body is not None:
             if body or not message._filter_empty():
                 tree = html.fragment_fromstring(escape(body), create_parent="div")
+                for edited_span in tree.xpath('.//span[@class="o-mail-Message-edited"]'):
+                    edited_span.drop_tree()
                 children = tree.getchildren()
                 if len(children) > 0:  # body is a valid html
                     # If the last element is a div or p, add the edited span inside it to avoid the edit markup
@@ -5198,15 +5225,21 @@ class MailThread(models.AbstractModel):
                     last_div_element = (
                         children[target_index] if children[target_index].tag in ["div", "p"] else tree
                     )
-                    last_div_element.text = (last_div_element.text or '') + (' ' if last_div_element.text else '')
+                    if len(last_div_element):
+                        last_child = last_div_element[-1]
+                        if last_child.tail and not last_child.tail.endswith(" "):
+                            last_child.tail += " "
+                    elif last_div_element.text and not last_div_element.text.endswith(" "):
+                        last_div_element.text += " "
                     etree.SubElement(last_div_element, "span", attrib={"class": "o-mail-Message-edited", "data-o-datetime": fields.Datetime.to_string(fields.Datetime.now())})
                     msg_values["body"] = (
                         # markup: it is considered safe, as coming from html.fragment_fromstring
                         (tree.text or "") + Markup("".join(etree.tostring(child, encoding="unicode") for child in tree))
                     )
                 else:  # body is plain text
-                    # keep html if already Markup, otherwise escape
-                    msg_values["body"] = escape(body) + Markup("<span class='o-mail-Message-edited' data-o-datetime='%s'/>") % fields.Datetime.to_string(fields.Datetime.now())
+                    msg_values["body"] = escape(tree.text or "") + Markup(
+                        "<span class='o-mail-Message-edited' data-o-datetime='%s'/>"
+                    ) % fields.Datetime.to_string(fields.Datetime.now())
             else:
                 msg_values["body"] = ""
         if attachment_ids is not None:  # None means "no update"

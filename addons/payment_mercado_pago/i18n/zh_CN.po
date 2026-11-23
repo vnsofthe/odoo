@@ -5,15 +5,16 @@
 # "Tiffany Chang (tic)" <tic@odoo.com>, 2025.
 # Weblate <noreply-mt-weblate@weblate.org>, 2025.
 # "Chloe Wang (chwa)" <chwa@odoo.com>, 2025, 2026.
+# 张飞虎 <feihu.zhang@live.com>, 2026.
 msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 18.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-28 17:44+0000\n"
-"PO-Revision-Date: 2026-09-09 14:05+0000\n"
+"POT-Creation-Date: 2026-11-20 17:39+0000\n"
+"PO-Revision-Date: 2026-10-21 07:04+0000\n"
 "Last-Translator: \"Chloe Wang (chwa)\" <chwa@odoo.com>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.odoo.com/"
-"projects/odoo-master/payment_mercado_pago/zh_Hans/>\n"
+"projects/odoo-20/payment_mercado_pago/zh_Hans/>\n"
 "Language: zh_CN\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -22,9 +23,17 @@ msgstr ""
 "X-Generator: Weblate 2026.8.1\n"
 
 #. module: payment_mercado_pago
+#. odoo-python
+#: code:addons/payment_mercado_pago/models/payment_provider.py:0
+msgid ""
+"A connected Mercado Pago account cannot be switched between test and live "
+"mode. Disconnect it first."
+msgstr ""
+
+#. module: payment_mercado_pago
 #: model:ir.module.module,summary:base.module_payment_mercado_pago
 msgid "A payment provider covering several countries in Latin America."
-msgstr ""
+msgstr "覆盖拉丁美洲多个国家的支付提供商。"
 
 #. module: payment_mercado_pago
 #: model_terms:ir.ui.view,arch_db:payment_mercado_pago.payment_provider_form
@@ -39,7 +48,7 @@ msgstr "账户国家/地区"
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_amex
 msgid "American Express"
-msgstr ""
+msgstr "美国运通"
 
 #. module: payment_mercado_pago
 #: model_terms:ir.ui.view,arch_db:payment_mercado_pago.authorization_error
@@ -59,7 +68,7 @@ msgstr "确定要断开连接吗？"
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_argencard
 msgid "Argencard"
-msgstr ""
+msgstr "Argencard"
 
 #. module: payment_mercado_pago
 #: model_terms:ir.ui.view,arch_db:payment_mercado_pago.authorization_error
@@ -69,17 +78,17 @@ msgstr "返回 Mercado Pago 提供商"
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_bank_transfer
 msgid "Bank Transfer"
-msgstr ""
+msgstr "银行转账"
 
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_cabal
 msgid "Cabal"
-msgstr ""
+msgstr "Cabal"
 
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_caixa
 msgid "Caixa"
-msgstr ""
+msgstr "Caixa"
 
 #. module: payment_mercado_pago
 #. odoo-python
@@ -92,12 +101,12 @@ msgstr "致电发卡行激活您的银行卡或使用其他付款方式。电话
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_card
 msgid "Card"
-msgstr ""
+msgstr "银行卡"
 
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_cencosud
 msgid "Cencosud"
-msgstr ""
+msgstr "Cencosud"
 
 #. module: payment_mercado_pago
 #. odoo-python
@@ -131,7 +140,7 @@ msgstr "代码"
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_codensa
 msgid "Codensa"
-msgstr ""
+msgstr "Codensa"
 
 #. module: payment_mercado_pago
 #: model_terms:ir.ui.view,arch_db:payment_mercado_pago.payment_provider_form
@@ -142,28 +151,28 @@ msgstr "连接"
 #. odoo-python
 #: code:addons/payment_mercado_pago/models/payment_provider.py:0
 msgid "Connect your account before enabling tokenization."
-msgstr ""
+msgstr "启用令牌化之前，请先连接你的账户。"
 
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_cordial
 msgid "Cordial"
-msgstr ""
+msgstr "Cordial"
 
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_cordobesa
 msgid "Cordobesa"
-msgstr ""
+msgstr "Cordobesa"
 
 #. module: payment_mercado_pago
 #. odoo-python
 #: code:addons/payment_mercado_pago/controllers/onboarding.py:0
 msgid "Could not find Mercado Pago provider %s"
-msgstr ""
+msgstr "找不到 Mercado Pago 提供商 %s"
 
 #. module: payment_mercado_pago
 #: model_terms:ir.ui.view,arch_db:payment_mercado_pago.payment_provider_form
 msgid "Disconnect"
-msgstr ""
+msgstr "中断连接"
 
 #. module: payment_mercado_pago
 #: model:ir.model.fields,field_description:payment_mercado_pago.field_payment_provider__display_name
@@ -175,12 +184,12 @@ msgstr "显示名称"
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_elo
 msgid "Elo"
-msgstr ""
+msgstr "Elo"
 
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_hipercard
 msgid "Hipercard"
-msgstr ""
+msgstr "Hipercard"
 
 #. module: payment_mercado_pago
 #: model:ir.model.fields,field_description:payment_mercado_pago.field_payment_provider__id
@@ -198,22 +207,22 @@ msgstr "付款信息不正确"
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_lider
 msgid "Lider"
-msgstr ""
+msgstr "Lider"
 
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_magna
 msgid "Magna"
-msgstr ""
+msgstr "Magna"
 
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_mastercard
 msgid "MasterCard"
-msgstr ""
+msgstr "万事达卡"
 
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_mercado_livre
 msgid "Mercado Livre"
-msgstr ""
+msgstr "Mercado Livre"
 
 #. module: payment_mercado_pago
 #: model:ir.model.fields.selection,name:payment_mercado_pago.selection__payment_provider__code__mercado_pago
@@ -228,17 +237,17 @@ msgstr "Mercado Pago 访问口令"
 #. module: payment_mercado_pago
 #: model:ir.model.fields,field_description:payment_mercado_pago.field_payment_provider__mercado_pago_access_token_expiry
 msgid "Mercado Pago Access Token Expiry"
-msgstr ""
+msgstr "Mercado Pago 访问令牌到期时间"
 
 #. module: payment_mercado_pago
 #: model:ir.model.fields,field_description:payment_mercado_pago.field_payment_provider__mercado_pago_account_country_id
 msgid "Mercado Pago Account Country"
-msgstr ""
+msgstr "Mercado Pago 账户国家/地区"
 
 #. module: payment_mercado_pago
 #: model:ir.model.fields,field_description:payment_mercado_pago.field_payment_token__mercado_pago_customer_id
 msgid "Mercado Pago Customer"
-msgstr ""
+msgstr "Mercado Pago 客户"
 
 #. module: payment_mercado_pago
 #: model:ir.model.fields,field_description:payment_mercado_pago.field_payment_provider__mercado_pago_public_key
@@ -248,20 +257,12 @@ msgstr "Mercado Pago 公钥"
 #. module: payment_mercado_pago
 #: model:ir.model.fields,field_description:payment_mercado_pago.field_payment_provider__mercado_pago_refresh_token
 msgid "Mercado Pago Refresh Token"
-msgstr ""
+msgstr "Mercado Pago 刷新令牌"
 
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_mercado_pago_wallet
 msgid "Mercado Pago Wallet"
-msgstr ""
-
-#. module: payment_mercado_pago
-#. odoo-python
-#: code:addons/payment_mercado_pago/models/payment_provider.py:0
-msgid ""
-"Mercado Pago credentials are missing. Click the \"Connect\" button to set up "
-"your account."
-msgstr ""
+msgstr "Mercado Pago 钱包"
 
 #. module: payment_mercado_pago
 #. odoo-python
@@ -274,23 +275,23 @@ msgstr "Mercado Pago 在您的国家/地区不可用；请使用其他支付服�
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_naranja
 msgid "Naranja"
-msgstr ""
+msgstr "Naranja"
 
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_nativa
 msgid "Nativa"
-msgstr ""
+msgstr "Nativa"
 
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_oca
 msgid "OCA"
-msgstr ""
+msgstr "OCA"
 
 #. module: payment_mercado_pago
 #. odoo-python
 #: code:addons/payment_mercado_pago/models/payment_provider.py:0
 msgid "Only the currency %s is available for this account."
-msgstr ""
+msgstr "此账户仅支持币种 %s。"
 
 #. module: payment_mercado_pago
 #. odoo-python
@@ -306,7 +307,7 @@ msgstr "支付提供商"
 #. module: payment_mercado_pago
 #: model:ir.module.module,shortdesc:base.module_payment_mercado_pago
 msgid "Payment Provider: Mercado Pago"
-msgstr ""
+msgstr "支付提供商：Mercado Pago"
 
 #. module: payment_mercado_pago
 #: model:ir.model,name:payment_mercado_pago.model_payment_token
@@ -333,13 +334,13 @@ msgstr "付款未处理，请使用其他卡或联系发卡机构。"
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_presto
 msgid "Presto"
-msgstr ""
+msgstr "Presto"
 
 #. module: payment_mercado_pago
 #. odoo-python
 #: code:addons/payment_mercado_pago/models/payment_transaction.py:0
 msgid "Received data with invalid status: %s."
-msgstr ""
+msgstr "收到的数据包含无效状态：%s。"
 
 #. module: payment_mercado_pago
 #. odoo-python
@@ -357,17 +358,17 @@ msgstr "收到的数据中缺少状态。"
 #. odoo-python
 #: code:addons/payment_mercado_pago/models/payment_provider.py:0
 msgid "Set the account country before connecting the account."
-msgstr ""
+msgstr "连接账户之前，请先设置账户国家/地区。"
 
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_shopping
 msgid "Shopping"
-msgstr ""
+msgstr "购物"
 
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_tarjeta_mercadopago
 msgid "Tarjeta MercadoPago"
-msgstr ""
+msgstr "Tarjeta MercadoPago"
 
 #. module: payment_mercado_pago
 #: model:ir.model.fields,help:payment_mercado_pago.field_payment_provider__mercado_pago_account_country_id
@@ -375,6 +376,8 @@ msgid ""
 "The country of the Mercado Pago account. The currency will be updated to "
 "match the country of the Mercado Pago account."
 msgstr ""
+"Mercado Pago 账户所在的国家/地区。币种将自动更新为与 Mercado Pago 账户国家/地"
+"区一致。"
 
 #. module: payment_mercado_pago
 #: model:ir.model.fields,help:payment_mercado_pago.field_payment_provider__code
@@ -390,7 +393,7 @@ msgstr "此付款方式不处理分期付款。"
 #. module: payment_mercado_pago
 #: model:payment.method,name:payment_mercado_pago.payment_method_visa
 msgid "VISA"
-msgstr ""
+msgstr "VISA"
 
 #. module: payment_mercado_pago
 #. odoo-python
@@ -474,3 +477,8 @@ msgid ""
 "Your payment has been credited. In your summary you will see the charge as a "
 "statement descriptor."
 msgstr "您的付款已到账。在您的摘要中，您将看到该费用作为结单描述。"
+
+#~ msgid ""
+#~ "Mercado Pago credentials are missing. Click the \"Connect\" button to set "
+#~ "up your account."
+#~ msgstr "缺少 Mercado Pago 凭据。点击“连接”按钮来设置你的账户。"

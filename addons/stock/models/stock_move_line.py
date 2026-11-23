@@ -10,6 +10,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.tools import OrderedSet, format_date, groupby
 from odoo.tools.float_utils import float_compare, float_is_zero, float_round
+from odoo.tools.misc import clean_context
 
 
 class StockMoveLine(models.Model):
@@ -358,6 +359,9 @@ class StockMoveLine(models.Model):
                 vals.update(self._copy_quant_info(vals))
 
         mls = super().create(vals_list)
+        # A new line can break the entirety of a package it shares with lines already in the transfer.
+        if mls_not_entire_pack := (mls | mls.picking_id.move_line_ids)._get_lines_not_entire_pack():
+            mls_not_entire_pack.is_entire_pack = False
 
         created_moves = set()
 
@@ -563,8 +567,12 @@ class StockMoveLine(models.Model):
             if not float_is_zero(ml.quantity_product_uom, precision_digits=precision) and ml.move_id and not ml.move_id._should_bypass_reservation(ml.location_id):
                 self.env['stock.quant']._update_reserved_quantity(ml.product_id, ml.location_id, -ml.quantity_product_uom, lot_id=ml.lot_id, package_id=ml.package_id, owner_id=ml.owner_id, strict=True)
         moves = self.mapped('move_id')
+        pickings = self.picking_id
         packages = self.env['stock.package'].browse(self.result_package_id._get_all_package_dest_ids())
         res = super().unlink()
+        # Removing a line can break the entirety of a package it shares with the remaining lines.
+        if mls_not_entire_pack := pickings.move_line_ids._get_lines_not_entire_pack():
+            mls_not_entire_pack.is_entire_pack = False
         if moves:
             # Add with_prefetch() to set the _prefecht_ids = _ids
             # because _prefecht_ids generator look lazily on the cache of move_id
@@ -674,9 +682,18 @@ class StockMoveLine(models.Model):
 
         # Now, we can actually move the quant.
         ml_ids_to_ignore = OrderedSet()
+
+        # The loop below gathers in strict mode, matching the lot, package and
+        # owner of each move line exactly: only those quants can ever be read
+        # from the cache, so restrict it to them.
+        packages = mls_todo.package_id | mls_todo.result_package_id
         quants_cache = self.env['stock.quant']._get_quants_by_products_locations(
             mls_todo.product_id, mls_todo.location_id | mls_todo.location_dest_id,
-            extra_domain=['|', ('lot_id', 'in', mls_todo.lot_id.ids), ('lot_id', '=', False)])
+            extra_domain=[
+                '|', ('lot_id', 'in', mls_todo.lot_id.ids), ('lot_id', '=', False),
+                '|', ('package_id', 'in', packages.ids), ('package_id', '=', False),
+                '|', ('owner_id', 'in', mls_todo.owner_id.ids), ('owner_id', '=', False),
+            ])
 
         # Prepare package history records before any actual move
         if not self.env.context.get('ignore_dest_packages'):
@@ -714,23 +731,30 @@ class StockMoveLine(models.Model):
 
     def action_send_recall_email(self):
         move_lines = self.filtered('picking_partner_id')
-        if not move_lines:
-            return {}
-        template = self.env.ref('stock.mail_template_data_stock_move_line_recall', raise_if_not_found=False)
-        return {
-            'name': _('Send Email'),
-            'type': 'ir.actions.act_window',
-            'res_model': 'mail.compose.message',
-            'view_mode': 'form',
-            'target': 'new',
-            'context': {
-                'default_composition_mode': 'mass_mail',
-                'default_model': 'stock.move.line',
-                'default_res_ids': move_lines.ids,
-                'default_template_id': template.id if template else False,
-                'default_use_template': bool(template),
-            },
-        }
+        if move_lines:
+            template = self.env.ref('stock.mail_template_data_stock_picking_recall', raise_if_not_found=False)
+            recalled_lots_dict = {}
+            recalled_products_dict = {}
+            for picking, ml in move_lines.grouped('picking_id').items():
+                recalled_lots_dict[picking.id] = ', '.join(ml.mapped('lot_id.name'))
+                recalled_products_dict[picking.id] = ', '.join(ml.mapped('product_id.display_name'))
+            return {
+                'name': _('Send Email'),
+                'type': 'ir.actions.act_window',
+                'res_model': 'mail.compose.message',
+                'view_mode': 'form',
+                'target': 'new',
+                'context': {
+                    'default_composition_mode': 'mass_mail',
+                    'default_partner_ids': move_lines.picking_partner_id.ids,
+                    'default_model': 'stock.picking',
+                    'default_res_ids': move_lines.picking_id.ids,
+                    'default_template_id': template.id if template else False,
+                    'default_use_template': bool(template),
+                    'recalled_lots_dict': recalled_lots_dict,
+                    'recalled_products_dict': recalled_products_dict,
+                }
+            }
 
     def _synchronize_quant(self, quantity, location, action="available", in_date=False, **quants_value):
         """ quantity should be express in product's UoM"""
@@ -819,6 +843,14 @@ class StockMoveLine(models.Model):
             subtype_xmlid='mail.mt_note',
         )
 
+    def _get_outdated_candidate_sort_key(self, candidate):
+        """ Prioritise the current picking first, followed by pickings with the latest scheduled date"""
+        return (
+            candidate.picking_id != self.move_id.picking_id,
+            -(candidate.picking_id.scheduled_date or candidate.move_id.date).timestamp()
+            if candidate.picking_id or candidate.move_id else 0,
+            -candidate.id)
+
     def _free_reservation(self, product_id, location_id, quantity, lot_id=None, package_id=None, owner_id=None, ml_ids_to_ignore=None):
         """ When editing a done move line or validating one with some forced quantities, it is
         possible to impact quants that were not reserved. It is therefore necessary to edit or
@@ -848,15 +880,7 @@ class StockMoveLine(models.Model):
             ('id', 'not in', tuple(ml_ids_to_ignore)),
         ]
 
-        # We take the current picking first, then the pickings with the latest scheduled date
-        def current_picking_first(cand):
-            return (
-                cand.picking_id != self.move_id.picking_id,
-                -(cand.picking_id.scheduled_date or cand.move_id.date).timestamp()
-                if cand.picking_id or cand.move_id else 0,
-                -cand.id)
-
-        outdated_candidates = self.env['stock.move.line'].search(outdated_move_lines_domain).sorted(current_picking_first)
+        outdated_candidates = self.env['stock.move.line'].search(outdated_move_lines_domain).sorted(self._get_outdated_candidate_sort_key)
 
         # As the move's state is not computed over the move lines, we'll have to manually
         # recompute the moves which we adapted their lines.
@@ -952,7 +976,7 @@ class StockMoveLine(models.Model):
                     previous_move_lines = move_line.move_id.move_line_ids.filtered(
                         lambda ml: line_key.startswith(self._get_aggregated_properties(move=ml.move_id)['line_key']) and ml.id != move_line.id
                     )
-                    qty_ordered -= sum(m.uom_id._compute_quantity(m.quantity, uom) for m in previous_move_lines)
+                    qty_ordered = uom.round(qty_ordered - sum(m.uom_id._compute_quantity(m.quantity, uom) for m in previous_move_lines))
                     packaging_qty_ordered = uom._compute_quantity(qty_ordered, move_line.move_id.packaging_uom_id)
                 aggregated_move_lines[line_key] = {
                     **aggregated_properties,
@@ -963,10 +987,10 @@ class StockMoveLine(models.Model):
                     'product': move_line.product_id,
                 }
             else:
-                aggregated_move_lines[line_key]['qty_ordered'] += quantity
-                aggregated_move_lines[line_key]['packaging_qty_ordered'] += packaging_quantity
-                aggregated_move_lines[line_key]['quantity'] += quantity
-                aggregated_move_lines[line_key]['packaging_quantity'] += packaging_quantity
+                aggregated_move_lines[line_key]['qty_ordered'] = uom.round(aggregated_move_lines[line_key]['qty_ordered'] + quantity)
+                aggregated_move_lines[line_key]['packaging_qty_ordered'] = move_line.move_id.packaging_uom_id.round(aggregated_move_lines[line_key]['packaging_qty_ordered'] + packaging_quantity)
+                aggregated_move_lines[line_key]['quantity'] = uom.round(aggregated_move_lines[line_key]['quantity'] + quantity)
+                aggregated_move_lines[line_key]['packaging_quantity'] = move_line.move_id.packaging_uom_id.round(aggregated_move_lines[line_key]['packaging_quantity'] + packaging_quantity)
 
         # Does the same for empty move line to retrieve the ordered qty. for partially done moves
         # (as they are splitted when the transfer is done and empty moves don't have move lines).
@@ -983,7 +1007,7 @@ class StockMoveLine(models.Model):
                 else:
                     to_bypass = True
             aggregated_properties = self._get_aggregated_properties(move=empty_move)
-            line_key = aggregated_properties['line_key']
+            line_key, uom = aggregated_properties['line_key'], aggregated_properties['uom_id']
 
             if not any(aggregated_key.startswith(line_key) for aggregated_key in aggregated_move_lines) and not to_bypass:
                 qty_ordered = empty_move.product_uom_qty
@@ -996,11 +1020,11 @@ class StockMoveLine(models.Model):
                     'product': empty_move.product_id,
                 }
             elif line_key in aggregated_move_lines:
-                aggregated_move_lines[line_key]['qty_ordered'] += empty_move.product_uom_qty
+                aggregated_move_lines[line_key]['qty_ordered'] = uom.round(aggregated_move_lines[line_key]['qty_ordered'] + empty_move.product_uom_qty)
             else:
                 keys = list(filter(lambda key: key.startswith(line_key), aggregated_move_lines))
                 if keys:
-                    aggregated_move_lines[keys[0]]['qty_ordered'] += empty_move.product_uom_qty
+                    aggregated_move_lines[keys[0]]['qty_ordered'] = uom.round(aggregated_move_lines[keys[0]]['qty_ordered'] + empty_move.product_uom_qty)
 
         return aggregated_move_lines
 
@@ -1143,10 +1167,13 @@ class StockMoveLine(models.Model):
         return package
 
     def action_put_in_pack(self, *, package_id=False, package_type_id=False, package_name=False, package_capacity=None):
+        if self.env.context.get('sml_specific_default'):
+            self = self.with_context(clean_context(self.env.context))  # noqa: PLW0642
         move_lines = self
         if package_capacity and package_capacity != self.quantity:
             # Split the move line if `package_capacity` is not equal to its quantity.
-            return move_lines._split_in_chunk(package_capacity, package_type_id, package_id=package_id)
+            splitted_lines = move_lines._split_in_chunk(package_capacity, package_type_id, package_id=package_id)
+            return splitted_lines._post_put_in_pack_hook(splitted_lines.result_package_id)
 
         if self.env.context.get('all_move_line_ids'):
             move_lines = self.env['stock.move.line'].browse(self.env.context['all_move_line_ids'])
@@ -1290,7 +1317,7 @@ class StockMoveLine(models.Model):
         return define_package_type and not from_package_wizard and (not package_id and not package_type_id and not package_name)
 
     def _should_set_package(self):
-        package_type = self.picking_id.picking_type_id
+        package_type = self.picking_type_id
         return len(package_type) == 1 and package_type.set_package_type
 
     def _split(self, quantity_to_split, package_id):
@@ -1523,9 +1550,15 @@ class StockMoveLine(models.Model):
                 else:
                     domains.append(Domain('state', '=', 'draft'))
                 if picking_type.batch_group_by_partner:
-                    domains.append(Domain('picking_ids.partner_id', 'in', lines.move_id.partner_id.ids))
+                    partner_ids = lines.move_partner_id.ids
+                    if any(not line.move_partner_id for line in lines):
+                        partner_ids += [False]
+                    domains.append(Domain('picking_ids.partner_id', 'in', partner_ids))
                 if picking_type.batch_group_by_destination:
-                    domains.append(Domain('picking_ids.partner_id.country_id', 'in', lines.move_id.partner_id.country_id.ids))
+                    country_ids = lines.move_partner_id.country_id.ids
+                    if any(not line.move_partner_id.country_id for line in lines):
+                        country_ids += [False]
+                    domains.append(Domain('picking_ids.partner_country_id', 'in', country_ids))
                 if picking_type.batch_group_by_src_loc:
                     domains.append(Domain('picking_ids.location_id', 'in', lines.location_id.ids))
                 if picking_type.batch_group_by_dest_loc:
@@ -1616,18 +1649,6 @@ class StockMoveLine(models.Model):
                 ('batch_id', '=', False),
                 ('batch_id.is_wave', '=', False),
             ])]
-            if picking_type.batch_group_by_partner:
-                domains.append(Domain('move_id.partner_id', 'in', lines.move_id.partner_id.ids))
-            if picking_type.batch_group_by_destination:
-                domains.append(Domain('move_id.partner_id.country_id', 'in', lines.move_id.partner_id.country_id.ids))
-            if picking_type.batch_group_by_src_loc:
-                domains.append(Domain('location_id', 'in', lines.location_id.ids))
-            if picking_type.batch_group_by_dest_loc:
-                domains.append(Domain('location_dest_id', 'in', lines.location_dest_id.ids))
-            if picking_type.wave_group_by_product:
-                domains.append(Domain('product_id', 'in', lines.product_id.ids))
-            if picking_type.wave_group_by_category:
-                domains.append(Domain('product_id.categ_id', 'in', lines.product_id.categ_id.ids))
             if picking_type.wave_group_by_location:
                 domains.append(Domain('location_id', 'child_of', picking_type.wave_location_ids.ids))
             domains = lines._get_potential_new_waves_extra_domain(domains, picking_type)

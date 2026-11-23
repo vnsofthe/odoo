@@ -1,11 +1,12 @@
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { useService } from "@web/core/utils/hooks";
+import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
 import { parseFloat } from "@web/views/fields/parsers";
 
 import { NumberPopup } from "@point_of_sale/app/components/popups/number_popup/number_popup";
 import { PriceFormatter } from "@point_of_sale/app/components/price_formatter/price_formatter";
 import { AlertDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
+import { ForcePaymentDialog } from "@point_of_sale/app/screens/payment_screen/force_payment_dialog/force_payment_dialog";
 
 import { Component, onMounted, useProps, t, usePlugin } from "@odoo/owl";
 import { Numpad, enhancedButtons } from "@point_of_sale/app/components/numpad/numpad";
@@ -31,6 +32,7 @@ export class PaymentScreen extends Component {
         this.pos = usePos();
         this.ui = useService("ui");
         this.dialog = useService("dialog");
+        this.addOwnedDialog = useOwnedDialogs();
         this.invoiceService = useService("account_move");
         this.notification = useService("notification");
         this.payment_methods_from_config = this.configPaymentMethods || [];
@@ -43,9 +45,7 @@ export class PaymentScreen extends Component {
     }
 
     get isForcedToInvoice() {
-        // When using customer account, is now mandatory to create an invoice.
-        const payments = this.currentOrder.payment_ids;
-        return payments.some((p) => p.payment_method_id.type === "pay_later");
+        return false;
     }
 
     get configPaymentMethods() {
@@ -63,12 +63,18 @@ export class PaymentScreen extends Component {
         }
 
         //Activate the invoice option for refund orders if the original order was invoiced.
-        if (
-            this.currentOrder.isRefund &&
-            this.currentOrder.lines[0].refunded_orderline_id?.order_id?.isToInvoice()
-        ) {
-            this.currentOrder.setToInvoice(true);
+        const currentOrder = this.currentOrder;
+        if (currentOrder.isRefund) {
+            this.pos.ensureRefundedOrderLoaded(currentOrder).then(() => {
+                if (this.shouldInvoiceRefund(currentOrder)) {
+                    currentOrder.setToInvoice(true);
+                }
+            });
         }
+    }
+
+    shouldInvoiceRefund(order) {
+        return Boolean(order.refunded_order_id?.isToInvoice());
     }
 
     getNumpadButtons() {
@@ -106,6 +112,49 @@ export class PaymentScreen extends Component {
         );
     }
 
+    get displayedPaymentMethods() {
+        const groups = this.pos.paymentMethods.defaultGroups;
+        const displayed = [];
+        const seenProviders = new Set();
+        for (const pm of this.payment_methods_from_config) {
+            if (!this.showPaymentMethod(pm)) {
+                continue;
+            }
+            if (!groups[pm.payment_provider]?.includes(pm)) {
+                displayed.push(pm);
+                continue;
+            }
+            const provider = pm.payment_provider;
+            if (seenProviders.has(provider)) {
+                continue;
+            }
+            seenProviders.add(provider);
+            displayed.push(
+                this.pos.paymentMethods.getDefault(provider) || this.getProviderButton(pm)
+            );
+        }
+        return displayed;
+    }
+
+    getProviderButton(paymentMethod) {
+        const provider = paymentMethod.payment_provider;
+        return {
+            id: `provider_${provider}`,
+            isProvider: true,
+            provider,
+            name: paymentMethod._payment_provider_name,
+            paymentMethod,
+        };
+    }
+
+    async onClickProvider(provider) {
+        const confirmed = await this.pos.paymentMethods.selectDefaults([provider]);
+        const paymentMethod = confirmed && this.pos.paymentMethods.getDefault(provider);
+        if (paymentMethod) {
+            await this.addNewPaymentLine(paymentMethod);
+        }
+    }
+
     get _getNumberBufferConfig() {
         const config = {
             // When the buffer is updated, trigger this event.
@@ -138,7 +187,9 @@ export class PaymentScreen extends Component {
         setTimeout(() => (this.pos.addAnimation = false), 1000);
     }
     async addNewPaymentLine(paymentMethod, args = {}) {
-        const { status: canSend, message } = paymentMethod.getPaymentInterfaceStates();
+        const { status: canSend, message } = paymentMethod.getPaymentInterfaceStates({
+            order: this.currentOrder,
+        });
         if (!canSend) {
             this.dialog.add(AlertDialog, { title: _t("Oh snap !"), body: message });
             return;
@@ -175,8 +226,11 @@ export class PaymentScreen extends Component {
         }
     }
     updateSelectedPaymentline(amount = false) {
-        if (this.paymentLines.every((line) => line.paid)) {
-            this.currentOrder.addPaymentline(this.payment_methods_from_config[0]);
+        if (!this.paymentLines.length) {
+            const pm = this.payment_methods_from_config[0];
+            this.currentOrder.addPaymentline(
+                this.pos.paymentMethods.getDefault(pm.payment_provider) || pm
+            );
         }
         if (!this.selectedPaymentLine) {
             return;
@@ -239,7 +293,7 @@ export class PaymentScreen extends Component {
                 this.onNewTip({ newValue, type, currentTipAmount: tip.amount, change }),
             formatDisplayedValue: (value, type) => {
                 if (type === "fixed") {
-                    return this.pos.formatCurrency(parseFloat(value));
+                    return this.pos.formatCurrency(this.pos.parseCurrency(value));
                 }
                 if (type === "percent") {
                     return `${value} %`;
@@ -276,7 +330,10 @@ export class PaymentScreen extends Component {
         pLine.setAmount(pLine.getAmount() + tipToAdd);
     }
     computeNewTip({ value, type, currentTipAmount = 0 }) {
-        const valueParsed = typeof value === "string" ? parseFloat(value) : value;
+        let valueParsed = value;
+        if (typeof value === "string") {
+            valueParsed = type === "fixed" ? this.pos.parseCurrency(value) : parseFloat(value);
+        }
         if (isNaN(valueParsed)) {
             return 0;
         }
@@ -304,7 +361,13 @@ export class PaymentScreen extends Component {
         const status = line.getPaymentStatus();
         const cancelableStatuses = ["waiting", "waitingCard", "waitingScan", "timeout"];
         if (cancelableStatuses.includes(status)) {
-            line.cancelPayment(this.currentOrder).then((success) => success && finalizeDeletion());
+            line.cancelPayment(this.currentOrder).then((success) => {
+                if (success) {
+                    finalizeDeletion();
+                } else {
+                    line.setPaymentStatus(status);
+                }
+            });
         } else if (status !== "waitingCancel") {
             finalizeDeletion();
         }
@@ -334,6 +397,7 @@ export class PaymentScreen extends Component {
     async sendPaymentRequest(line) {
         const paymentMethod = line.payment_method_id;
         const { status: canSend, message } = paymentMethod.getPaymentInterfaceStates({
+            order: line.pos_order_id,
             paymentline: line,
         });
 
@@ -362,13 +426,35 @@ export class PaymentScreen extends Component {
         await line.cancelPayment(this.currentOrder);
     }
 
-    async sendForceDone(line) {
-        line.forceDone();
-        await this.pos.autoValidateOrder();
+    confirmForceAction(line, body, action) {
+        this.addOwnedDialog(ForcePaymentDialog, {
+            title: _t("Warning"),
+            body,
+            line,
+            confirmLabel: _t("Discard"),
+            cancelLabel: _t("Validate"),
+            cancel: action,
+            dismiss: () => {},
+        });
     }
 
-    async sendForceCancel(line) {
-        line.forceCancel();
+    sendForceDone(line) {
+        this.confirmForceAction(
+            line,
+            _t("Are you sure you want to force the ongoing payment?"),
+            async () => {
+                line.forceDone();
+                await this.pos.autoValidateOrder();
+            }
+        );
+    }
+
+    sendForceCancel(line) {
+        this.confirmForceAction(
+            line,
+            _t("Are you sure you want to cancel the ongoing payment?"),
+            () => line.forceCancel()
+        );
     }
 
     async clickTableGuests() {
@@ -387,6 +473,10 @@ export class PaymentScreen extends Component {
             (this.pos.config.iface_tipproduct && this.pos.config.tip_product_id) ||
             this.pos.canOpenCashdrawer
         );
+    }
+
+    get orderTotalDue() {
+        return this.currentOrder.paymentAmountInCurrency;
     }
 }
 

@@ -15,8 +15,12 @@ export function searchHighlight(searchTerm, target) {
     if (!searchTerm) {
         return target;
     }
+    const validTerms = searchTerm.split(" ").filter(Boolean);
+    if (!validTerms.length) {
+        return target;
+    }
     const htmlDoc = createDocumentFragmentFromContent(target);
-    for (const term of searchTerm.split(" ").filter(Boolean)) {
+    for (const term of validTerms) {
         const regexp = new RegExp(`(${escapeRegExp(term)})`, "gi");
         // Special handling for '
         // Note: browsers use XPath 1.0, so uses concat() rather than ||
@@ -64,7 +68,6 @@ export function searchHighlight(searchTerm, target) {
 }
 
 export class MessageSearchState extends SearchState {
-    count = 0;
     /** @type {string | undefined} */
     search_filter = undefined;
     hasMore = false;
@@ -87,7 +90,7 @@ export class MessageSearchState extends SearchState {
     }
 
     get isActive() {
-        return !!this.searchTerm || this.search_filter !== undefined;
+        return !!this.searchTerm?.trim() || this.search_filter !== undefined;
     }
 
     get deps() {
@@ -109,7 +112,6 @@ export class MessageSearchState extends SearchState {
             return; // Search was cleared or superseded during request.
         }
         this.searched = true;
-        this.count = data.count;
         this.hasMore = data.loadMore;
         if (before !== undefined) {
             this.messages.push(...data.messages);
@@ -133,8 +135,8 @@ export class MessageSearchState extends SearchState {
         this.search_filter = undefined;
         this.messages = [];
         this.searched = false;
-        this.count = 0;
         this.hasMore = false;
+        this.loadMoreBeforeMessageId = undefined;
     }
 
     /**

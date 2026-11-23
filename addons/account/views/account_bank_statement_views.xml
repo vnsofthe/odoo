@@ -79,7 +79,7 @@
                 occurring over a given period of time on a bank account. You
                 should receive this periodically from your bank.
               </p><p>
-                Odoo allows you to reconcile a statement line directly with
+                Odoo allows you to reconcile a transaction directly with
                 the related sale or purchase invoices.
               </p>
             </field>
@@ -100,7 +100,7 @@
                 occurring over a given period of time on a credit account. You
                 should receive this periodically from your bank.
               </p><p>
-                Odoo allows you to reconcile a statement line directly with
+                Odoo allows you to reconcile a transaction directly with
                 the related sale or purchase invoices.
               </p>
             </field>
@@ -178,7 +178,7 @@
                     <separator/>
                     <filter string="Date" name="date" date="date"/>
                     <filter string="Last 12 Months" name="last_12_months"
-                        domain="[('date', '&gt;=', (context_today() - relativedelta(months=12)).strftime('%Y-%m-%d'))]"/>
+                        domain="[('date', '&gt;=', 'today -12m')]"/>
                     <group>
                         <filter string="Currency" name="group_by_currency_id" context="{'group_by': 'currency_id'}"/>
                         <filter string="Company" name="group_by_company_id" context="{'group_by': 'company_id'}"/>

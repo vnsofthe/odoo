@@ -14,9 +14,9 @@ import {
     queryRect,
     runAllTimers,
 } from "@odoo/hoot-dom";
-import { Component, xml, proxy } from "@odoo/owl";
+import { Component, xml, proxy, signal } from "@odoo/owl";
 
-import { contains, mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { contains, destroyApp, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { AutoComplete } from "@web/core/autocomplete/autocomplete";
 
 /**
@@ -158,6 +158,40 @@ test("select option", async () => {
     await contains(".o-autocomplete--dropdown-item:last").click();
     expect(".o-autocomplete input").toHaveValue("Hello");
     expect.verifySteps(["Hello"]);
+});
+
+test("select option while a search is pending", async () => {
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static template = xml`<AutoComplete value="this.value()" sources="this.sources"/>`;
+
+        value = signal("");
+        sources = buildSources((search) => {
+            expect.step(`search: ${search}`);
+            return [
+                item("World", this.onSelect.bind(this)),
+                item("Hello", this.onSelect.bind(this)),
+            ];
+        });
+
+        onSelect(option) {
+            this.value.set(option.label);
+        }
+    }
+
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").click();
+    expect(".o-autocomplete .dropdown-menu").toHaveCount(1);
+    expect.verifySteps(["search: "]);
+
+    await contains(".o-autocomplete input").fill("W", { confirm: false });
+    await contains(queryFirst(".o-autocomplete--dropdown-item")).click();
+    expect(".o-autocomplete input").toHaveValue("World");
+    expect(".o-autocomplete .dropdown-menu").toHaveCount(0);
+
+    await runAllTimers();
+    expect(".o-autocomplete .dropdown-menu").toHaveCount(0);
+    expect.verifySteps([]);
 });
 
 test("autocomplete with resetOnSelect='true'", async () => {
@@ -1018,4 +1052,31 @@ test("dropdown minWidth should match input width", async () => {
     expect(".o-autocomplete--dropdown-menu").toHaveStyle({
         "min-width": queryRect(".o-autocomplete--input").width,
     });
+});
+
+test("skip handling input when destroyed while loading", async () => {
+    const optionsDoLoad = Promise.withResolvers();
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static template = xml`<AutoComplete value="''" sources="this.sources"/>`;
+
+        sources = buildSources(async () => {
+            await optionsDoLoad.promise;
+            return [item("World", this.onSelect.bind(this))];
+        });
+
+        onSelect(option) {
+            expect.step(option.label);
+        }
+    }
+
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").fill("W", { confirm: false });
+    await runAllTimers();
+    await press("Enter");
+
+    destroyApp();
+    optionsDoLoad.resolve();
+    await animationFrame();
+    expect.verifySteps([]);
 });

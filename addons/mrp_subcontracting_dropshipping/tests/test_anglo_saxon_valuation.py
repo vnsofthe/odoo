@@ -1,0 +1,359 @@
+# -*- coding: utf-8 -*-
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
+
+from odoo.addons.stock_account.tests.test_anglo_saxon_valuation_reconciliation_common import ValuationReconciliationTestCommon
+from odoo import fields
+from odoo.fields import Command
+from odoo.tests import tagged, Form
+
+
+@tagged('post_install', '-at_install')
+class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon):
+
+    _test_user_groups = None  # FIXME list needed groups
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
+        categ_form = Form(cls.env['product.category'])
+        categ_form.name = 'fifo auto'
+        categ_form.property_cost_method = 'fifo'
+        categ_form.property_valuation = 'real_time'
+        cls.categ_fifo_auto = categ_form.save()
+
+        categ_form = Form(cls.env['product.category'])
+        categ_form.name = 'avco auto'
+        categ_form.property_cost_method = 'average'
+        categ_form.property_valuation = 'real_time'
+        cls.categ_avco_auto = categ_form.save()
+
+        (cls.product_a | cls.product_b).is_storable = True
+
+        cls.dropship_route = cls.env.ref('stock_dropshipping.route_drop_shipping')
+
+        cls.bom_a = cls.env['mrp.bom'].create({
+            'product_tmpl_id': cls.product_a.product_tmpl_id.id,
+            'type': 'subcontract',
+            'subcontractor_ids': [(6, 0, cls.partner_a.ids)],
+            'bom_line_ids': [
+                (0, 0, {'product_id': cls.product_b.id, 'product_qty': 1.0}),
+            ],
+        })
+
+    def test_valuation_subcontracted_and_dropshipped(self):
+        """A product that is both subcontracted and dropshipped is produced by the
+        subcontractor and shipped straight to the customer. It is valued at the
+        subcontractor fee plus the component cost as it is produced, but since it
+        never enters the company's own stock the dropship move is unvalued and the
+        product keeps a zero on-hand value.
+        """
+        warehouse = self.env['stock.warehouse'].search([('company_id', '=', self.env.company.id)], limit=1)
+        warehouse.subcontracting_to_resupply = True
+        (self.product_a | self.product_b).categ_id = self.categ_fifo_auto
+        self.product_b.standard_price = 10
+        self.env['product.supplierinfo'].create({
+            'partner_id': self.partner_a.id,
+            'product_tmpl_id': self.product_a.product_tmpl_id.id,
+            'price': 100,
+        })
+        self.env['stock.quant'].with_context(inventory_mode=True).create({
+            'product_id': self.product_b.id,
+            'inventory_quantity': 5.0,
+            'location_id': warehouse.lot_stock_id.id,
+        }).action_apply_inventory()
+
+        dropship_picking_type = self.env['stock.picking.type'].search([
+            ('company_id', '=', self.env.company.id),
+            ('default_location_src_id.usage', '=', 'supplier'),
+            ('default_location_dest_id.usage', '=', 'customer'),
+        ], order='sequence', limit=1)
+        po = self.env['purchase.order'].create({
+            'partner_id': self.partner_a.id,
+            'picking_type_id': dropship_picking_type.id,
+            'dest_address_id': self.partner_b.id,
+            'order_line': [Command.create({
+                'product_id': self.product_a.id, 'product_qty': 2.0, 'price_unit': 100, 'tax_ids': False,
+            })],
+        })
+        po.button_confirm()
+
+        # resupply the subcontractor with the component, then ship to the customer
+        production = po.reference_ids.production_ids
+        production.picking_ids.button_validate()
+        dropship = po.picking_ids
+        dropship.button_validate()
+
+        # the finished move is valued at subcontractor fee + component (2 * (100 + 10))
+        self.assertRecordValues(production.move_finished_ids, [
+            {'value': 220.0, 'is_in': True, 'is_valued': True},
+        ])
+        # the component is consumed from own stock
+        self.assertRecordValues(production.move_raw_ids, [
+            {'value': -20.0, 'is_out': True, 'is_valued': True},
+        ])
+        # the goods ship straight to the customer: the dropship move is unvalued
+        self.assertRecordValues(dropship.move_ids, [
+            {'value': 0.0, 'is_dropship': True, 'is_valued': False},
+        ])
+        # nothing enters own stock, so no on-hand value; the unit cost still reflects
+        # the subcontracted cost
+        self.assertRecordValues(self.product_a, [
+            {'total_value': 0.0, 'qty_available': 0.0, 'standard_price': 110.0},
+        ])
+        self.assertFalse(dropship.move_ids.account_move_id)
+
+    def test_account_line_entry_kit_bom_dropship(self):
+        """ An order delivered via dropship for some kit bom product variant should result in
+        accurate journal entries in the expense and stock output accounts if the cost on the
+        purchase order line has been manually edited.
+        """
+        kit_final_prod = self.product_a
+        product_c = self.env['product.product'].create({
+            'name': 'product_c',
+            'uom_id': self.env.ref('uom.product_uom_dozen').id,
+            'lst_price': 120.0,
+            'standard_price': 100.0,
+            'property_account_income_id': self.copy_account(self.company_data['default_account_revenue']).id,
+            'property_account_expense_id': self.copy_account(self.company_data['default_account_expense']).id,
+            'taxes_id': [Command.set((self.tax_sale_a + self.tax_sale_b).ids)],
+            'supplier_taxes_id': [Command.set((self.tax_purchase_a + self.tax_purchase_b).ids)],
+            'is_storable': True
+        })
+        kit_bom = self.env['mrp.bom'].create({
+            'product_tmpl_id': kit_final_prod.product_tmpl_id.id,
+            'uom_id': kit_final_prod.uom_id.id,
+            'product_qty': 1.0,
+            'type': 'phantom',
+        })
+        # bom line of product_c is expressed in unit to check the uom conversion (24 unit should give the same result as 2 dozens)
+        kit_bom.bom_line_ids = [
+            Command.create({
+                'product_id': self.product_b.id,
+                'product_qty': 4,
+            }),
+            Command.create({
+                'product_id': product_c.id,
+                'product_qty': 24,
+                'uom_id': self.env.ref('uom.product_uom_unit').id
+            }),
+        ]
+
+        self.env['product.supplierinfo'].create({
+            'product_id': self.product_b.id,
+            'partner_id': self.partner_a.id,
+            'price': 160,
+        })
+        self.env['product.supplierinfo'].create({
+            'product_id': product_c.id,
+            'partner_id': self.partner_a.id,
+            'price': 100,
+        })
+        self.product_b.standard_price = 10
+        (kit_final_prod + self.product_b).categ_id.write({
+            'property_cost_method': 'fifo',
+            'property_valuation': 'real_time',
+        })
+
+        sale_order = self.env['sale.order'].sudo().create({
+            'partner_id': self.partner_b.id,
+            'order_line': [Command.create({
+                'price_unit': 900,
+                'product_id': kit_final_prod.id,
+                'route_ids': [Command.link(self.dropship_route.id)],
+                'product_uom_qty': 2.0,
+            })],
+        })
+        sale_order.action_confirm()
+        purchase_order = sale_order._get_purchase_orders()[0]
+        purchase_order.button_confirm()
+        dropship_transfer = purchase_order.picking_ids[0]
+        dropship_transfer.button_validate()
+
+        purchase_order.action_create_invoice()
+        bill = purchase_order.invoice_ids
+        bill.invoice_date = fields.Date.today()
+        bill.action_post()
+        invoice = sale_order._create_invoices()
+        invoice.action_post()
+
+        # Each product_a should cost:
+        # 4x product_b = 160 * 4 = 640 +
+        # 2x product_c = 100 * 2 = 200
+        #                        = 840
+
+        # Since the kit is dropshipped, the expense should be recorded in the PO directly, as it never enter the stock.
+        self.assertRecordValues(bill.line_ids.sorted('balance'), [
+            {'label': False,          'account_name': 'Accounts Payable',   'debit': 0.0,      'credit': 2184.0},
+            {'label': '15%',          'account_name': 'Tax Paid',           'debit': 252.0,    'credit': 0.0},
+            {'label': '15% (copy)',   'account_name': 'Tax Paid',           'debit': 252.0,    'credit': 0.0},
+            {'label': 'product_c',    'account_name': 'Expenses',           'debit': 400.0,    'credit': 0.0},
+            {'label': 'product_b',    'account_name': 'Expenses',           'debit': 1280.0,   'credit': 0.0},
+        ])
+
+        self.assertRecordValues(invoice.line_ids.sorted('balance'), [
+            {'label': 'product_a',                                            'account_name': 'Product Sales',                'debit': 0.0,      'credit': 1800.0},
+            {'label': '15% (copy)',                                           'account_name': 'Tax Received',                 'debit': 0.0,      'credit': 270.0},
+            {'label': f'{sale_order.name} - {invoice.name} installment #1',   'account_name': 'Accounts Receivable (copy)',   'debit': 621.0,    'credit': 0.0},
+            {'label': f'{sale_order.name} - {invoice.name} installment #2',   'account_name': 'Accounts Receivable (copy)',   'debit': 1449.0,   'credit': 0.0},
+        ])
+
+    def test_mto_kit_component_keeps_cost_on_vendor_bill(self):
+        """
+        Sell a kit whose AVCO component is replenished on order from a vendor. The
+        component enters stock at its purchase price on receipt, and a partial vendor
+        bill revalues only the billed units at the bill price.
+        """
+        warehouse = self.env['stock.warehouse'].search([('company_id', '=', self.env.company.id)], limit=1)
+        warehouse.mto_pull_id.route_id.active = True
+        warehouse.mto_pull_id.procure_method = 'mts_else_mto'
+        routes = warehouse.mto_pull_id.route_id | warehouse.buy_pull_id.route_id
+        routes.product_selectable = True
+        component, kit = self.env['product.product'].create([{
+            'name': 'avco component',
+            'is_storable': True,
+            'categ_id': self.categ_avco_auto.id,
+            'route_ids': [Command.set(routes.ids)],
+            'seller_ids': [Command.create({'partner_id': self.partner_a.id, 'price': 60})],
+        }, {
+            'name': 'kit',
+        }])
+        self.env['mrp.bom'].create({
+            'product_tmpl_id': kit.product_tmpl_id.id,
+            'type': 'phantom',
+            'bom_line_ids': [Command.create({'product_id': component.id, 'product_qty': 4})],
+        })
+
+        sale_order = self.env['sale.order'].sudo().create({
+            'partner_id': self.partner_b.id,
+            'order_line': [Command.create({'product_id': kit.id, 'product_uom_qty': 1.0})],
+        })
+        sale_order.action_confirm()
+
+        purchase_order = sale_order._get_purchase_orders()
+        purchase_order.button_confirm()
+        purchase_order.picking_ids.button_validate()
+        self.assertEqual(component.standard_price, 60)
+
+        # Bill 2 of the 4 received units at 90: only those 2 units are revalued, so the
+        # component's cost blends to (2*90 + 2*60) / 4 = 75.
+        purchase_order.action_create_invoice()
+        bill = purchase_order.invoice_ids
+        with Form(bill) as bill_form:
+            bill_form.invoice_date = fields.Date.today()
+            with bill_form.invoice_line_ids.edit(0) as line:
+                line.quantity = 2
+                line.price_unit = 90
+        bill.action_post()
+        self.assertEqual(component.standard_price, 75)
+
+    def test_dropship_kit_bom_component_value(self):
+        """ Check that selling a kit through dropshipping leaves the unit cost of its
+        components untouched, as the goods never enter the company's own stock.
+        """
+        kit_final_prod = self.product_a
+        avco_products = avco_product, avco_product_2 = self.env['product.product'].create([{
+            'name': f'avco product{i}',
+            'is_storable': True,
+            'categ_id': self.categ_avco_auto.id,
+        } for i in range(2)])
+        kit_bom = self.env['mrp.bom'].create({
+            'product_tmpl_id': kit_final_prod.product_tmpl_id.id,
+            'uom_id': kit_final_prod.uom_id.id,
+            'product_qty': 1.0,
+            'type': 'phantom',
+        })
+        kit_bom.bom_line_ids = [
+            Command.create({
+                'product_id': product.id,
+                'product_qty': 2,
+            }) for product in avco_products
+        ]
+        self.env['product.supplierinfo'].create([{
+            'product_id': product.id,
+            'partner_id': self.partner_a.id,
+            'price': 100,
+        } for product in avco_products])
+
+        sale_order = self.env['sale.order'].sudo().create({
+            'partner_id': self.partner_b.id,
+            'order_line': [Command.create({
+                'price_unit': 900,
+                'product_id': kit_final_prod.id,
+                'route_ids': [Command.link(self.dropship_route.id)],
+                'product_uom_qty': 2.0,
+            })],
+        })
+        sale_order.action_confirm()
+        purchase_order = sale_order._get_purchase_orders()[0]
+        purchase_order.button_confirm()
+        dropship_transfer = purchase_order.picking_ids[0]
+        dropship_transfer.button_validate()
+
+        self.assertEqual(avco_product.standard_price, 0)
+        self.assertEqual(avco_product_2.standard_price, 0)
+        for move in dropship_transfer.move_ids:
+            self.assertEqual(move._get_value(), 400)
+
+    def test_resupply_dropship_bill_accounts(self):
+        """
+        A component dropshipped by its vendor to the subcontractor lands in the valued
+        subcontracting location: its bill must hit the stock valuation account, unless
+        the component is not storable.
+        """
+        self.product_b.write({
+            'route_ids': [Command.link(self.dropship_route.id)],
+            'categ_id': self.categ_avco_auto.id,
+            'seller_ids': [Command.create({'partner_id': self.partner_b.id})],
+        })
+        accounts = self.product_b.product_tmpl_id.get_product_accounts()
+        for is_storable, account in [(True, accounts['stock_valuation']), (False, accounts['expense'])]:
+            self.product_b.is_storable = is_storable
+            self.env['purchase.order'].create({
+                'partner_id': self.partner_a.id,
+                'order_line': [Command.create({'product_id': self.product_a.id})],
+            }).button_confirm()
+            resupply_po = self.env['purchase.order'].search([
+                ('product_id', '=', self.product_b.id),
+                ('state', '=', 'draft'),
+            ])
+            resupply_po.button_confirm()
+            resupply_po.picking_ids.button_validate()
+            resupply_po.action_create_invoice()
+            self.assertEqual(resupply_po.invoice_ids.invoice_line_ids.account_id, account)
+
+    def test_resupply_dropship_bill_account_subcontracted_product_dropshipped(self):
+        """
+        A component dropshipped by its vendor to the subcontractor, for a subcontracted product
+        that is itself dropshipped from the subcontractor to a customer: the finished product
+        never enters the stock, so, as for any dropship, the component bill is expensed.
+        Capitalizing it would leave the component value in stock valuation with no stock.
+        """
+        self.product_b.write({
+            'route_ids': [Command.link(self.dropship_route.id)],
+            'categ_id': self.categ_avco_auto.id,
+            'seller_ids': [Command.create({'partner_id': self.partner_b.id})],
+        })
+        self.product_a.categ_id = self.categ_avco_auto
+        dropship_picking_type = self.env['stock.picking.type'].search([
+            ('company_id', '=', self.env.company.id),
+            ('default_location_src_id.usage', '=', 'supplier'),
+            ('default_location_dest_id.usage', '=', 'customer'),
+        ], limit=1, order='sequence')
+        self.env['purchase.order'].create({
+            'partner_id': self.partner_a.id,
+            'picking_type_id': dropship_picking_type.id,
+            'dest_address_id': self.env['res.partner'].create({'name': 'Customer'}).id,
+            'order_line': [Command.create({'product_id': self.product_a.id})],
+        }).button_confirm()
+        resupply_po = self.env['purchase.order'].search([
+            ('product_id', '=', self.product_b.id),
+            ('state', '=', 'draft'),
+        ])
+        resupply_po.button_confirm()
+        resupply_po.picking_ids.button_validate()
+        resupply_po.action_create_invoice()
+        self.assertEqual(
+            resupply_po.invoice_ids.invoice_line_ids.account_id,
+            self.product_b.product_tmpl_id.get_product_accounts()['expense'],
+        )

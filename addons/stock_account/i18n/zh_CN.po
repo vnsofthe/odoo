@@ -10,15 +10,16 @@
 # "Tiffany Chang (tic)" <tic@odoo.com>, 2025.
 # "Chloe Wang (chwa)" <chwa@odoo.com>, 2025, 2026.
 # Weblate <noreply-mt-weblate@weblate.org>, 2025.
+# 张飞虎 <feihu.zhang@live.com>, 2026.
 msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 16.0+e\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-11 17:42+0000\n"
-"PO-Revision-Date: 2026-08-31 20:30+0000\n"
-"Last-Translator: Anonymous <noreply@weblate.org>\n"
+"POT-Creation-Date: 2026-11-20 17:37+0000\n"
+"PO-Revision-Date: 2026-10-11 11:46+0000\n"
+"Last-Translator: 张飞虎 <feihu.zhang@live.com>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.odoo.com/"
-"projects/odoo-s19-4/stock_account/zh_Hans/>\n"
+"projects/odoo-20/stock_account/zh_Hans/>\n"
 "Language: zh_CN\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -44,6 +45,20 @@ msgid ""
 "------------------------------------------------------\n"
 "* Stock Inventory Value at given date (support dates in the past)\n"
 msgstr ""
+"\n"
+"WMS 会计模块\n"
+"======================\n"
+"本模块在“库存”与“会计”模块之间建立联系，让您可以创建会计分录来对库存移动进行"
+"估值\n"
+"\n"
+"主要功能\n"
+"------------\n"
+"* 库存估值（定期或自动）\n"
+"* 从拣货单开票\n"
+"\n"
+"仓储管理的仪表板 / 报表包括：\n"
+"------------------------------------------------------\n"
+"* 指定日期的库存价值（支持过去的日期）\n"
 
 #. module: stock_account
 #. odoo-python
@@ -54,14 +69,33 @@ msgstr " [负责人 %s]"
 #. module: stock_account
 #. odoo-python
 #: code:addons/stock_account/models/stock_lot.py:0
-msgid "%(lot)s price update from %(old_price)s to %(new_price)s by %(user)s"
-msgstr "由%(user)s将%(lot)s的价格从%(old_price)s更新为%(new_price)s"
+msgid ""
+"%(lot)s cost update from %(old_value)s to %(new_value)s for %(quantity)s by %"
+"(user)s"
+msgstr ""
+"%(user)s 将 %(lot)s 的成本从 %(old_value)s 更新为 %(new_value)s，数量为 %"
+"(quantity)s"
+
+#. module: stock_account
+#. odoo-python
+#: code:addons/stock_account/models/product_value.py:0
+msgid ""
+"%(move)s cost update from %(old_value)s to %(new_value)s for %(quantity)s by "
+"%(user)s"
+msgstr ""
+"%(user)s 将 %(move)s 的成本从 %(old_value)s 更新为 %(new_value)s，数量为 %"
+"(quantity)s"
 
 #. module: stock_account
 #. odoo-python
 #: code:addons/stock_account/models/stock_move.py:0
 msgid "%(quantity)s %(uom)s at product's cost"
-msgstr ""
+msgstr "按产品成本计的 %(quantity)s %(uom)s"
+
+#. module: stock_account
+#: model_terms:ir.ui.view,arch_db:stock_account.view_move_form
+msgid "<span class=\"o_stat_text\">Product Value</span>"
+msgstr "<span class=\"o_stat_text\">产品价值</span>"
 
 #. module: stock_account
 #: model_terms:ir.ui.view,arch_db:stock_account.stock_account_report_invoice_document
@@ -84,7 +118,7 @@ msgstr "<span>批次号/序列号</span>"
 msgid ""
 "A lot/serial number is required for product '%s' as it has lot valuation "
 "enabled."
-msgstr ""
+msgstr "产品“%s”启用了批次估值，因此需要批号/序列号。"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_stock_avco_report__avco_value
@@ -94,12 +128,17 @@ msgstr "加权平均成本值"
 #. module: stock_account
 #: model:ir.model,name:stock_account.model_res_groups
 msgid "Access Groups"
-msgstr ""
+msgstr "访问组"
+
+#. module: stock_account
+#: model:ir.model.fields,field_description:stock_account.field_product_value__account_move_id
+msgid "Account Move"
+msgstr "会计分录"
 
 #. module: stock_account
 #: model:ir.model.fields,help:stock_account.field_stock_move__cogs_aml_ids
 msgid "Account move lines using this move in order to compute their COGS"
-msgstr ""
+msgstr "使用此移动以计算其销货成本的会计分录行"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_stock_inventory_adjustment_name__accounting_date
@@ -145,7 +184,17 @@ msgstr "调整估值：%(product)s"
 #. odoo-python
 #: code:addons/stock_account/models/stock_move.py:0
 msgid "Adjusted on %(date)s by %(user)s"
-msgstr ""
+msgstr "于 %(date)s 由 %(user)s 调整"
+
+#. module: stock_account
+#: model:ir.model.fields,field_description:stock_account.field_product_value__adjustment
+msgid "Adjustment"
+msgstr "调整额"
+
+#. module: stock_account
+#: model_terms:ir.ui.view,arch_db:stock_account.product_value_search_view
+msgid "Adjustments"
+msgstr "调整"
 
 #. module: stock_account
 #: model:ir.model.fields,help:stock_account.field_res_config_settings__module_stock_landed_costs
@@ -168,7 +217,7 @@ msgstr "分析账户行"
 #. module: stock_account
 #: model:ir.model,name:stock_account.model_account_analytic_plan
 msgid "Analytic Plan"
-msgstr ""
+msgstr "分析方案"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_product_product__avg_cost
@@ -194,24 +243,24 @@ msgstr "培根"
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_stock_move__cogs_aml_ids
 msgid "COGS lines"
-msgstr ""
+msgstr "销货成本行"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_account_move_line__cogs_move_ids
 msgid "COGS stock moves"
-msgstr ""
+msgstr "销货成本库存移动"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_account_bank_statement_line__closing_datetime
 #: model:ir.model.fields,field_description:stock_account.field_account_move__closing_datetime
 msgid "Closing Date"
-msgstr ""
+msgstr "关闭日期"
 
 #. module: stock_account
 #. odoo-python
 #: code:addons/stock_account/models/res_company.py:0
 msgid "Closing: Location Reclassification - [%(account)s]"
-msgstr ""
+msgstr "结账：库位重分类 - [%(account)s]"
 
 #. module: stock_account
 #: model:ir.model,name:stock_account.model_res_company
@@ -229,7 +278,7 @@ msgstr "公司币别"
 #: model:ir.model.fields,field_description:stock_account.field_product_value__computed_value_description
 #: model:ir.model.fields,field_description:stock_account.field_stock_move__value_computed_justification
 msgid "Computed Value Description"
-msgstr ""
+msgstr "计算价值说明"
 
 #. module: stock_account
 #. odoo-python
@@ -238,6 +287,8 @@ msgid ""
 "Computed value: %(value)s\n"
 "%(description)s"
 msgstr ""
+"计算价值：%(value)s\n"
+"%(description)s"
 
 #. module: stock_account
 #: model:ir.model,name:stock_account.model_res_config_settings
@@ -261,6 +312,14 @@ msgstr "成本计算方法"
 #: model_terms:ir.ui.view,arch_db:stock_account.view_location_form_inherit
 msgid "Cost of Production"
 msgstr "生产成本"
+
+#. module: stock_account
+#. odoo-python
+#: code:addons/stock_account/models/product.py:0
+msgid ""
+"Cost update from %(old_value)s to %(new_value)s for %(quantity)s by %(user)s"
+msgstr ""
+"%(user)s 将成本从 %(old_value)s 更新为 %(new_value)s，数量为 %(quantity)s"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_product_category__property_cost_method
@@ -298,12 +357,12 @@ msgstr "当前值"
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_product_value__current_value_description
 msgid "Current Value Description"
-msgstr ""
+msgstr "当前价值说明"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_product_value__current_value_details
 msgid "Current Value Details"
-msgstr ""
+msgstr "当前价值明细"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_product_value__date
@@ -362,11 +421,16 @@ msgid "Display Serial & Lot Number on Invoices"
 msgstr "在结算单上显示批次 / 序列号"
 
 #. module: stock_account
+#: model_terms:ir.ui.view,arch_db:stock_account.product_value_list_view
+msgid "Done By"
+msgstr "完成人员"
+
+#. module: stock_account
 #: model:ir.model.fields,help:stock_account.field_stock_location__valuation_account_id
 msgid ""
 "Expense account used to re-qualify products removed from stock and sent to "
 "this location"
-msgstr ""
+msgstr "用于将从库存中移出并发送到该库位的产品重新归类的费用科目"
 
 #. module: stock_account
 #: model:ir.model.fields.selection,name:stock_account.selection__product_category__property_cost_method__fifo
@@ -380,7 +444,7 @@ msgstr "先进先出（FIFO）"
 #. odoo-python
 #: code:addons/stock_account/models/product_value.py:0
 msgid "For %(quantity)s %(uom)s (%(price_unit)s per %(uom)s)"
-msgstr ""
+msgstr "共 %(quantity)s %(uom)s（每 %(uom)s %(price_unit)s）"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_account_analytic_account__id
@@ -423,6 +487,15 @@ msgid "If checked, the valuation will be specific by Lot/Serial number."
 msgstr "如果选中，估价将按批次/序列号进行具体说明。"
 
 #. module: stock_account
+#: model:ir.model.fields,help:stock_account.field_stock_move__order_partner_id
+msgid ""
+"If the move originates from a document from another company, contains that "
+"company's partner, otherwise the move's partner."
+msgstr ""
+"如果该移动源自另一家公司的单据，则记录该公司的业务伙伴，否则记录该移动的业务"
+"伙伴。"
+
+#. module: stock_account
 #. odoo-python
 #: code:addons/stock_account/models/stock_location.py:0
 msgid "Invalid search operator or value"
@@ -436,7 +509,7 @@ msgstr "库存调整参考/原因"
 #. module: stock_account
 #: model:ir.model,name:stock_account.model_stock_location
 msgid "Inventory Location"
-msgstr ""
+msgstr "盘点位置"
 
 #. module: stock_account
 #. odoo-javascript
@@ -449,44 +522,46 @@ msgstr "库存损失"
 #. module: stock_account
 #: model:ir.model.fields,help:stock_account.field_account_move_line__cogs_move_ids
 msgid "Inventory moves used to compute COGS values."
-msgstr ""
+msgstr "用于计算销货成本价值的库存移动。"
 
 #. module: stock_account
 #: model:ir.module.module,summary:base.module_stock_account
 msgid "Inventory, Logistic, Valuation, Accounting"
-msgstr ""
+msgstr "库存、物流、估值、会计"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_stock_move__invoice_line_ids
 msgid "Invoice Line"
-msgstr ""
+msgstr "发票行"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_stock_move__is_dropship
 msgid "Is Dropship"
-msgstr ""
+msgstr "是否直运"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_stock_move__is_in
 msgid "Is Incoming (valued)"
-msgstr ""
+msgstr "是否入库（已估值）"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_stock_move__is_out
 msgid "Is Outgoing (valued)"
-msgstr ""
+msgstr "是否出库（已估值）"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_stock_move__is_valued
 msgid "Is Valued"
-msgstr ""
+msgstr "是否已估值"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_stock_location__is_valued
 msgid "Is valued inside the company"
-msgstr ""
+msgstr "是否在公司内部估值"
 
 #. module: stock_account
+#. odoo-python
+#: code:addons/stock_account/models/product_value.py:0
 #: model:ir.model,name:stock_account.model_account_move
 msgid "Journal Entry"
 msgstr "日记账分录"
@@ -499,7 +574,7 @@ msgstr "日记账项目"
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_stock_avco_report__justification
 msgid "Justification"
-msgstr ""
+msgstr "计算依据"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_res_config_settings__module_stock_landed_costs
@@ -547,14 +622,53 @@ msgid "Move"
 msgstr "移动"
 
 #. module: stock_account
+#: model:ir.model.fields,field_description:stock_account.field_product_value__new_cost
+msgid "New Unit Cost"
+msgstr "新单位成本"
+
+#. module: stock_account
+#: model:ir.model.fields,field_description:stock_account.field_product_value__new_value
 #: model_terms:ir.ui.view,arch_db:stock_account.product_value_form_view
 msgid "New Value"
-msgstr ""
+msgstr "新价值"
+
+#. module: stock_account
+#: model:ir.model.fields,field_description:stock_account.field_product_value__old_cost
+msgid "Old Unit Cost"
+msgstr "旧单位成本"
+
+#. module: stock_account
+#: model:ir.model.fields,field_description:stock_account.field_product_value__old_value
+msgid "Old Value"
+msgstr "旧价值"
 
 #. module: stock_account
 #. odoo-python
 #: code:addons/stock_account/models/stock_move.py:0
 msgid "Only is set (= True) is supported in search for remaining_qty."
+msgstr "remaining_qty 的搜索仅支持 is set（= True）。"
+
+#. module: stock_account
+#: model:ir.model.fields,help:stock_account.field_stock_move__origin_company_id
+msgid ""
+"Only set if the move is generated from a document belonging to another "
+"company"
+msgstr "仅当该移动由属于另一家公司的单据生成时才会设置"
+
+#. module: stock_account
+#: model:ir.model.fields,field_description:stock_account.field_stock_move__order_partner_id
+msgid "Order Partner"
+msgstr "订单业务伙伴"
+
+#. module: stock_account
+#: model:ir.model.fields,field_description:stock_account.field_stock_move__origin_company_id
+msgid "Origin Company"
+msgstr "来源公司"
+
+#. module: stock_account
+#. odoo-python
+#: code:addons/stock_account/models/stock_move.py:0
+msgid "Others"
 msgstr ""
 
 #. module: stock_account
@@ -568,15 +682,10 @@ msgid "Price Unit"
 msgstr "单价"
 
 #. module: stock_account
-#. odoo-python
-#: code:addons/stock_account/models/product.py:0
-msgid "Price update from %(old_price)s to %(new_price)s by %(user)s"
-msgstr "价格由 %(old_price)s 更新为 %(new_price)s，操作人：%(user)s"
-
-#. module: stock_account
 #: model:ir.model,name:stock_account.model_product_template
 #: model:ir.model.fields,field_description:stock_account.field_product_value__product_id
 #: model:ir.model.fields,field_description:stock_account.field_stock_avco_report__product_id
+#: model_terms:ir.ui.view,arch_db:stock_account.product_value_search_view
 msgid "Product"
 msgstr "产品"
 
@@ -603,7 +712,12 @@ msgid "Product Quantity Updated"
 msgstr "产品数量已更新"
 
 #. module: stock_account
+#. odoo-python
+#: code:addons/stock_account/models/account_move.py:0
 #: model:ir.model,name:stock_account.model_product_value
+#: model:ir.model.fields,field_description:stock_account.field_account_bank_statement_line__product_value_id
+#: model:ir.model.fields,field_description:stock_account.field_account_move__product_value_id
+#: model:ir.model.fields,field_description:stock_account.field_stock_move__product_value_ids
 #: model:ir.model.fields.selection,name:stock_account.selection__stock_avco_report__res_model_name__product_value
 msgid "Product Value"
 msgstr "产品价值"
@@ -619,7 +733,7 @@ msgstr "产品款式"
 msgid ""
 "Product should be passed as an argument in order to get the unit price for "
 "moves in a kit."
-msgstr ""
+msgstr "为获取套件中移动的单价，必须将产品作为参数传入。"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_res_company__account_production_wip_account_id
@@ -634,7 +748,12 @@ msgstr "生产半成品费用账户"
 #. module: stock_account
 #: model:ir.model,name:stock_account.model_stock_quant
 msgid "Quant"
-msgstr ""
+msgstr "量化"
+
+#. module: stock_account
+#: model:ir.model.fields,field_description:stock_account.field_product_value__quantity
+msgid "Quantity"
+msgstr "数量"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_stock_avco_report__reference
@@ -644,12 +763,12 @@ msgstr "参考号"
 #. module: stock_account
 #: model_terms:ir.ui.view,arch_db:stock_account.view_move_search
 msgid "Remaining"
-msgstr ""
+msgstr "剩余"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_stock_move__remaining_qty
 msgid "Remaining Quantity"
-msgstr ""
+msgstr "剩余数量"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_stock_move__remaining_value
@@ -659,12 +778,12 @@ msgstr "剩余价值"
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_stock_avco_report__res_model_name
 msgid "Resource Model Name"
-msgstr ""
+msgstr "资源模型名称"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_stock_inventory_adjustment_name__should_show_accounting_date
 msgid "Should Show Accounting Date"
-msgstr ""
+msgstr "是否显示会计日期"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_stock_move__standard_price
@@ -681,11 +800,14 @@ msgid ""
 "cost.\n"
 "        "
 msgstr ""
+"标准价格：产品按产品上定义的标准成本估值。\n"
+"        平均成本（AVCO）：产品按加权平均成本估值。\n"
+"        "
 
 #. module: stock_account
 #: model:ir.model,name:stock_account.model_stock_avco_report
 msgid "Stock AVCO Justifier"
-msgstr ""
+msgstr "库存 AVCO 计算依据"
 
 #. module: stock_account
 #: model:ir.model,name:stock_account.model_stock_move
@@ -702,8 +824,6 @@ msgid "Stock Replenishment Report"
 msgstr "库存补货报表"
 
 #. module: stock_account
-#. odoo-javascript
-#: code:addons/stock_account/static/src/stock_account_forecasted/forecasted_header.js:0
 #: model:ir.model,name:stock_account.model_account_stock_valuation_report
 msgid "Stock Valuation"
 msgstr "库存估值"
@@ -712,6 +832,13 @@ msgstr "库存估值"
 #: model:ir.model.fields,field_description:stock_account.field_stock_location__valuation_account_id
 msgid "Stock Valuation Account"
 msgstr "库存估值科目"
+
+#. module: stock_account
+#: model:ir.model.fields,help:stock_account.field_product_value__product_tracking
+msgid ""
+"Technical field holding the tracking method. False on a storable product "
+"means it's tracked by quantity only."
+msgstr "保存追溯方法的技术字段。对于可存储产品，值为 False 表示仅按数量追溯。"
 
 #. module: stock_account
 #: model:ir.model.fields,help:stock_account.field_product_product__company_currency_id
@@ -734,7 +861,7 @@ msgstr ""
 #: model:ir.model.fields,help:stock_account.field_product_value__current_value
 #: model:ir.model.fields,help:stock_account.field_stock_move__value
 msgid "The current value of the move. It's zero if the move is not valued."
-msgstr ""
+msgstr "该移动的当前价值。如果该移动未估值，则为零。"
 
 #. module: stock_account
 #. odoo-javascript
@@ -747,7 +874,7 @@ msgstr "此操作可能会导致数据丢失。所有批次/序号的估价均�
 #. module: stock_account
 #: model_terms:ir.ui.view,arch_db:stock_account.stock_move_view_list
 msgid "Total"
-msgstr ""
+msgstr "总计"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_stock_avco_report__total_quantity
@@ -757,7 +884,7 @@ msgstr "数量总计"
 #. module: stock_account
 #: model_terms:ir.ui.view,arch_db:stock_account.stock_move_view_list_valuation
 msgid "Total Remaining Qty"
-msgstr ""
+msgstr "剩余总数量"
 
 #. module: stock_account
 #: model_terms:ir.ui.view,arch_db:stock_account.stock_move_view_list_valuation
@@ -772,6 +899,11 @@ msgstr "总计剩余价值"
 #: model_terms:ir.ui.view,arch_db:stock_account.view_stock_quant_tree_editable_inherit
 msgid "Total Value"
 msgstr "总价值"
+
+#. module: stock_account
+#: model:ir.model.fields,field_description:stock_account.field_product_value__product_tracking
+msgid "Tracking Method"
+msgstr "追溯方法"
 
 #. module: stock_account
 #: model:ir.model,name:stock_account.model_stock_picking
@@ -795,7 +927,7 @@ msgstr "单位成本"
 #. module: stock_account
 #: model:ir.actions.act_window,name:stock_account.stock_avco_report_action
 msgid "Unit Cost History"
-msgstr ""
+msgstr "单位成本历史"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_stock_move__to_refund
@@ -820,6 +952,12 @@ msgid "Valuation"
 msgstr "估值"
 
 #. module: stock_account
+#: model:ir.actions.act_window,name:stock_account.product_value_list_action
+#: model:ir.ui.menu,name:stock_account.valuation_adjustments_menu
+msgid "Valuation Adjustments"
+msgstr "估值调整"
+
+#. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_product_product__company_currency_id
 #: model:ir.model.fields,field_description:stock_account.field_stock_lot__company_currency_id
 msgid "Valuation Currency"
@@ -830,6 +968,12 @@ msgstr "估值币别"
 #: model:ir.model.fields,field_description:stock_account.field_product_template__lot_valuated
 #: model:ir.model.fields,field_description:stock_account.field_stock_lot__lot_valuated
 msgid "Valuation by Lot/Serial"
+msgstr "按批号/序列号估值"
+
+#. module: stock_account
+#. odoo-python
+#: code:addons/stock_account/models/stock_move.py:0
+msgid "Valuation correction following a cost change on: %s"
 msgstr ""
 
 #. module: stock_account
@@ -844,19 +988,25 @@ msgstr "值"
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_stock_move__value_justification
 msgid "Value Description"
-msgstr ""
+msgstr "价值说明"
 
 #. module: stock_account
 #. odoo-javascript
 #: code:addons/stock_account/static/src/stock_account_forecasted/forecasted_header.xml:0
 msgid "Value On Hand:"
-msgstr ""
+msgstr "在手价值："
 
 #. module: stock_account
 #. odoo-python
 #: code:addons/stock_account/models/stock_move.py:0
 msgid "Value based on original move %(reference)s"
-msgstr ""
+msgstr "基于原始移动 %(reference)s 的价值"
+
+#. module: stock_account
+#. odoo-python
+#: code:addons/stock_account/models/stock_move.py:0
+msgid "Value from previous move %(references)s"
+msgstr "来自先前移动 %(references)s 的价值"
 
 #. module: stock_account
 #: model:ir.model.fields,help:stock_account.field_stock_lot__standard_price
@@ -871,9 +1021,14 @@ msgstr ""
 "        用于计算销售订单的利润。"
 
 #. module: stock_account
+#: model_terms:ir.ui.view,arch_db:stock_account.product_value_list_view
+msgid "View Account Move"
+msgstr "查看会计分录"
+
+#. module: stock_account
 #: model:ir.module.module,shortdesc:base.module_stock_account
 msgid "WMS Accounting"
-msgstr ""
+msgstr "WMS 会计"
 
 #. module: stock_account
 #. odoo-python
@@ -889,14 +1044,8 @@ msgid ""
 "quantities without a lot/serial number:\n"
 "%s"
 msgstr ""
-
-#. module: stock_account
-#. odoo-python
-#: code:addons/stock_account/models/stock_picking.py:0
-msgid ""
-"You cannot modify the scheduled date of operation %s because it falls within "
-"a locked fiscal period."
-msgstr "您无法修改操作 %s 的计划日期，因为该日期在已锁定的会计期间内。"
+"无法启用批次估值，因为以下产品存在没有批号/序列号的在手数量：\n"
+"%s"
 
 #. module: stock_account
 #: model:ir.model.fields,field_description:stock_account.field_stock_move__account_move_id
@@ -907,6 +1056,17 @@ msgstr "stock_move_id"
 #: model_terms:ir.ui.view,arch_db:stock_account.stock_account_report_invoice_document
 msgid "units"
 msgstr "单位"
+
+#~ msgid ""
+#~ "You cannot modify the scheduled date of operation %s because it falls "
+#~ "within a locked fiscal period."
+#~ msgstr "您无法修改操作 %s 的计划日期，因为该日期在已锁定的会计期间内。"
+
+#~ msgid "%(lot)s price update from %(old_price)s to %(new_price)s by %(user)s"
+#~ msgstr "由%(user)s将%(lot)s的价格从%(old_price)s更新为%(new_price)s"
+
+#~ msgid "Price update from %(old_price)s to %(new_price)s by %(user)s"
+#~ msgstr "价格由 %(old_price)s 更新为 %(new_price)s，操作人：%(user)s"
 
 #~ msgid "Account"
 #~ msgstr "账户"

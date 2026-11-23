@@ -27,6 +27,7 @@ import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 import { Record } from "@web/model/relational_model/record";
 import { FileUploader } from "@web/views/fields/file_handler";
+import { isMobileOS } from "@web/core/browser/feature_detection";
 
 const CHATTER_PANEL = Object.freeze({
     ATTACHMENT: "ATTACHMENT",
@@ -110,6 +111,7 @@ const chatterPatch = {
         this.loadingAttachmentTimeout = null;
         /** @type {Map<string, Function>} */
         this.uploadHandlers = new Map();
+        this.isMobileOS = isMobileOS();
         useCustomDropzone(
             this.rootRef,
             MailAttachmentDropzone,
@@ -420,10 +422,11 @@ const chatterPatch = {
         }
     },
     onClickSearch() {
-        this.state.activePanel =
-            this.state.activePanel === CHATTER_PANEL.SEARCH
-                ? CHATTER_PANEL.NONE
-                : CHATTER_PANEL.SEARCH;
+        if (this.state.activePanel === CHATTER_PANEL.SEARCH) {
+            this.closeSearch();
+        } else {
+            this.state.activePanel = CHATTER_PANEL.SEARCH;
+        }
         this.state.composerType = false;
     },
     onClickSelectAttachments() {
@@ -498,7 +501,9 @@ const chatterPatch = {
         if (status(this) === "destroyed") {
             return;
         }
-        await this.webChatterProps.saveRecord?.();
+        if (this.webChatterProps.saveRecord && !(await this.webChatterProps.saveRecord())) {
+            return;
+        }
         if (this.webChatterProps.record) {
             await this.webChatterProps.record.load();
         }
@@ -563,6 +568,14 @@ const chatterPatch = {
         if (this.hasParentReloadOnAttachmentsChanged) {
             this.reloadParentView();
         }
+    },
+
+    get showsAttachmentPopout() {
+        return (
+            !this.isMobileOS &&
+            this.webChatterProps.hasAttachmentPreview &&
+            Boolean(this.state.thread.attachmentsInWebClientView.length)
+        );
     },
 
     popoutAttachment() {

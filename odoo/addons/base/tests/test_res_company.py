@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from odoo.exceptions import ValidationError
 from odoo.tests import Command, TransactionCase, tagged, Form
+from odoo.tools import BinaryBytes
 
 
 @tagged('at_install', '-post_install')  # LEGACY at_install
@@ -54,6 +55,20 @@ class TestCompany(TransactionCase):
         company.partner_id.image_1920 = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
         self.assertFalse(company.uses_default_logo)
 
+    def test_logo_web_svg_mimetype(self):
+        """An SVG company logo is stored with the SVG mimetype."""
+        company = self.env['res.company'].create({
+            'name': 'foo',
+            'logo': BinaryBytes(b'<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>'),
+        })
+        company.flush_recordset(['logo_web'])
+        attachment = self.env['ir.attachment'].search([
+            ('res_model', '=', 'res.company'),
+            ('res_field', '=', 'logo_web'),
+            ('res_id', '=', company.id),
+        ])
+        self.assertEqual(attachment.mimetype, 'image/svg+xml')
+
     def test_create_branch_with_default_parent_id(self):
         branch = self.env['res.company'].with_context(default_parent_id=self.env.company.id).create({'name': 'Branch Company'})
         self.assertFalse(branch.partner_id.parent_id)
@@ -78,6 +93,10 @@ class TestCompany(TransactionCase):
             "Companies are not in the correct order",
         )
 
+    def test_create_company_with_default_company_id_context(self):
+        company = self.env['res.company'].with_context(default_company_id=self.env.company.id).create({'name': 'foo'})
+        self.assertFalse(company.partner_id.company_id)
+
     def test_write_company_root_delegated_field_names(self):
         self.env['res.company'].with_context(default_parent_id=self.env.company.id).create({'name': 'foo'})
         new_currency = self.env['res.currency'].create({
@@ -87,6 +106,15 @@ class TestCompany(TransactionCase):
         })
         with patch('odoo.addons.base.models.res_company.ResCompany._get_company_root_delegated_field_names', return_value=["currency_id", "zip"]):
             self.env.company.write({'currency_id': new_currency.id, 'zip': '12345'})
+
+    def test_write_country_installs_l10n_modules(self):
+        company = self.env['res.company'].create({'name': 'foo'})
+        with patch('odoo.addons.base.models.res_company.ResCompany.install_l10n_modules', autospec=True) as install:
+            company.write({'country_id': self.env.ref('base.be').id})
+            install.assert_called_once_with(company)
+            install.reset_mock()
+            company.write({'country_id': self.env.ref('base.fr').id})
+            install.assert_not_called()
 
 
 class TestResCompanyForm(TransactionCase):

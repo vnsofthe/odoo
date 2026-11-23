@@ -375,7 +375,7 @@ class ForumPost(models.Model):
             if post.parent_id.state == 'flagged':
                 raise UserError(_('Posting answer on a [Flagged] question is not possible.'))
             if post.forum_id.mode == 'questions' and \
-                post.create_uid in (post.parent_id.child_ids - post).create_uid:
+                post.create_uid in (post.parent_id.child_ids.filtered('active') - post).create_uid:
                 raise UserError(_('You can post only one answer.'))
 
     @api.model_create_multi
@@ -473,7 +473,11 @@ class ForumPost(models.Model):
             self._notify_content_update()
 
         if 'active' in vals:
-            answers = self.env['forum.post'].with_context(active_test=False).search([('parent_id', 'in', self.ids)])
+            domain = Domain('parent_id', 'in', self.ids)
+            if vals['active']:
+                # answers marked as offensive must stay archived
+                domain &= Domain('state', '!=', 'offensive')
+            answers = self.env['forum.post'].with_context(active_test=False).search(domain)
             if answers:
                 answers.write({'active': vals['active']})
         return res
@@ -626,7 +630,7 @@ class ForumPost(models.Model):
         return True
 
     def reopen(self):
-        if any(post.parent_id or post.state != 'close' for post in self):
+        if any(post.parent_id or post.state != 'close' or not post.can_close for post in self):
             return False
 
         reason_offensive = self.env.ref('website_forum.reason_7')

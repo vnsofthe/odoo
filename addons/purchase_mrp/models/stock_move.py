@@ -18,9 +18,9 @@ class StockMove(models.Model):
 
     def _get_cost_ratio(self, quantity):
         self.ensure_one()
-        if self.bom_line_id.bom_id.type == "phantom":
+        if self.bom_line_id.bom_id.type == "phantom" and self.purchase_line_id.product_id != self.product_id:
             uom_quantity = self.uom_id._compute_quantity(self.quantity, self.product_id.uom_id)
-            if not self.uom_id.is_zero(uom_quantity):
+            if not self.product_id.uom_id.is_zero(uom_quantity):
                 unit_kit_purchase = 1
                 if self.purchase_line_id:
                     active_moves = self.purchase_line_id.move_ids.filtered(lambda m:
@@ -30,21 +30,28 @@ class StockMove(models.Model):
                         and m.bom_line_id == self.bom_line_id
                         and float_compare(m.cost_share, self.cost_share, precision_digits=6) == 0
                     )
-                    active_quantity = quantity + sum(active_moves.mapped('quantity'))
+                    active_quantity = quantity + sum(
+                        move.uom_id._compute_quantity(move.quantity, self.product_id.uom_id)
+                        for move in active_moves
+                    )
                     if active_quantity:
-                        unit_kit_purchase = (quantity / active_quantity) * self.purchase_line_id.product_qty
+                        purchase_qty = self.purchase_line_id.uom_id._compute_quantity(
+                            self.purchase_line_id.product_qty,
+                            self.purchase_line_id.product_id.uom_id,
+                        )
+                        unit_kit_purchase = (quantity / active_quantity) * purchase_qty
                 return (self.cost_share / 100) * (quantity / uom_quantity) * unit_kit_purchase
         return super()._get_cost_ratio(quantity)
 
     def _get_value_from_bill(self, aml):
         value = super()._get_value_from_bill(aml)
-        if self.bom_line_id.bom_id.type == "phantom":
+        if self.bom_line_id.bom_id.type == "phantom" and self.purchase_line_id.product_id != self.product_id:
             value *= (self.cost_share / 100)
         return value
 
     def _get_quantity_from_bill(self, aml, quantity):
         self.ensure_one()
-        if self.bom_line_id.bom_id.type == "phantom":
+        if self.bom_line_id.bom_id.type == "phantom" and self.purchase_line_id.product_id != self.product_id:
             return aml.product_uom_id._compute_quantity(quantity, self.product_id.uom_id)
         return super()._get_quantity_from_bill(aml, quantity)
 

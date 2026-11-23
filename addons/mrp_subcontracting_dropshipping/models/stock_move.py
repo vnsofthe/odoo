@@ -25,14 +25,24 @@ class StockMove(models.Model):
                         and self.location_dest_id.usage == "customer"
                     )
                     # Vendor -> subcontractor location
-                    or (
-                        self.partner_id.property_stock_subcontractor.parent_path
-                        in self.location_dest_id.parent_path
-                        and self.location_id.usage == "supplier"
-                    )
+                    or self._is_resupply_dropship()
                 )
             )
         )
+
+    def _is_resupply_dropship(self):
+        subcontracting_path = self.partner_id.property_stock_subcontractor.parent_path
+        return bool(
+            subcontracting_path
+            and subcontracting_path in self.location_dest_id.parent_path
+            and self.location_id.usage == "supplier"
+        )
+
+    def _is_resupply_dropship_of_dropshipped_production(self):
+        """ Whether this component feeds a subcontracting production whose finished product is
+        itself dropshipped from the subcontractor to a customer, i.e. never enters the stock. """
+        productions = self.move_dest_ids.raw_material_production_id
+        return any(m._is_dropshipped() for m in productions.move_finished_ids.move_dest_ids)
 
     def _is_dropshipped_returned(self):
         res = super()._is_dropshipped_returned()
@@ -46,5 +56,17 @@ class StockMove(models.Model):
         if not self.env.context.get('valuation_without_extra') and self.is_subcontract and self._is_dropshipped() and self.purchase_line_id:
             last_subcontract_production_move = self.move_orig_ids.production_id.move_finished_ids[:1]
             if last_subcontract_production_move:
-                return last_subcontract_production_move._get_value_from_account_move(quantity)
+                valuation_data = last_subcontract_production_move._get_value_data()
+                valued_quantity = valuation_data['quantity']
+                if valued_quantity:
+                    valuation_data['value'] *= quantity / valued_quantity
+                    valuation_data['quantity'] = quantity
+                    return valuation_data
         return super()._get_value_from_account_move(quantity)
+
+    def _get_partner_id(self):
+        if self.raw_material_production_id.subcontractor_id:
+            route = self.env.ref('stock_dropshipping.route_drop_shipping', raise_if_not_found=False)
+            if route and self.rule_id.route_id == route:
+                return self.raw_material_production_id.subcontractor_id.id
+        return super()._get_partner_id()

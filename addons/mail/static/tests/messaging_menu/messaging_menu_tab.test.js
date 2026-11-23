@@ -22,8 +22,8 @@ import { fields } from "@mail/model/export";
 import { messagingMenuHelpers } from "@mail/../tests/mock_server/controllers/discuss/messaging_menu";
 
 import { describe, expect, mockPermission, test } from "@odoo/hoot";
-import { rightClick, waitUntil } from "@odoo/hoot-dom";
-import { mockDate } from "@odoo/hoot-mock";
+import { rightClick, waitFor, waitUntil } from "@odoo/hoot-dom";
+import { animationFrame, mockDate } from "@odoo/hoot-mock";
 
 import {
     Command,
@@ -295,7 +295,7 @@ test("create new chat from chat tab", async () => {
     await click("button:has([data-icon='add']):text(Chat)");
     await contains(".o-discuss-ChannelInvitation");
     await click(".o-discuss-ChannelInvitation-selectable:has(:text('TestPartner'))");
-    await click("button[title='Create Chat']:enabled");
+    await click("button:text('Create Chat'):enabled");
     await contains(".o-discuss-ChannelInvitation", { count: 0 });
     await contains(".o-mail-ChatWindow-displayName:text('TestPartner')");
 });
@@ -314,7 +314,7 @@ test("create new group chat from chat tab", async () => {
     await contains(".o-discuss-ChannelInvitation");
     await click(".o-discuss-ChannelInvitation-selectable:has(:text('TestPartner1'))");
     await click(".o-discuss-ChannelInvitation-selectable:has(:text('TestPartner2'))");
-    await click("button[title='Create Chat']:enabled");
+    await click("button:text('Create Chat'):enabled");
     await contains(".o-discuss-ChannelInvitation", { count: 0 });
     await contains(
         ".o-mail-ChatWindow-displayName:text('Mitchell Admin, TestPartner1, and TestPartner2')"
@@ -404,6 +404,10 @@ test("join most popular channel from empty channel tab", async () => {
             Command.create({ partner_id: partner2 }),
         ],
     });
+    pyEnv["discuss.channel"].create({
+        name: "Sales",
+        channel_member_ids: [Command.create({ partner_id: partner1 })],
+    });
     mockService("action", {
         doAction(action) {
             expect.step("mail.discuss_channel_action");
@@ -415,12 +419,15 @@ test("join most popular channel from empty channel tab", async () => {
     await contains(".o-mail-MessagingMenu .o-mail-MessagingMenuEmpty");
     await contains(".o-mail-MessagingMenuEmptyChannel-popularChannels :text(General)");
     await contains(".o-mail-MessagingMenuEmptyChannel-popularChannels :text('2 followers')");
+    await contains(".o-mail-MessagingMenuEmptyChannel-popularChannels :text(Sales)");
+    await contains(".o-mail-MessagingMenuEmptyChannel-popularChannels :text('1 follower')");
     await click("button:text('Find more channels')");
     await expect.waitForSteps(["mail.discuss_channel_action"]);
     await contains(".o-mail-MessagingMenu", { count: 0 });
     await openMessagingMenu(MENU_ACTIVE_IDS.CHANNEL);
-    await contains("button:text(Follow)");
-    await click("button:text(Follow)");
+    await click(
+        ".o-mail-MessagingMenuEmptyChannel-popularChannels:has(:text(General)) button:text(Follow)"
+    );
     await contains(".o-mail-NotificationItem-name:text(General)");
 });
 
@@ -751,6 +758,36 @@ test("can search messages", async () => {
     // Switching tabs clears the search.
     await click(`.o-mail-MessagingMenu-tab[data-id='${MENU_TABS.CHAT}']`);
     await contains(".o-mail-DiscussSearch input", { value: "" });
+});
+
+test("search messages on the text of their preview and body, not on their markup", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    pyEnv["mail.message"].create({
+        author_id: serverState.partnerId,
+        body: '<p>Visit <a href="https://www.odoo.com">our website</a></p>',
+        bookmarked_partner_ids: [serverState.partnerId],
+        model: "discuss.channel",
+        res_id: channelId,
+    });
+    await start();
+    await openDiscuss(MENU_ACTIVE_IDS.BOOKMARK);
+    await waitFor(
+        ".o-mail-MessagingMenuItem:has(:text('You: Visit https://www.odoo.com')):count(1)"
+    );
+    await insertText(".o-mail-DiscussSearch input", "href");
+    await animationFrame();
+    await waitFor(".o-mail-MessagingMenuEmpty:text('No results for \"href\".'):count(1)");
+    await insertText(".o-mail-DiscussSearch input", "odoo.com", { replace: true });
+    await animationFrame();
+    await waitFor(
+        ".o-mail-MessagingMenuItem:has(:text('You: Visit https://www.odoo.com')):count(1)"
+    );
+    await insertText(".o-mail-DiscussSearch input", "website", { replace: true });
+    await animationFrame();
+    await waitFor(
+        ".o-mail-MessagingMenuItem:has(:text('You: Visit https://www.odoo.com')):count(1)"
+    );
 });
 
 test("push notification request stays on the chat tab regardless of user notification preference", async () => {

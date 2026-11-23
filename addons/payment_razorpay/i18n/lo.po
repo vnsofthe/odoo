@@ -1,0 +1,391 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * payment_razorpay
+#
+# Bone NI <bounkirdni@gmail.com>, 2026.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.4a1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-08-28 17:44+0000\n"
+"PO-Revision-Date: 2026-10-26 09:02+0000\n"
+"Last-Translator: Bone NI <bounkirdni@gmail.com>\n"
+"Language-Team: Lao <https://translate.odoo.com/projects/odoo-20/"
+"payment_razorpay/lo/>\n"
+"Language: lo\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 2026.8.1\n"
+
+#. module: payment_razorpay
+#: model:ir.module.module,summary:base.module_payment_razorpay
+msgid "A payment provider covering India."
+msgstr "ຜູ້ໃຫ້ບໍລິການຊຳລະເງິນທີ່ຄອບຄຸມປະເທດອິນເດຍ."
+
+#. module: payment_razorpay
+#: model_terms:ir.ui.view,arch_db:payment_razorpay.payment_provider_form_razorpay
+msgid "Account ID"
+msgstr "ລະຫັດບັນຊີ"
+
+#. module: payment_razorpay
+#: model:payment.method,name:payment_razorpay.payment_method_amex
+msgid "American Express"
+msgstr "American Express"
+
+#. module: payment_razorpay
+#: model_terms:ir.ui.view,arch_db:payment_razorpay.authorization_error
+msgid "An error occurred"
+msgstr "ເກີດມີຂໍ້ຜິດພາດ"
+
+#. module: payment_razorpay
+#: model_terms:ir.ui.view,arch_db:payment_razorpay.authorization_error
+msgid "An error occurred while linking your Razorpay account with Odoo."
+msgstr "ເກີດມີຂໍ້ຜິດພາດໃນຂະນະທີ່ກຳລັງເຊື່ອມໂຍງບັນຊີ Razorpay ຂອງທ່ານກັບ Odoo."
+
+#. module: payment_razorpay
+#: model_terms:ir.ui.view,arch_db:payment_razorpay.payment_provider_form_razorpay
+msgid "Are you sure you want to disconnect?"
+msgstr "ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການຕັດການເຊື່ອມຕໍ່?"
+
+#. module: payment_razorpay
+#: model_terms:ir.ui.view,arch_db:payment_razorpay.authorization_error
+msgid "Back to the Razorpay provider"
+msgstr "ກັບຄືນໄປຫາຜູ້ໃຫ້ບໍລິການ Razorpay"
+
+#. module: payment_razorpay
+#: model:payment.method,name:payment_razorpay.payment_method_card
+msgid "Card"
+msgstr "ບັດ"
+
+#. module: payment_razorpay
+#: model:ir.model.fields,field_description:payment_razorpay.field_payment_provider__code
+msgid "Code"
+msgstr "ລະຫັດ"
+
+#. module: payment_razorpay
+#: model_terms:ir.ui.view,arch_db:payment_razorpay.payment_provider_form_razorpay
+msgid "Connect"
+msgstr "ເຊື່ອມຕໍ່"
+
+#. module: payment_razorpay
+#. odoo-python
+#: code:addons/payment_razorpay/controllers/onboarding.py:0
+msgid "Could not find Razorpay provider with id %s"
+msgstr "ບໍ່ພົບຜູ້ໃຫ້ບໍລິການ Razorpay ທີ່ມີລະຫັດ %s"
+
+#. module: payment_razorpay
+#: model:payment.method,name:payment_razorpay.payment_method_diners
+msgid "Diners Club International"
+msgstr "Diners Club International"
+
+#. module: payment_razorpay
+#: model_terms:ir.ui.view,arch_db:payment_razorpay.payment_provider_form_razorpay
+msgid "Disconnect"
+msgstr "ຕັດການເຊື່ອມຕໍ່"
+
+#. module: payment_razorpay
+#: model:payment.method,name:payment_razorpay.payment_method_discover
+msgid "Discover"
+msgstr "Discover"
+
+#. module: payment_razorpay
+#: model:ir.model.fields,field_description:payment_razorpay.field_payment_provider__display_name
+#: model:ir.model.fields,field_description:payment_razorpay.field_payment_token__display_name
+#: model:ir.model.fields,field_description:payment_razorpay.field_payment_transaction__display_name
+msgid "Display Name"
+msgstr "ຊື່ສະແດງ"
+
+#. module: payment_razorpay
+#: model:payment.method,name:payment_razorpay.payment_method_emi_india
+msgid "EMI"
+msgstr "EMI"
+
+#. module: payment_razorpay
+#: model_terms:ir.ui.view,arch_db:payment_razorpay.payment_provider_form_razorpay
+msgid "Enable recurring payments on Razorpay"
+msgstr "ເປີດນຳໃຊ້ການຊຳລະເງິນແບບປະຈຳຢູ່ Razorpay"
+
+#. module: payment_razorpay
+#: model:payment.method,name:payment_razorpay.payment_method_fpx
+msgid "FPX"
+msgstr "FPX"
+
+#. module: payment_razorpay
+#: model_terms:ir.ui.view,arch_db:payment_razorpay.payment_provider_form_razorpay
+msgid "Generate your webhook"
+msgstr "ສ້າງ Webhook ຂອງທ່ານ"
+
+#. module: payment_razorpay
+#: model:ir.model.fields,field_description:payment_razorpay.field_payment_provider__id
+#: model:ir.model.fields,field_description:payment_razorpay.field_payment_token__id
+#: model:ir.model.fields,field_description:payment_razorpay.field_payment_transaction__id
+msgid "ID"
+msgstr "ID"
+
+#. module: payment_razorpay
+#: model_terms:ir.ui.view,arch_db:payment_razorpay.payment_provider_form_razorpay
+msgid "Key Id"
+msgstr "Key Id"
+
+#. module: payment_razorpay
+#: model_terms:ir.ui.view,arch_db:payment_razorpay.payment_provider_form_razorpay
+msgid "Key Secret"
+msgstr "Key Secret"
+
+#. module: payment_razorpay
+#: model:payment.method,name:payment_razorpay.payment_method_maestro
+msgid "Maestro"
+msgstr "Maestro"
+
+#. module: payment_razorpay
+#: model:payment.method,name:payment_razorpay.payment_method_mastercard
+msgid "MasterCard"
+msgstr "MasterCard"
+
+#. module: payment_razorpay
+#: model:payment.method,name:payment_razorpay.payment_method_netbanking
+msgid "Netbanking"
+msgstr "Netbanking"
+
+#. module: payment_razorpay
+#. odoo-python
+#: code:addons/payment_razorpay/models/payment_provider.py:0
+msgid "Other Payment Providers"
+msgstr "ຜູ້ໃຫ້ບໍລິການຊຳລະເງິນອື່ນໆ"
+
+#. module: payment_razorpay
+#: model:payment.method,name:payment_razorpay.payment_method_paylater_india
+msgid "Pay Later"
+msgstr "ຈ່າຍພາຍຫຼັງ"
+
+#. module: payment_razorpay
+#: model:payment.method,name:payment_razorpay.payment_method_paynow
+msgid "PayNow"
+msgstr "PayNow"
+
+#. module: payment_razorpay
+#: model:ir.model,name:payment_razorpay.model_payment_provider
+msgid "Payment Provider"
+msgstr "ຜູ້ໃຫ້ບໍລິການຊຳລະເງິນ"
+
+#. module: payment_razorpay
+#: model:ir.module.module,shortdesc:base.module_payment_razorpay
+msgid "Payment Provider: Razorpay"
+msgstr "ຜູ້ໃຫ້ບໍລິການຊຳລະເງິນ: Razorpay"
+
+#. module: payment_razorpay
+#: model:ir.model,name:payment_razorpay.model_payment_token
+msgid "Payment Token"
+msgstr "ໂທເຄັນການຊຳລະເງິນ"
+
+#. module: payment_razorpay
+#: model:ir.model,name:payment_razorpay.model_payment_transaction
+msgid "Payment Transaction"
+msgstr "ທຸລະກຳການຊຳລະເງິນ"
+
+#. module: payment_razorpay
+#. odoo-javascript
+#: code:addons/payment_razorpay/static/src/interactions/payment_form.js:0
+msgid "Payment processing failed"
+msgstr "ການປະມວນຜົນການຊຳລະເງິນຫຼົ້ມເຫຼວ"
+
+#. module: payment_razorpay
+#: model:ir.model.fields.selection,name:payment_razorpay.selection__payment_provider__code__razorpay
+msgid "Razorpay"
+msgstr "Razorpay"
+
+#. module: payment_razorpay
+#: model:ir.model.fields,field_description:payment_razorpay.field_payment_provider__razorpay_access_token
+msgid "Razorpay Access Token"
+msgstr "Razorpay Access Token"
+
+#. module: payment_razorpay
+#: model:ir.model.fields,field_description:payment_razorpay.field_payment_provider__razorpay_access_token_expiry
+msgid "Razorpay Access Token Expiry"
+msgstr "ວັນໝົດອາຍຸ Razorpay Access Token"
+
+#. module: payment_razorpay
+#: model:ir.model.fields,field_description:payment_razorpay.field_payment_provider__razorpay_account_id
+msgid "Razorpay Account ID"
+msgstr "Razorpay Account ID"
+
+#. module: payment_razorpay
+#: model:ir.model.fields,field_description:payment_razorpay.field_payment_provider__razorpay_is_oauth_supported
+msgid "Razorpay Is Oauth Supported"
+msgstr "Razorpay ຮອງຮັບ OAuth"
+
+#. module: payment_razorpay
+#: model:ir.model.fields,field_description:payment_razorpay.field_payment_provider__razorpay_key_id
+msgid "Razorpay Key Id"
+msgstr "Razorpay Key Id"
+
+#. module: payment_razorpay
+#: model:ir.model.fields,field_description:payment_razorpay.field_payment_provider__razorpay_key_secret
+msgid "Razorpay Key Secret"
+msgstr "Razorpay Key Secret"
+
+#. module: payment_razorpay
+#: model:ir.model.fields,field_description:payment_razorpay.field_payment_provider__razorpay_public_token
+msgid "Razorpay Public Token"
+msgstr "Razorpay Public Token"
+
+#. module: payment_razorpay
+#: model:ir.model.fields,field_description:payment_razorpay.field_payment_provider__razorpay_refresh_token
+msgid "Razorpay Refresh Token"
+msgstr "Razorpay Refresh Token"
+
+#. module: payment_razorpay
+#: model:ir.model.fields,field_description:payment_razorpay.field_payment_provider__razorpay_webhook_secret
+msgid "Razorpay Webhook Secret"
+msgstr "Razorpay Webhook Secret"
+
+#. module: payment_razorpay
+#. odoo-python
+#: code:addons/payment_razorpay/models/payment_provider.py:0
+msgid ""
+"Razorpay credentials are missing. Please fill them to set up your account."
+msgstr ""
+"ຂໍ້ມູນການຢືນຢັນຕົວຕົນຂອງ Razorpay ບໍ່ຄົບຖ້ວນ. ກະລຸນາປ້ອນຂໍ້ມູນໃສ່ເພື່ອຕັ້ງຄ່າບັນຊີຂອງທ່ານ."
+
+#. module: payment_razorpay
+#. odoo-python
+#: code:addons/payment_razorpay/models/payment_provider.py:0
+msgid ""
+"Razorpay credentials are missing. Please set the state back to 'Disabled' "
+"and click the \"Connect\" button to set up your account."
+msgstr ""
+"ຂໍ້ມູນການຢືນຢັນຕົວຕົນຂອງ Razorpay ບໍ່ຄົບຖ້ວນ. ກະລຸນາປ່ຽນສະຖານະກັບຄືນເປັນ 'ປິດການນຳໃຊ້' ແລ້ວກົດປຸ່ມ "
+"\"ເຊື່ອມຕໍ່\" ເພື່ອຕັ້ງຄ່າບັນຊີຂອງທ່ານ."
+
+#. module: payment_razorpay
+#. odoo-python
+#: code:addons/payment_razorpay/models/payment_provider.py:0
+msgid ""
+"Razorpay is not available in your country; please use another payment "
+"provider."
+msgstr ""
+"Razorpay ບໍ່ມີໃຫ້ບໍລິການໃນປະເທດຂອງທ່ານ; ກະລຸນານຳໃຊ້ຜູ້ໃຫ້ບໍລິການຊຳລະເງິນອື່ນ."
+
+#. module: payment_razorpay
+#. odoo-python
+#: code:addons/payment_razorpay/models/payment_transaction.py:0
+msgid "Received data with invalid status: %s"
+msgstr "ໄດ້ຮັບຂໍ້ມູນທີ່ມີສະຖານະບໍ່ຖືກຕ້ອງ: %s"
+
+#. module: payment_razorpay
+#. odoo-python
+#: code:addons/payment_razorpay/models/payment_transaction.py:0
+msgid "Received data with missing entity id."
+msgstr "ໄດ້ຮັບຂໍ້ມູນທີ່ບໍ່ມີ Entity ID."
+
+#. module: payment_razorpay
+#. odoo-python
+#: code:addons/payment_razorpay/models/payment_transaction.py:0
+msgid "Received data with missing status."
+msgstr "ໄດ້ຮັບຂໍ້ມູນທີ່ບໍ່ມີສະຖານະ."
+
+#. module: payment_razorpay
+#. odoo-python
+#: code:addons/payment_razorpay/models/payment_transaction.py:0
+msgid "Received incomplete refund data."
+msgstr "ໄດ້ຮັບຂໍ້ມູນການສົ່ງເງິນຄືນບໍ່ຄົບຖ້ວນ."
+
+#. module: payment_razorpay
+#: model:payment.method,name:payment_razorpay.payment_method_rupay
+msgid "RuPay"
+msgstr "RuPay"
+
+#. module: payment_razorpay
+#: model:ir.model.fields,help:payment_razorpay.field_payment_provider__razorpay_key_id
+msgid "The key solely used to identify the account with Razorpay."
+msgstr "ຄີທີ່ໃຊ້ສະເພາະເພື່ອລະບຸບັນຊີກັບ Razorpay."
+
+#. module: payment_razorpay
+#. odoo-python
+#: code:addons/payment_razorpay/models/payment_transaction.py:0
+msgid "The phone number is invalid."
+msgstr "ເບີໂທລະສັບບໍ່ຖືກຕ້ອງ."
+
+#. module: payment_razorpay
+#. odoo-python
+#: code:addons/payment_razorpay/models/payment_transaction.py:0
+msgid "The phone number is missing."
+msgstr "ບໍ່ມີຂໍ້ມູນເບີໂທລະສັບ."
+
+#. module: payment_razorpay
+#: model:ir.model.fields,help:payment_razorpay.field_payment_provider__code
+msgid "The technical code of this payment provider."
+msgstr "ລະຫັດທາງເຕັກນິກຂອງຜູ້ໃຫ້ບໍລິການຊຳລະເງິນນີ້."
+
+#. module: payment_razorpay
+#: model_terms:ir.ui.view,arch_db:payment_razorpay.payment_provider_form_razorpay
+msgid "This provider is linked with your Razorpay account."
+msgstr "ຜູ້ໃຫ້ບໍລິການນີ້ໄດ້ເຊື່ອມໂຍງກັບບັນຊີ Razorpay ຂອງທ່ານແລ້ວ."
+
+#. module: payment_razorpay
+#. odoo-python
+#: code:addons/payment_razorpay/models/payment_transaction.py:0
+msgid "Transactions processed by Razorpay can't be manually voided from Odoo."
+msgstr "ທຸລະກຳທີ່ປະມວນຜົນໂດຍ Razorpay ບໍ່ສາມາດຍົກເລີກດ້ວຍຕົນເອງຜ່ານ Odoo ໄດ້."
+
+#. module: payment_razorpay
+#: model:payment.method,name:payment_razorpay.payment_method_upi
+msgid "UPI"
+msgstr "UPI"
+
+#. module: payment_razorpay
+#: model:payment.method,name:payment_razorpay.payment_method_visa
+msgid "VISA"
+msgstr "VISA"
+
+#. module: payment_razorpay
+#: model:payment.method,name:payment_razorpay.payment_method_wallets_india
+msgid "Wallets India"
+msgstr "Wallets India"
+
+#. module: payment_razorpay
+#: model_terms:ir.ui.view,arch_db:payment_razorpay.payment_provider_form_razorpay
+msgid "Webhook Secret"
+msgstr "Webhook Secret"
+
+#. module: payment_razorpay
+#: model_terms:ir.ui.view,arch_db:payment_razorpay.payment_provider_form_razorpay
+msgid ""
+"You are currently connected to Razorpay through the credentials method, "
+"which is\n"
+"                    deprecated. Click the \"Connect\" button above to use "
+"the recommended OAuth\n"
+"                    method."
+msgstr ""
+"ປະຈຸບັນທ່ານກຳລັງເຊື່ອມຕໍ່ກັບ Razorpay ຜ່ານວິທີການນຳໃຊ້ຂໍ້ມູນຢືນຢັນຕົວຕົນ, ເຊິ່ງເປັນວິທີທີ່\n"
+"                    ຖືກຍົກເລີກການນຳໃຊ້ແລ້ວ. ກະລຸນາກົດປຸ່ມ \"ເຊື່ອມຕໍ່\" ຢູ່ຂ້າງເທິງເພື່ອນຳໃຊ້ວິທີ "
+"OAuth\n"
+"                    ທີ່ແນະນຳ."
+
+#. module: payment_razorpay
+#. odoo-python
+#: code:addons/payment_razorpay/models/payment_token.py:0
+msgid ""
+"You can not pay amounts greater than %(currency_symbol)s %(max_amount)s with "
+"this payment method"
+msgstr ""
+"ທ່ານບໍ່ສາມາດຊຳລະເງິນຈຳນວນທີ່ຫຼາຍກວ່າ %(currency_symbol)s %(max_amount)s ດ້ວຍວິທີການຊຳລະເ"
+"ງິນນີ້ໄດ້"
+
+#. module: payment_razorpay
+#. odoo-python
+#: code:addons/payment_razorpay/models/payment_provider.py:0
+msgid "Your Razorpay webhook was successfully set up!"
+msgstr "Webhook ຂອງ Razorpay ຂອງທ່ານໄດ້ຮັບການຕັ້ງຄ່າສຳເລັດແລ້ວ!"
+
+#. module: payment_razorpay
+#. odoo-python
+#: code:addons/payment_razorpay/models/payment_transaction.py:0
+msgid ""
+"Your last payment %s will soon be processed. Please wait up to 24 hours "
+"before trying again, or use another payment method."
+msgstr ""
+"ການຊຳລະເງິນຄັ້ງລ່າສຸດຂອງທ່ານ %s ຈະໄດ້ຮັບການປະມວນຜົນໃນໄວໆນີ້. ກະລຸນາລໍຖ້າສູງສຸດ 24 ຊົ່ວໂມງ ກ່ອນທີ່ຈ"
+"ະລອງໃໝ່ອີກຄັ້ງ, ຫຼື ນຳໃຊ້ວິທີການຊຳລະເງິນອື່ນ."

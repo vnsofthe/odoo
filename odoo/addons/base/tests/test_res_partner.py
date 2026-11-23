@@ -239,6 +239,18 @@ class TestPartner(TransactionCaseWithUserDemo):
         self.assertEqual(first_child.lang, 'de_DE')
         self.assertEqual(second_child.lang, 'fr_FR')
 
+    def test_create_ignores_default_user_ids(self):
+        """ default_user_ids is meant for other models (e.g. the 'All Tasks'
+        action), creating a partner with it must not re-link the user. """
+        user = self.user_demo
+        user_partner = user.partner_id
+        partner_id, _name = self.env['res.partner'].with_context(
+            default_user_ids=[Command.link(user.id)],
+        ).name_create('Imported Customer')
+        partner = self.env['res.partner'].browse(partner_id)
+        self.assertFalse(partner.user_ids)
+        self.assertEqual(user.partner_id, user_partner)
+
     def test_name_create(self):
         res_partner = self.env['res.partner']
         for text, expected_name, expected_mail in SAMPLES:
@@ -1188,6 +1200,30 @@ class TestPartnerAddressCompany(TransactionCase):
             "Formatted display name should show parent name and type when child contact has no name",
         )
 
+    def test_display_name_formatted_parent_not_readable(self):
+        """ A contact the user can read must get its formatted display name
+        even when a record rule hides its parent. """
+        hidden_parent = self.env['res.partner'].create({'name': 'Hidden Company', 'is_company': True})
+        child = self.env['res.partner'].create({'parent_id': hidden_parent.id, 'type': 'delivery'})
+        partner_model_id = self.env['ir.model']._get_id('res.partner')
+        self.env['ir.access'].search([('model_id', '=', partner_model_id)]).unlink()
+        self.env['ir.access'].create({
+            'name': 'Hide the parent company',
+            'model_id': partner_model_id,
+            'group_id': self.env.ref('base.group_user').id,
+            'operation': 'r',
+            'domain': [('id', '!=', hidden_parent.id)],
+        })
+        child_as_user = child.with_user(self.test_user)
+        with self.assertRaises(AccessError):
+            hidden_parent.with_user(self.test_user).check_access('read')
+
+        self.assertEqual(child_as_user.display_name, "Hidden Company, Delivery")
+        self.assertEqual(
+            child_as_user.with_context(formatted_display_name=True).display_name,
+            "Hidden Company \t --Delivery--",
+        )
+
     def test_accessibility_of_company_partner_from_branch(self):
         """ Check accessibility of company partner from branch. """
         company = self.env['res.company'].create({'name': 'company'})
@@ -1207,6 +1243,30 @@ class TestPartnerAddressCompany(TransactionCase):
         })
         record = self.env['res.partner'].with_user(user).search([('id', '=', partner.id)])
         self.assertEqual(record.id, partner.id)
+
+    def test_commercial_field_sync_move_contact(self):
+        company_a, company_b, company_c = self.env['res.partner'].create([
+            {'name': 'Company A', 'is_company': True, 'vat': 'BECOMPANYA'},
+            {'name': 'Company B', 'is_company': True},
+            {'name': 'Company C', 'is_company': True, 'vat': 'BECOMPANYC'},
+        ])
+        contact_b = self.env['res.partner'].create({'name': 'B Employee', 'parent_id': company_b.id})
+        contact_a, contact_c = self.env['res.partner'].create([
+            {'name': 'Contact A', 'parent_id': company_a.id},
+            {'name': 'Contact C', 'parent_id': company_c.id},
+        ])
+        self.assertEqual(contact_a.vat, 'BECOMPANYA')
+
+        contact_a.parent_id = company_b
+        self.assertEqual(company_a.vat, 'BECOMPANYA')
+        self.assertFalse(company_b.vat, 'Moving a contact should not push the VAT of its previous company')
+        self.assertFalse(contact_b.vat)
+        self.assertFalse(contact_a.vat)
+
+        contact_c.parent_id = company_a
+        self.assertEqual(company_a.vat, 'BECOMPANYA')
+        self.assertEqual(company_c.vat, 'BECOMPANYC')
+        self.assertEqual(contact_c.vat, 'BECOMPANYA')
 
 
 @tagged('res_partner', 'post_install', '-at_install')

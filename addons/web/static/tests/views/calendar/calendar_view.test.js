@@ -3,6 +3,7 @@ import {
     advanceTime,
     animationFrame,
     click,
+    drag,
     press,
     queryAllRects,
     queryAllTexts,
@@ -45,6 +46,7 @@ import { CalendarModel } from "@web/views/calendar/calendar_model";
 import { CalendarRenderer } from "@web/views/calendar/calendar_renderer";
 import { calendarView } from "@web/views/calendar/calendar_view";
 import { CalendarYearRenderer } from "@web/views/calendar/calendar_year/calendar_year_renderer";
+import { TOUCH_SELECTION_THRESHOLD } from "@web/views/utils";
 import { WebClient } from "@web/webclient/webclient";
 import {
     changeScale,
@@ -887,6 +889,49 @@ test(`add a filter with the search more dialog (field with a context)`, async ()
     ).click();
     expect(`.modal`).toHaveCount(1);
     expect.verifySteps(["get_views"]);
+});
+
+test.tags("desktop");
+test(`add a filter with the search more dialog (field with a relation option)`, async () => {
+    CalendarPartner._views = {
+        list: `<list><field name="name"/></list>`,
+    };
+    CalendarPartner._records.push(
+        { id: 5, name: "foo partner 5" },
+        { id: 6, name: "foo partner 6" },
+        { id: 7, name: "foo partner 7" },
+        { id: 8, name: "foo partner 8" },
+        { id: 9, name: "foo partner 9" },
+        { id: 10, name: "foo partner 10" },
+        { id: 11, name: "foo partner 11" },
+        { id: 12, name: "foo partner 12" },
+        { id: 13, name: "foo partner 13" },
+        { id: 14, name: "foo partner 14" }
+    );
+
+    await mountView({
+        resModel: "event",
+        type: "calendar",
+        arch: `
+            <calendar date_start="start" date_stop="stop">
+                <field filters="1" name="user_id" write_model="filter.partner" write_field="partner_id" options="{'relation': 'calendar.partner'}"/>
+            </calendar>
+        `,
+    });
+
+    onRpc("web_search_read", ({ model }) => {
+        expect.step(model);
+    });
+    await contains(`.o_calendar_filter[data-name="user_id"] .o-autocomplete--input`).click();
+    await advanceTime(500);
+    expect(
+        `.o_calendar_filter[data-name="user_id"] .o-autocomplete--dropdown-item:last-child`
+    ).toHaveText("Search More...");
+    await contains(
+        `.o_calendar_filter[data-name="user_id"] .o-autocomplete--dropdown-item:last-child`
+    ).click();
+    expect(`.modal`).toHaveCount(1);
+    expect.verifySteps(["calendar.partner"]);
 });
 
 test.tags("mobile");
@@ -5173,6 +5218,29 @@ test(`calendar with custom quick create view`, async () => {
     expect.verifySteps(["add dialog 2"]);
 });
 
+test(`calendar with custom quick create view: reload after save`, async () => {
+    Event._views["form,2"] = /* xml */ `<form><field name="name"/></form>`;
+
+    await mountView({
+        resModel: "event",
+        type: "calendar",
+        arch: `
+            <calendar date_start="start" date_stop="stop" all_day="is_all_day" mode="month" quick_create="1" quick_create_view_id="2">
+                <field name="name"/>
+            </calendar>
+        `,
+    });
+    expect(`.fc-event:contains("new event")`).toHaveCount(0);
+
+    await clickAllDaySlot("2016-12-14");
+    expect(`.modal .o_form_view`).toHaveCount(1);
+
+    await contains(`.modal .o_field_widget[name=name] input`).edit("new event");
+    await contains(`.modal-footer .o_form_button_save`).click();
+    expect(`.modal`).toHaveCount(0);
+    expect(`.fc-event:contains("new event")`).toHaveCount(1);
+});
+
 test(`check apply default record label`, async () => {
     class TestCalendarController extends CalendarController {
         get editRecordDefaultDisplayText() {
@@ -6184,6 +6252,34 @@ test(`three calendars are rendered in the ActionSwiper on touch devices`, async 
         message: "events are displayed on the following month",
     });
     expect(".o_actionswiper_left_swipe_area .fc-daygrid-body .fc-event").toHaveText("event 5");
+});
+
+test.tags("desktop");
+test("swiping from an event being dragged on touch devices", async () => {
+    mockTouch(true);
+    await mountView({
+        resModel: "event",
+        type: "calendar",
+        arch: `<calendar date_start="start" date_stop="stop" mode="month"/>`,
+    });
+    expect(".o_calendar_header h5").toHaveText("December 2016");
+
+    const eventEl = findEvent(2);
+    const swipeWidth = queryRect(".o_actionswiper").width;
+    const { moveTo, drop } = await drag(eventEl, { position: { x: 10 }, relative: true });
+    // move a bit before the swiper gets disabled
+    await moveTo(eventEl, { position: { x: 5 }, relative: true });
+    // long press: fullcalendar starts dragging the event
+    await advanceTime(TOUCH_SELECTION_THRESHOLD);
+    expect(".o_calendar_widget.o_interacting").toHaveCount(1);
+
+    // swipe to the next month: the calendar is re-rendered while the event is being dragged
+    await moveTo(eventEl, { position: { x: -swipeWidth }, relative: true });
+    await drop();
+    await advanceTime(1000);
+    await animationFrame();
+    expect(".o_calendar_header h5").toHaveText("January 2017");
+    expect(".o_interacting").toHaveCount(0);
 });
 
 test("Revert to the previous state if updateRecord fails (onEventResize)", async () => {

@@ -296,6 +296,7 @@
             ('remove', 'website/static/src/interactions/ripple_effect.js'),
             ('remove', 'website/static/src/core/website_edit_service.js'),
             ('replace', 'web/static/src/public/public_root_instance.js', 'website/static/src/js/content/website_root_instance.js'),
+            'website/static/src/services/frontend/offline_plugin.js',
             'website/static/src/snippets/**/*.js',
             ('remove', 'website/static/src/snippets/**/*.edit.js'),
             'website/static/src/scss/website.scss',
@@ -427,6 +428,7 @@
             'website/static/tests/redirect_field.test.js',
             'website/static/tests/new_content_systray_item.test.js',
             'website/static/tests/page_url_field.test.js',
+            'website/static/tests/publish_website_systray_item.test.js',
             'website/static/tests/website_loader.test.js',
         ],
         'web.assets_unit_tests_setup': [

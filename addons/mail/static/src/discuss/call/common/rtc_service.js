@@ -128,6 +128,7 @@ export const CROSS_TAB_CLIENT_MESSAGE = {
     LEAVE: "LEAVE", // request the host to leave the call
     UPDATE_VOLUME: "UPDATE_VOLUME", // sent by a tab to signal a volume change
 };
+export const CROSS_TAB_INIT_TIMEOUT = 2000;
 const PING_INTERVAL = 30_000;
 const UNAVAILABLE_AS_REMOTE = _t("This action can only be done in the call tab.");
 const CALL_FULLSCREEN_ID = Symbol("CALL_FULLSCREEN");
@@ -375,6 +376,8 @@ export class Rtc extends Record {
     /** @type {{audio?: boolean, video?: boolean, transcription?: boolean} | null} */
     recordingRequest = null;
     recordingState = fields.Attr({ audio: false, transcription: false, video: false });
+    /** Mirrors `screenTrack.enabled`, which a template cannot observe. */
+    isScreenTrackPaused = false;
     /** @type {RtcLog} */
     logs = {};
     /** @type {Map<any, {id: any, position: "bottom"|"top", text: TranslatedString}>} call notifications by id */
@@ -394,6 +397,8 @@ export class Rtc extends Record {
     /** @type {"granted" | "denied" | "prompt" | undefined} */
     microphonePermission;
     isMicrophonePermissionWarningDismissed = false;
+    /** Whether a media permission dialog is currently shown, it already conveys the permission warning. */
+    isCallPermissionDialogOpen = false;
     /** @type {"granted" | "denied" | "prompt" | undefined} */
     cameraPermission;
     /**
@@ -465,6 +470,8 @@ export class Rtc extends Record {
     _remotelyHostedSessionId;
     _remotelyHostedChannelId;
     _crossTabTimeoutId;
+    crossTabInitDeferred = Promise.withResolvers();
+    isStarted = false;
     /** @type {number} count of how many times the p2p service attempted a connection recovery */
     _p2pRecoveryCount = 0;
 
@@ -507,7 +514,9 @@ export class Rtc extends Record {
 
     get showMicrophonePermissionWarning() {
         return (
-            !this.isMicrophonePermissionWarningDismissed && this.microphonePermission !== "granted"
+            !this.isCallPermissionDialogOpen &&
+            !this.isMicrophonePermissionWarningDismissed &&
+            this.microphonePermission !== "granted"
         );
     }
 
@@ -554,6 +563,10 @@ export class Rtc extends Record {
     }
 
     start() {
+        if (this.isStarted) {
+            return;
+        }
+        this.isStarted = true;
         const services = this.store.env.services;
         this.notification = services.notification;
         this.dialog = services.dialog;
@@ -563,6 +576,7 @@ export class Rtc extends Record {
             this._broadcastChannel.onmessage = this._onBroadcastChannelMessage.bind(this);
             this._postToTabs({ type: CROSS_TAB_CLIENT_MESSAGE.INIT });
         }
+        browser.setTimeout(() => this.crossTabInitDeferred.resolve(), CROSS_TAB_INIT_TIMEOUT);
         this.p2pService = services["discuss.p2p"];
         this.onChange(
             () => [this.channel],
@@ -790,6 +804,12 @@ export class Rtc extends Record {
         this.setPttReleaseTimeout();
     }
 
+    /** @param {boolean} paused */
+    setScreenTrackPaused(paused) {
+        this.screenTrack.enabled = !paused;
+        this.isScreenTrackPaused = paused;
+    }
+
     setPttReleaseTimeout(duration = PTT_RELEASE_DURATION) {
         this.pttReleaseTimeout = browser.setTimeout(() => {
             this.setTalking(false);
@@ -877,20 +897,23 @@ export class Rtc extends Record {
         this.hasPendingRequest = true;
         // Must precede the RPC: otherwise, the echoed session removal would read as a server-initiated disconnect.
         this.endCall(channel);
-        await rpc("/mail/rtc/channel/leave_call", { channel_id: channel.id }, { silent: true });
-        this.hasPendingRequest = false;
+        try {
+            await rpc("/mail/rtc/channel/leave_call", { channel_id: channel.id }, { silent: true });
+        } finally {
+            this.hasPendingRequest = false;
+        }
     }
 
     /**
      * @param {import("models").DiscussChannel} [channel]
      */
     endCall(channel = this.localChannel) {
-        this._endHost();
         if (channel.self_member_id) {
             channel.self_member_id.rtc_inviting_session_id = undefined;
         }
         channel.activeRtcSession = undefined;
         if (channel.eq(this.localChannel)) {
+            this._endHost();
             this.logs.end = new Date().toISOString();
             this.dumpLogs();
             this.pttExtService.unsubscribe();
@@ -1238,6 +1261,8 @@ export class Rtc extends Record {
             this.showMediaUnavailableWarning({ [media]: true }, options);
             return;
         }
+        const onClose = options.onClose;
+        this.isCallPermissionDialogOpen = true;
         this.closeCallPermissionDialog = this.dialog.add(
             CallPermissionDialog,
             {
@@ -1255,6 +1280,10 @@ export class Rtc extends Record {
             {
                 rootRef: options.rootRef || (() => this.rootEl),
                 ...options,
+                onClose: () => {
+                    this.isCallPermissionDialogOpen = false;
+                    onClose?.();
+                },
             }
         );
     }
@@ -1545,9 +1574,10 @@ export class Rtc extends Record {
                 this._remotelyHostedChannelId = hostedChannelId;
                 this._refreshCrossTabTimeout();
                 this.updateSessionInfo(changes);
+                this.crossTabInitDeferred.resolve();
                 return;
             case CROSS_TAB_HOST_MESSAGE.CLOSE: {
-                if (this._remotelyHostedSessionId !== hostedSessionId) {
+                if (this.isHost || this._remotelyHostedSessionId !== hostedSessionId) {
                     return;
                 }
                 this.clear();
@@ -1989,18 +2019,22 @@ export class Rtc extends Record {
             this.notification.add(_t("Your browser does not support webRTC."), { type: "warning" });
             return;
         }
-        this.pttExtService.subscribe();
         this.hasPendingRequest = true;
-        const data = await rpc(
-            "/mail/rtc/channel/join_call",
-            {
-                camera,
-                channel_id: channel.id,
-                check_rtc_session_ids: channel.rtc_session_ids.map((session) => session.id),
-            },
-            { silent: true }
-        );
-        this.hasPendingRequest = false;
+        let data;
+        try {
+            data = await rpc(
+                "/mail/rtc/channel/join_call",
+                {
+                    camera,
+                    channel_id: channel.id,
+                    check_rtc_session_ids: channel.rtc_session_ids.map((session) => session.id),
+                },
+                { silent: true }
+            );
+        } finally {
+            this.hasPendingRequest = false;
+        }
+        this.pttExtService.subscribe();
         // Initializing a new session implies closing the current session.
         this.clear();
         this.localChannel = channel;
@@ -2263,6 +2297,7 @@ export class Rtc extends Record {
             isSendingCamera: false,
             isSendingScreen: false,
             isMicAudioTrackMuted: false,
+            isCallPermissionDialogOpen: false,
             isMicrophonePermissionWarningDismissed: false,
             localChannel: undefined,
             localSession: undefined,
@@ -2495,6 +2530,10 @@ export class Rtc extends Record {
                     this.screenTrack = undefined;
                     closeStream(this.sourceScreenStream);
                     this.sourceScreenStream = null;
+                    if (this.screenAudioTrack) {
+                        this.screenAudioTrack = undefined;
+                        this.updateAudioTrack();
+                    }
                     break;
                 }
             }
@@ -2600,6 +2639,7 @@ export class Rtc extends Record {
             }
             case "screen": {
                 Object.assign(this, {
+                    isScreenTrackPaused: false,
                     isSendingScreen: Boolean(outputTrack),
                     screenAudioTrack: screenAudioTrack,
                     screenTrack: outputTrack,
@@ -2634,6 +2674,8 @@ export class Rtc extends Record {
             this.audioTrack = destination.stream.getAudioTracks()[0];
         } else {
             this.audioTrack = micAudioTrack ?? screenAudioTrack;
+            this.audioContext?.close();
+            this.audioContext = undefined;
         }
         await this.network?.updateUpload("audio", this.audioTrack);
     }
@@ -2648,7 +2690,9 @@ export class Rtc extends Record {
         this.micAudioTrack?.stop();
         this.micAudioTrack = undefined;
         this.isMicAudioTrackMuted = false;
-        this.audioTrack?.stop();
+        if (this.audioTrack !== this.screenAudioTrack) {
+            this.audioTrack?.stop();
+        }
         this.audioTrack = undefined;
         if (!this.localChannel) {
             return;
@@ -2668,6 +2712,7 @@ export class Rtc extends Record {
                 }
             } catch {
                 this.showMediaUnavailableWarning({ microphone: true }, options);
+                this.updateAudioTrack();
                 return;
             }
             if (!this.localSession) {
@@ -2685,6 +2730,8 @@ export class Rtc extends Record {
             this.micAudioTrack = micAudioTrack;
             this.setupMicAudioTrackListeners();
             this.linkVoiceActivationDebounce();
+            this.updateAudioTrack();
+        } else {
             this.updateAudioTrack();
         }
     }
@@ -2795,12 +2842,15 @@ export class Rtc extends Record {
             session.isTalking = false;
             this.remoteAudioMonitors.get(session.id)?.();
             try {
-                this.remoteAudioMonitors.set(
-                    session.id,
-                    await monitorAudio(track, {
-                        onTic: (volume) => this.updateTalkingVolume(session, volume),
-                    })
-                );
+                const disconnectMonitor = await monitorAudio(track, {
+                    onTic: (volume) => this.updateTalkingVolume(session, volume),
+                });
+                if (session.audioStream === stream) {
+                    this.remoteAudioMonitors.set(session.id, disconnectMonitor);
+                } else {
+                    // the stream was replaced or removed while the monitor was being set up
+                    disconnectMonitor();
+                }
             } catch {
                 // ignore monitor setup failures.
             }
@@ -2989,6 +3039,15 @@ export const rtcService = {
             },
             { immediate: true, initialRun: false }
         );
+        rtc.onChange(
+            () => [store.meetingViewOpened],
+            function onChangeMeetingViewOpened(meetingViewOpened) {
+                if (!meetingViewOpened) {
+                    rtc.channel?.resetCallFocus();
+                }
+            },
+            { immediate: true, initialRun: false }
+        );
         rtc.fullscreen = services["mail.fullscreen"];
         rtc.onChange(
             () => [rtc.fullscreen.id],
@@ -3000,10 +3059,10 @@ export const rtcService = {
                     rtc.displaySurface !== "browser" &&
                     fullscreenId === CALL_FULLSCREEN_ID
                 ) {
-                    rtc.screenTrack.enabled = false;
+                    rtc.setScreenTrackPaused(true);
                 } else if (!rtc.isFullscreen) {
                     if (wasFullscreen && rtc.screenTrack) {
-                        rtc.screenTrack.enabled = true;
+                        rtc.setScreenTrackPaused(false);
                     }
                 }
             },

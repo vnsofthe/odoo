@@ -95,9 +95,8 @@ class PurchaseOrder(models.Model):
                     if not default_po_line_vals:
                         OrderLine = self.env['purchase.order.line']
                         default_po_line_vals = OrderLine.default_get(OrderLine._fields.keys())
-                    last_sequence = self.order_line[-1:].sequence
-                    if last_sequence:
-                        default_po_line_vals['sequence'] = last_sequence
+                        if grid.get('sequence') is not None:
+                            default_po_line_vals['sequence'] = grid.get('sequence')
                     new_lines.append((0, 0, dict(
                         default_po_line_vals,
                         product_id=product.id,
@@ -139,6 +138,7 @@ class PurchaseOrder(models.Model):
     def get_report_matrixes(self):
         """Reporting method."""
         matrixes = []
+        self = self.with_context(show_template_name_in_grid=True)  # noqa: PLW0642
         grid_configured_templates = self.order_line.filtered('is_configurable_product').product_template_id
         # TODO is configurable product and product_variant_count > 1
         # configurable products are only configured through the matrix in purchase, so no need to check product_add_mode.

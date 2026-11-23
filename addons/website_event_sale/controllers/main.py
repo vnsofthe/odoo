@@ -87,11 +87,15 @@ class WebsiteEventSaleController(WebsiteEventController):
                 request.session['sale_last_order_id'] = order_sudo.id
                 return request.redirect("/shop/confirmation")
             elif order_sudo:
-                if order_sudo._is_anonymous_cart():
+                signup_required = (
+                    request.env.user._is_public()
+                    and self.env.website.account_on_checkout == 'mandatory'
+                )
+                # Skip pre-creating a partner when signup will create one itself.
+                if order_sudo._is_anonymous_cart() and not signup_required:
                     booked_by_partner, feedback_dict = CustomerPortal()._create_or_update_address(
-                        request.env['res.partner'].sudo(),
+                        request.env['res.partner'].sudo().with_context(partial_address_before_checkout=True),
                         order_sudo=order_sudo,
-                        verify_address_values=False,
                         **registrations[0]
                     )
                     if not feedback_dict.get('invalid_fields'):

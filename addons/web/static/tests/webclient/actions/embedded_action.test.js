@@ -399,6 +399,38 @@ test("can click on a embedded action and execute the corresponding action (with 
     });
 });
 
+test("embedded actions are displayed in the form view of an embedded action", async () => {
+    await mountWithCleanup(WebClient);
+    onRpc("do_python_method", () => ({
+        name: "Partner form from python action",
+        res_model: "partner",
+        res_id: 1,
+        type: "ir.actions.act_window",
+        views: [[false, "form"]],
+    }));
+    await getService("action").doAction(1);
+    await contains(".o_control_panel_navigation > button > i[data-icon='tune']").click();
+    await waitFor(".o_popover.dropdown-menu");
+    await contains(
+        ".o_popover.dropdown-menu .dropdown-item > div > span:contains('Embedded Action 2')"
+    ).click();
+    await contains(
+        ".o_popover.dropdown-menu .dropdown-item > div > span:contains('Embedded Action 3')"
+    ).click();
+    await contains(".o_embedded_actions > button > span:contains('Embedded Action 3')").click();
+    expect(".o_form_view").toHaveCount(1);
+    expect(".o_embedded_actions > button.active").toHaveText("Embedded Action 3", {
+        message: "the embedded actions should be displayed in the form view of the action",
+    });
+
+    await contains(".o_embedded_actions > button > span:contains('Embedded Action 2')").click();
+    await contains(".o_data_row .o_data_cell").click();
+    expect(".o_form_view").toHaveCount(1);
+    expect(".o_embedded_actions").toHaveCount(0, {
+        message: "the embedded actions should not be displayed on a record opened from the action",
+    });
+});
+
 test("breadcrumbs are updated when clicking on embeddeds", async () => {
     await mountWithCleanup(WebClient);
     onRpc("do_python_method", () => ({
@@ -705,6 +737,47 @@ test("custom embedded action loaded first", async () => {
     expect(".o_last_breadcrumb_item > span").toHaveText("Ponies", {
         message: "'Favorite Ponies' view should be loaded",
     });
+});
+
+test("button returning an action for another record uses that record's embedded settings", async () => {
+    user.updateUserSettings("embedded_actions_config_ids", {
+        "1+6": {
+            embedded_actions_visibility: [102],
+            embedded_visibility: false,
+            embedded_actions_order: [102, false],
+        },
+        "1+1": {
+            embedded_actions_visibility: [103],
+            embedded_visibility: false,
+            embedded_actions_order: [103, false],
+        },
+    });
+    onRpc("pony", "object", () => ({
+        ...actions[0],
+        type: "ir.actions.act_window",
+        embedded_action_ids: actions.filter((action) => action.parent_action_id === 1),
+        context: { active_id: 1 },
+    }));
+    onRpc("partner", "do_python_method", ({ args, kwargs }) => {
+        expect.step(
+            `do_python_method ${args[0]} ${kwargs.context.active_id} ${kwargs.context.active_model}`
+        );
+        return {
+            id: 4,
+            name: "Favorite Ponies from python action",
+            res_model: "pony",
+            type: "ir.actions.act_window",
+            views: [[false, "kanban"]],
+        };
+    });
+    await mountWithCleanup(WebClient);
+    await getService("action").doActionButton({
+        name: "object",
+        type: "object",
+        resModel: "pony",
+        resId: 6,
+    });
+    expect.verifySteps(["do_python_method 1 1 partner"]);
 });
 
 test("test get_embedded_actions_settings rpc args", async () => {

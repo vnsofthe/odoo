@@ -6,12 +6,67 @@ import { getFilledOrder, setupPosEnv } from "@point_of_sale/../tests/unit/utils"
 import { MockServer, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { waitUntil } from "@odoo/hoot-dom";
 import { FloorPlan } from "@pos_restaurant/app/screens/floor_screen/floor_plan/floor_plan";
+import { patch } from "@web/core/utils/patch";
 
 const { DateTime } = luxon;
 
 definePosModels();
 
 describe("restaurant pos_store.js", () => {
+    test("postSyncAllOrders removes the empty local order merged on the same table", async () => {
+        const store = await setupPosEnv();
+        const table = store.models["restaurant.table"].get(2);
+        const order = store.addNewOrder({ table_id: table });
+        await store.addLineToOrder(
+            { product_tmpl_id: store.models["product.template"].get(5), qty: 1 },
+            order
+        );
+        // Empty order left by the server merging it in the open order of the table
+        const emptyOrder = store.createNewOrder({ table_id: table });
+        store.setOrder(emptyOrder);
+        await store.syncAllOrders({ orders: [order] });
+        expect(order.isSynced).toBe(true);
+        expect(Boolean(store.models["pos.order"].getBy("uuid", emptyOrder.uuid))).toBe(false);
+        expect(store.getOrder().uuid).toBe(order.uuid);
+    });
+
+    test("addNewOrder keeps the table of an order paid from another device", async () => {
+        const store = await setupPosEnv();
+        const table = store.models["restaurant.table"].get(2);
+        const otherTable = store.models["restaurant.table"].get(3);
+        const order = store.addNewOrder({ table_id: table });
+
+        // Table order still open: a new order without table is a direct sale
+        expect(Boolean(store.addNewOrder().table_id)).toBe(false);
+
+        // Table order paid from another device while displayed: the new order stays on the table
+        store.navigate("ProductScreen", { orderUuid: order.uuid });
+        order.state = "paid";
+        expect(store.addNewOrder().table_id.id).toBe(table.id);
+
+        // An explicit table and refunds are kept as requested
+        store.setOrder(order);
+        expect(store.addNewOrder({ table_id: otherTable }).table_id.id).toBe(otherTable.id);
+        store.setOrder(order);
+        expect(Boolean(store.addNewOrder({ is_refund: true }).table_id)).toBe(false);
+    });
+
+    test("addNewOrder after a local payment does not reuse the paid table", async () => {
+        const store = await setupPosEnv();
+        const table = store.models["restaurant.table"].get(2);
+        const order = store.addNewOrder({ table_id: table });
+        store.navigate("FeedbackScreen", { orderUuid: order.uuid });
+        order.state = "paid";
+
+        // e.g. orderDone() creating the next order when the default screen is the register
+        expect(Boolean(store.addNewOrder().table_id)).toBe(false);
+
+        // Not a restaurant: never inherits the table
+        store.config.module_pos_restaurant = false;
+        store.navigate("ProductScreen", { orderUuid: order.uuid });
+        expect(Boolean(store.addNewOrder().table_id)).toBe(false);
+    });
+
     test("fireCourse", async () => {
         const store = await setupPosEnv();
         store.addNewOrder();
@@ -398,7 +453,7 @@ describe("restaurant pos_store.js", () => {
         const tableSrc = store.models["restaurant.table"].get(1);
         const tableDst = store.models["restaurant.table"].get(2);
         const order = store.addNewOrder({ table_id: tableSrc });
-        const result = store.prepareOrderTransfer(order, tableDst);
+        const result = await store.prepareOrderTransfer(order, tableDst);
         expect(result).toBe(false);
         expect(order.table_id).toBe(tableDst);
         expect(store.getOrder()).toBe(order);
@@ -603,8 +658,58 @@ describe("restaurant pos_store.js", () => {
         expect(table.getOrders().length).toBe(0);
     });
 
+    test("order cannot be cancelled while it is sent in preparation", async () => {
+        const store = await setupPosEnv();
+        store.config.preparation_printer_ids = store.models["pos.printer"].filter(
+            (printer) => printer.use_type === "preparation"
+        );
+        let resolvePrint;
+        patch(store.ticketPrinter, {
+            printOrderChanges: () => new Promise((resolve) => (resolvePrint = resolve)),
+        });
+        const table = store.models["restaurant.table"].get(2);
+        const order = store.addNewOrder({ table_id: table });
+        const cola = store.models["product.template"].get(5);
+        await store.addLineToOrder({ product_tmpl_id: cola, qty: 1 }, order);
+        store.beforeDeleteOrder = async () => true;
+        let deleteCount = 0;
+        patch(store, {
+            async deleteOrders() {
+                deleteCount++;
+                return true;
+            },
+        });
+
+        // Kitchen ticket still printing
+        const sending = store.sendOrderInPreparation(order);
+        await tick();
+        expect(await store.onDeleteOrder(order)).toBe(false);
+        expect(deleteCount).toBe(0);
+
+        resolvePrint(true);
+        await sending;
+        expect(await store.onDeleteOrder(order)).toBe(true);
+        expect(deleteCount).toBe(1);
+    });
+
     test("order has no pending line changes after sending", async () => {
         const store = await setupPosEnv();
+        // Link preparation printer and fake the successful print of preparation printer
+        store.config.preparation_printer_ids = store.models["pos.printer"].filter(
+            (printer) => printer.use_type === "preparation"
+        );
+        store.ticketPrinter.print = (_args) => ({
+            successful: true,
+            message: "Printed successfully",
+        });
+        await store.ticketPrinter.initPrinters();
+        store.ticketPrinter.generateIframe = async () => ({
+            contentWindow: {},
+            contentDocument: { body: { innerHTML: "" } },
+            style: {},
+        });
+        store.ticketPrinter.setIframeSizeFromPrinter = () => {};
+        store.ticketPrinter.generateImage = async () => "mock-image";
         const order = store.addNewOrder();
         const cola = store.models["product.template"].get(5);
         await store.addLineToOrder({ product_tmpl_id: cola, qty: 1 }, order);
@@ -803,6 +908,29 @@ describe("restaurant pos_store.js", () => {
         const changes = destOrder.getChanges();
         expect(changes.addedQuantity.length).toBe(0);
         expect(changes.removedQuantity.length).toBe(0);
+    });
+
+    test("mergeOrders reprices moved lines with the destination pricelist", async () => {
+        const store = await setupPosEnv();
+        const models = store.models;
+        const product = models["product.template"].get(5);
+        const destOrder = store.addNewOrder({ table_id: models["restaurant.table"].get(2) });
+        destOrder.setPricelist(models["product.pricelist"].get(3)); // 90% discount
+        const sourceOrder = store.addNewOrder({ table_id: models["restaurant.table"].get(3) });
+        sourceOrder.setPricelist(models["product.pricelist"].get(1)); // no rule
+        await store.addLineToOrder({ product_tmpl_id: product, qty: 1 }, sourceOrder);
+        const manualLine = await store.addLineToOrder(
+            { product_tmpl_id: models["product.template"].get(6), qty: 1 },
+            sourceOrder
+        );
+        manualLine.price_type = "manual";
+        manualLine.setUnitPrice(42);
+        expect(sourceOrder.lines[0].price_unit).toBe(100);
+
+        await store.mergeOrders(sourceOrder, destOrder);
+        const [line, mergedManualLine] = destOrder.lines;
+        expect(line.price_unit).toBe(10);
+        expect(mergedManualLine.price_unit).toBe(42);
     });
 
     test("getCustomerCount", async () => {
@@ -1047,6 +1175,26 @@ describe("restaurant pos_store.js", () => {
 
         expect(order.getCustomerCount()).toBe(5);
         expect(order.uiState.guestSetted).toBe(true);
+    });
+
+    test("ensureGuestCustomerCount removes split order guests from original order", async () => {
+        const store = await setupPosEnv();
+        const original = store.createNewOrder();
+        original.setCustomerCount(3);
+        const preset = store.models["pos.preset"].get(1);
+        preset.use_guest = true;
+        const splitOrder = store.createNewOrder({ preset_id: preset });
+        splitOrder.uiState.splittedOrderUuid = original.uuid;
+
+        store.setCustomerCount = async (targetOrder) => {
+            targetOrder.setCustomerCount(2);
+            return true;
+        };
+
+        await store.ensureGuestCustomerCount(splitOrder);
+
+        expect(splitOrder.getCustomerCount()).toBe(2);
+        expect(original.getCustomerCount()).toBe(2);
     });
 
     test("table order validates with default preset", async () => {

@@ -63,7 +63,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         comodel_name='account.account',
         string='Accrual Account',
         check_company=True,
-        domain="[('account_type', '=', 'liability_current')] if context.get('active_model') in ['purchase.order', 'purchase.order.line'] else [('account_type', '=', 'asset_current')]",
+        domain="[('account_type', '=', 'liability_current')] if accrual_type in ('bill_to_receive', 'invoiced_not_delivered') else [('account_type', 'in', ('asset_current', 'asset_prepayments'))]",
     )
     preview_data = fields.Text(compute='_compute_preview_data')
     display_amount = fields.Boolean(compute='_compute_display_amount')
@@ -114,28 +114,9 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                 },
             })
 
-    @api.depends('date', 'journal_id', 'preview_data')
     def _compute_duplicate_entry(self):
-        for record in self:
-            if not record.preview_data:
-                record.duplicate_entry_id = False
-                continue
-
-            data = json.loads(record.preview_data)
-            ref = data['groups_vals'][0]['group_name'].split(', ')[1]
-            record.duplicate_entry_id = self.env['account.move'].search([
-                ('date', '=', record.date),
-                ('journal_id', '=', record.journal_id.id),
-                ('ref', '=', ref),
-                ('state', 'in', ('draft', 'posted')),
-            ], order='id desc', limit=1)
-
-    def _get_computed_account(self, order, product, is_purchase):
-        accounts = product.with_company(order.company_id).product_tmpl_id.get_product_accounts(fiscal_pos=order.fiscal_position_id)
-        if is_purchase:
-            return accounts['expense']
-        else:
-            return accounts['income']
+        # TODO: remove the field in master
+        self.duplicate_entry_id = False
 
     def _get_aml_vals(self, is_purchase, order, balance, amount_currency, account_id, label="", analytic_distribution=None):
         # `balance`/`amount_currency` use the expense/income account's sign
@@ -233,12 +214,16 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         orders_with_entries = []
         order_lines_with_entries = lines.browse()
         total_balance = 0.0
-
         for order, product_lines in lines.grouped('order_id').items():
             if len(orders) == 1 and product_lines and self.amount and order.order_line:
                 total_balance = self.amount
                 order_line = product_lines[0]
-                account = self._get_computed_account(order, order_line.product_id, is_purchase)
+                product = order_line.product_id
+                accounts = product.with_company(order.company_id).product_tmpl_id.get_product_accounts(fiscal_pos=order.fiscal_position_id)
+                if is_purchase and product.valuation == 'real_time':
+                    account = accounts['stock_valuation']
+                else:
+                    account = accounts['expense'] if is_purchase else accounts['income']
                 distribution = order_line.analytic_distribution if order_line.analytic_distribution else {}
                 values = self._get_aml_vals(is_purchase, order, self.amount, 0, account.id, label=_('Manual entry'), analytic_distribution=distribution)
                 move_lines.append(Command.create(values))
@@ -247,9 +232,9 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                 accrual_entry_date = fields.Date.from_string(accrual_entry_date) if accrual_entry_date else self.date
                 order_lines = self._get_accrual_lines(order, lines, accrual_entry_date)
                 order_lines_with_entries |= order_lines
-                main_vals_list, main_counterpart_vals_list = self._get_accrual_main_line_vals(order_lines, is_purchase, accrual_entry_date)
-                inventory_vals_list, counterpart_vals_list = self._get_accrual_cogs_line_vals(order_lines, is_purchase, accrual_entry_date)
-                for vals in main_vals_list + main_counterpart_vals_list + inventory_vals_list + counterpart_vals_list:
+                main_vals_list, main_counterpart_vals_list = self._get_accrual_main_line_vals(order_lines, accrual_entry_date)
+                cogs_vals_list, cogs_counterpart_vals_list = self._get_accrual_pending_cogs_vals(order_lines, accrual_entry_date)
+                for vals in main_vals_list + cogs_vals_list + main_counterpart_vals_list + cogs_counterpart_vals_list:
                     move_lines.append(Command.create(vals))
 
         # Manual amount case: a single globalized counterpart on the manually chosen account.
@@ -270,13 +255,14 @@ class AccountAccruedOrdersWizard(models.TransientModel):
             date = format_date(self.env, self.date)
             ref = _("%(accrual_type)s entry as of %(date)s", accrual_type=accrual_type_string, date=date)
 
+        currency_id = self.company_id.currency_id.id if mixed_currencies else (orders.currency_id.id or self.company_id.currency_id.id)
         move_vals = {
             'ref': ref,
             'name': '/',
             'journal_id': self.journal_id.id,
             'date': self.date,
             'line_ids': move_lines,
-            'currency_id': self.company_id.currency_id.id if mixed_currencies else (orders.currency_id.id or self.company_id.currency_id.id),
+            'currency_id': currency_id,
         }
         return move_vals, orders_with_entries, order_lines_with_entries
 
@@ -292,39 +278,25 @@ class AccountAccruedOrdersWizard(models.TransientModel):
 
     def create_entries(self, auto_post=True):
         self.ensure_one()
-
         if self.reversal_date <= self.date:
             raise UserError(_('Reversal date must be posterior to date.'))
 
-        # Try to unlink the duplicate entry and its reversal
-        if self.duplicate_entry_id:
-            original_reverse_entry = self.env['account.move'].search([
-                ('reversed_entry_id', '=', self.duplicate_entry_id.id),
-            ])
-
-            moves_to_delete = self.duplicate_entry_id | original_reverse_entry
-            moves_to_delete._unlink_or_reverse(default_values_list=[
-                {
-                    'ref': _("Reversal of: %s", move.ref),
-                    'date': self.date if move == self.duplicate_entry_id else self.reversal_date,
-                }
-                for move in moves_to_delete
-            ])
-
         move_vals, orders_with_entries, order_lines_with_entries = self._compute_move_vals()
-        move = self.env['account.move'].create(move_vals)
+        moves = self.env['account.move'].create([move_vals])
+        move = moves[0]
         order_lines_with_entries.accrual_move_ids = [Command.link(move.id)]
-        reverse_move = move._reverse_moves(default_values_list=[{
-            'ref': _('Reversal of: %s', move.ref),
+        reverse_moves = moves._reverse_moves(default_values_list=[{
+            'ref': _('Reversal of: %s', entry.ref),
             'name': '/',
             'date': self.reversal_date,
             # Posted on its own date by the daily auto-post cron, not right away: it must stay
             # draft until then, or its reversing effect (accounting and quantity alike) would
             # apply immediately and cancel the accrual out before it's ever seen.
             'auto_post': 'at_date',
-        }])
+        } for entry in moves])
+        reverse_move = reverse_moves[0]
         if auto_post:
-            move._post()
+            moves._post()
         for order in orders_with_entries:
             order.message_post(body=self._get_accrual_message_body(move, reverse_move))
         return {
@@ -332,9 +304,10 @@ class AccountAccruedOrdersWizard(models.TransientModel):
             'type': 'ir.actions.act_window',
             'res_model': 'account.move',
             'view_mode': 'list,form',
-            'domain': [('id', 'in', (move | reverse_move).ids)],
+            'domain': [('id', 'in', (moves | reverse_moves).ids)],
         }
 
+    # TODO: remove in master
     def open_duplicate(self):
         self.ensure_one()
         if self.duplicate_entry_id:
@@ -347,28 +320,16 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                 'target': 'current',
             }
 
-    def _get_accrual_main_line_vals(self, order_lines, is_purchase, accrual_entry_date):
-        """ Hook overridden by purchase/sale: for each line in `order_lines`, its expense/
-        revenue line and its accrual counterpart (and, for purchase's standard-cost
-        products, its price-difference pair).
+    def _get_accrual_main_line_vals(self, order_lines, accrual_entry_date):
+        """ Hook overridden by purchase/sale.
 
-        :return: (main_vals_list, counterpart_vals_list), each a list of account.move.line
-            vals (built via `_get_aml_vals`) ready for `Command.create` — respectively the
-            expense/revenue side (plus the price-difference pair, for purchase's
-            standard-cost products), and its accrual counterpart posted to the
-            bills_to_receive/billed_not_received/invoices_to_issue/invoiced_not_delivered
-            account.
+        :return: (main_vals_list, counterpart_vals_list) of account.move.line vals.
         """
         raise NotImplementedError
 
-    def _get_accrual_cogs_line_vals(self, order_lines, is_purchase, accrual_entry_date):
-        """ Hook overridden by purchase/sale: the perpetual-valuation adjustment needed, for
-        real-time-valued storable products among `order_lines`, because perpetual valuation
-        already posts stock movements in real time instead of waiting for the bill/invoice.
+    def _get_accrual_pending_cogs_vals(self, order_lines, accrual_entry_date):
+        """ Hook overridden by purchase/sale, for real-time-valued storable products.
 
-        :return: (inventory_vals_list, counterpart_vals_list), each a list of account.move.line
-            vals (built via `_get_aml_vals`) ready for `Command.create` — respectively the
-            stock-valuation side of the adjustment, and its offsetting entry on the product's
-            expense account.
+        :return: (vals_list, counterpart_vals_list) of account.move.line vals.
         """
         return [], []

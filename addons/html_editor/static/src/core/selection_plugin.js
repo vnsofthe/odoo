@@ -19,6 +19,7 @@ import {
     descendants,
     findNode,
     firstLeaf,
+    getCommonAncestor,
     lastLeaf,
 } from "@html_editor/utils/dom_traversal";
 import { getActiveHotkey } from "@web/core/hotkeys/hotkey_utils";
@@ -105,6 +106,17 @@ export const isHtmlContentSupported = weakMemoize(
             '[data-oe-model]:not([data-oe-type="html"]):not([data-oe-field="arch"]):not([data-oe-translation-source-sha])'
         )
 );
+
+/**
+ * Builds a Range only when needed, Chrome updates every Range on each DOM
+ * change until it is garbage collected, which can take a long time.
+ */
+function makeRange(startContainer, startOffset, endContainer, endOffset) {
+    const range = new Range();
+    range.setStart(startContainer, startOffset);
+    range.setEnd(endContainer, endOffset);
+    return range;
+}
 
 /**
  * @returns edge text nodes if they do not have content selected
@@ -195,11 +207,12 @@ function scrollToSelection(selection) {
  *
  * @typedef {((ev: PointerEvent) => void | true)[]} double_click_overrides
  * @typedef {((ev: PointerEvent) => void | true)[]} triple_click_overrides
- * @typedef {((selection: EditorSelection) => boolean)[]} fix_selection_on_editable_root_overrides
+ * @typedef {((selection: EditorSelection) => boolean)[]} fix_selection_on_no_inline_root_overrides
  *
  * @typedef {((node: Node, selection: EditorSelection, range: Range) => boolean | undefined)[]} is_node_fully_selected_predicates
  * @typedef {((ev: Event, char: string, lastSkipped: string) => boolean | undefined)[]} is_char_tangible_for_keyboard_navigation_predicates
  * @typedef {((node: Node) => boolean | undefined)[]} is_node_editable_predicates
+ * @typedef {((node: Node) => boolean | undefined)[]} is_no_inline_root_predicates
  *
  * @typedef {((targetedNodes: Node[]) => Node[])[]} targeted_nodes_processors
  */
@@ -330,7 +343,10 @@ export class SelectionPlugin extends Plugin {
         this.addGlobalDomListener("selectionchange", () => {
             this.updateActiveSelection();
             const selection = this.document.getSelection();
-            if (this.isSelectionInEditable(selection)) {
+            if (
+                this.isSelectionInEditable(selection) &&
+                this.editable.contains(this.document.activeElement)
+            ) {
                 scrollToSelection(selection);
             }
         });
@@ -486,7 +502,7 @@ export class SelectionPlugin extends Plugin {
         this.previousActiveSelection = this.activeSelection;
         // getSelectionData sets this.activeSelection to the current selection
         const selectionData = this.getSelectionData();
-        if (this.fixSelectionOnEditableRoot(selectionData)) {
+        if (this.fixSelectionOnNoInlineRoot(selectionData)) {
             return;
         }
         this.trigger("on_selectionchange_handlers", selectionData);
@@ -555,9 +571,8 @@ export class SelectionPlugin extends Plugin {
                 direction === DIRECTIONS.RIGHT
                     ? [anchorNode, anchorOffset, focusNode, focusOffset]
                     : [focusNode, focusOffset, anchorNode, anchorOffset];
-            range = this.document.createRange();
-            range.setStart(startContainer, startOffset);
-            range.setEnd(endContainer, endOffset);
+            const isCollapsed = startContainer === endContainer && startOffset === endOffset;
+            let intersectionRange;
 
             activeSelection = {
                 anchorNode,
@@ -568,11 +583,19 @@ export class SelectionPlugin extends Plugin {
                 startOffset,
                 endContainer,
                 endOffset,
-                commonAncestorContainer: range.commonAncestorContainer,
-                isCollapsed: range.collapsed,
+                commonAncestorContainer: getCommonAncestor([startContainer, endContainer]),
+                isCollapsed,
                 direction,
-                toString: () => (range.collapsed ? "" : selection.toString()),
-                intersectsNode: (node) => range.intersectsNode(node),
+                toString: () => (isCollapsed ? "" : selection.toString()),
+                intersectsNode: (node) => {
+                    intersectionRange ??= makeRange(
+                        startContainer,
+                        startOffset,
+                        endContainer,
+                        endOffset
+                    );
+                    return intersectionRange.intersectsNode(node);
+                },
             };
         }
 
@@ -605,7 +628,6 @@ export class SelectionPlugin extends Plugin {
      */
     createEditorSelection(anchorNode, anchorOffset, focusNode, focusOffset, direction) {
         let startContainer, startOffset, endContainer, endOffset;
-        const range = new Range();
         if (direction) {
             [startContainer, startOffset] = [anchorNode, anchorOffset];
             [endContainer, endOffset] = [focusNode, focusOffset];
@@ -614,8 +636,6 @@ export class SelectionPlugin extends Plugin {
             [endContainer, endOffset] = [anchorNode, anchorOffset];
         }
 
-        range.setStart(startContainer, startOffset);
-        range.setEnd(endContainer, endOffset);
         return Object.freeze({
             ...this.activeSelection,
             anchorNode,
@@ -626,8 +646,9 @@ export class SelectionPlugin extends Plugin {
             startOffset,
             endContainer,
             endOffset,
-            commonAncestorContainer: range.commonAncestorContainer,
-            cloneContents: () => range.cloneContents(),
+            commonAncestorContainer: getCommonAncestor([startContainer, endContainer]),
+            cloneContents: () =>
+                makeRange(startContainer, startOffset, endContainer, endOffset).cloneContents(),
         });
     }
     /**
@@ -1102,20 +1123,22 @@ export class SelectionPlugin extends Plugin {
      * @param {SelectionData} selectionData
      * @returns {boolean} Whether the selection was fixed
      */
-    fixSelectionOnEditableRoot(selectionData) {
+    fixSelectionOnNoInlineRoot(selectionData) {
         const { editableSelection, documentSelectionIsInEditable } = selectionData;
         if (this.config.allowInlineAtRoot || !documentSelectionIsInEditable) {
             return false;
         }
-        const isSelectionOnEditableRoot = (s) => s.isCollapsed && s.anchorNode === this.editable;
-        if (!isSelectionOnEditableRoot(editableSelection)) {
+        const isSelectionOnNoInlineRoot = (s) =>
+            s.isCollapsed &&
+            (this.checkPredicates("is_no_inline_root_predicates", s.anchorNode) ?? false);
+        if (!isSelectionOnNoInlineRoot(editableSelection)) {
             return false;
         }
-        if (this.delegateTo("fix_selection_on_editable_root_overrides", editableSelection)) {
+        if (this.delegateTo("fix_selection_on_no_inline_root_overrides", editableSelection)) {
             return true;
         }
         // Revert the selection to the previous one
-        if (isSelectionOnEditableRoot(this.previousActiveSelection)) {
+        if (isSelectionOnNoInlineRoot(this.previousActiveSelection)) {
             // Last stored selection is also at the editable root
             return false;
         }

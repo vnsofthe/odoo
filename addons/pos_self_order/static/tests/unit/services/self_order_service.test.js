@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, mockDate, test } from "@odoo/hoot";
 import { MockServer, onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { location } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
+import { patch } from "@web/core/utils/patch";
 import { definePosSelfModels } from "../data/generate_model_definitions";
 import {
     addComboProduct,
@@ -564,6 +565,53 @@ describe("initProducts", () => {
         expect(store.availableCategories).toHaveLength(13);
         expect(store.isCategoryAvailable(unAvailableCatg)).toBeEmpty();
     });
+
+    test("availableCategories hides categories without self order available products", async () => {
+        const store = await setupSelfPosEnv();
+        const productTemplates = store.models["product.template"];
+        store.computeAvailableCategories();
+        let categoryIds = store.availableCategories.map((c) => c.id);
+        expect(categoryIds).toInclude(4);
+
+        // Burger (id=4) only contains the "Bacon burger"
+        productTemplates.get(12).self_order_available = false;
+        store.computeAvailableCategories();
+        categoryIds = store.availableCategories.map((c) => c.id);
+        expect(categoryIds).not.toInclude(4);
+        expect(categoryIds).toInclude(3);
+        expect(categoryIds).toInclude(5);
+
+        // Food (id=3) and its children "Burger" (4) and "Pizza" (5) have no available product left
+        productTemplates.get(13).self_order_available = false;
+        productTemplates.get(14).self_order_available = false;
+        store.computeAvailableCategories();
+        categoryIds = store.availableCategories.map((c) => c.id);
+        expect(categoryIds).not.toInclude(3);
+        expect(categoryIds).not.toInclude(4);
+        expect(categoryIds).not.toInclude(5);
+
+        expect(categoryIds).toInclude(0);
+
+        // Uncategorised (id=0) has no available product left
+        productTemplates
+            .filter((p) => !p.pos_categ_ids.length)
+            .forEach((p) => (p.self_order_available = false));
+        store.computeAvailableCategories();
+        categoryIds = store.availableCategories.map((c) => c.id);
+        expect(categoryIds).not.toInclude(0);
+    });
+
+    test("availableCategories are updated when a product becomes available again", async () => {
+        const store = await setupSelfPosEnv();
+        const productTemplate = store.models["product.template"].get(12);
+        productTemplate.self_order_available = false;
+        store.computeAvailableCategories();
+        expect(store.availableCategories.map((c) => c.id)).not.toInclude(4);
+
+        const { method } = store.data.channels.find((c) => c.channel === "PRODUCT_CHANGED");
+        method({ "product.template": [{ ...productTemplate.raw, self_order_available: true }] });
+        expect(store.availableCategories.map((c) => c.id)).toInclude(4);
+    });
 });
 
 describe("initHardware", () => {
@@ -670,6 +718,39 @@ test("verifyCart", async () => {
     }
 });
 
+test("verifyCart removes lines whose category hour window has closed", async () => {
+    const store = await setupSelfPosEnv();
+    const models = store.models;
+    await getFilledSelfOrder(store);
+
+    models["pos.category"].get(1).update({
+        hour_after: 10,
+        hour_until: 12,
+    });
+    mockDate("2025-11-29 18:00:00");
+
+    const result = store.verifyCart();
+    expect(result).toBe(false);
+    expect(store.currentOrder.lines).toHaveLength(1);
+    expect(store.currentOrder.lines[0].product_id.product_tmpl_id.id).toBe(6);
+});
+
+test("verifyCart keeps combo choices from unavailable categories", async () => {
+    const store = await setupSelfPosEnv();
+    const models = store.models;
+    const comboLine = await addComboProduct(store);
+    const categ1 = models["pos.category"].get(1);
+    const categ2 = models["pos.category"].get(2);
+
+    comboLine.combo_line_ids[0].product_id.product_tmpl_id.update({ pos_categ_ids: [categ1] });
+    store.config.limit_categories = true;
+    store.config.iface_available_categ_ids = [categ2];
+    store.initProducts();
+
+    expect(store.verifyCart()).toBe(true);
+    expect(store.currentOrder.lines).toHaveLength(3);
+});
+
 test("getProductPriceInfo", async () => {
     const store = await setupSelfPosEnv();
     const order = await getFilledSelfOrder(store);
@@ -689,6 +770,10 @@ test("getProductPriceInfo", async () => {
     expect(store.getProductPriceInfo(product5).pricelist_price).toBe(222);
     product5.list_price = savedList;
     variant5.lst_price = savedLst;
+
+    const product101 = models["product.template"].get(101);
+    product101.product_variant_ids[0].lst_price = 12;
+    expect(store.getProductPriceInfo(product101).pricelist_price).toBe(10);
 
     expect(store.getProductPriceInfo(product5).pricelist_price).toBe(100);
 
@@ -826,6 +911,22 @@ test("syncs the local draft order and its lines, reusing the same order", async 
     expect(store.models["pos.order"].length).toBe(1);
 });
 
+test("sendDraftOrderToServer returns the synced order when local orders are reset meanwhile", async () => {
+    const store = await setupSelfPosEnv();
+    const order = await getFilledSelfOrder(store);
+    onRpc("/pos-self-order/process-order/kiosk", () => {
+        for (const o of store.models["pos.order"].getAll()) {
+            o.delete();
+        }
+        store.selectedOrderUuid = null;
+    });
+
+    const syncOrder = await store.sendDraftOrderToServer();
+    expect(syncOrder.uuid).toBe(order.uuid);
+    expect(syncOrder.id).toBeOfType("number");
+    expect(store.models["pos.order"].getBy("uuid", order.uuid)).toBe(syncOrder);
+});
+
 test("sendDraftOrderToServer updateLastOrderChange", async () => {
     const store = await setupSelfPosEnv("mobile", "table", "meal");
     const order = await getFilledSelfOrder(store);
@@ -961,6 +1062,49 @@ test("resetCategorySelection", async () => {
     expect(store.currentCategory.id).toBe(ctg2.id);
     await store.confirmOrder();
     expect(store.currentCategory.id).toBe(ctg1.id);
+});
+
+describe("confirmOrder redirection", () => {
+    const getNavigatedRoute = async (store) => {
+        let route;
+        patch(store.router, {
+            navigate(routeName) {
+                route = routeName;
+            },
+        });
+        await getFilledSelfOrder(store);
+        await store.confirmOrder();
+        return route;
+    };
+
+    test("no payment method redirects to confirmation page", async () => {
+        const store = await setupSelfPosEnv();
+        expect(store.hasPaymentMethod()).toBe(false);
+        expect(await getNavigatedRoute(store)).toBe("confirmation");
+    });
+
+    test("cash method without provider redirects to confirmation page", async () => {
+        const store = await setupSelfPosEnv();
+        store.models["pos.payment.method"].create({
+            name: "Cash",
+            type: "cash",
+            payment_provider: false,
+        });
+        expect(store.hasPaymentMethod()).toBe(false);
+        expect(await getNavigatedRoute(store)).toBe("confirmation");
+    });
+
+    test("only a cash machine redirects to payment page", async () => {
+        const store = await setupSelfPosEnv();
+        store.models["pos.payment.method"].create({
+            name: "CashMachine",
+            type: "cash",
+            payment_provider: "mock_cash_machine",
+            payment_method_type: "cash_machine",
+        });
+        expect(store.hasPaymentMethod()).toBe(true);
+        expect(await getNavigatedRoute(store)).toBe("payment");
+    });
 });
 
 describe("printOrderChanges", () => {
@@ -1193,4 +1337,30 @@ test("orderLineSent", async () => {
         count: 5,
         tax: 95,
     });
+});
+
+test("payment status notification keeps the partner of the order", async () => {
+    const store = await setupSelfPosEnv();
+    const { uuid } = await getFilledSelfOrder(store);
+    await store.sendDraftOrderToServer();
+    const order = store.models["pos.order"].getBy("uuid", uuid);
+    const signedPartnerId = "7-0123456789abcdef";
+    const connectedData = store.models.connectNewData({
+        "res.partner": [{ id: signedPartnerId, name: "Demo User" }],
+    });
+    order.partner_id = connectedData["res.partner"][0];
+
+    const { method: onPaymentStatus } = store.data.channels.find(
+        ({ channel }) => channel === "PAYMENT_STATUS"
+    );
+    onPaymentStatus({
+        payment_result: "Success",
+        data: {
+            "pos.order": [{ id: order.id, uuid, access_token: order.access_token, state: "paid" }],
+        },
+    });
+
+    expect(order.state).toBe("paid");
+    expect(order.partner_id?.id).toBe(signedPartnerId);
+    expect(order.partner_id?.name).toBe("Demo User");
 });

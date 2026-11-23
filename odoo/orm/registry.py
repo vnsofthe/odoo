@@ -154,7 +154,8 @@ class Registry(Mapping[str, type["BaseModel"]]):
             raise Exception('Registry for database %s can not be loaded recursively' % db_name)
 
         from odoo.modules import db  # noqa: PLC0415
-        from odoo.modules.loading import load_modules, reset_modules_state  # noqa: PLC0415
+        from odoo.modules.loading import MAX_REMOVED_MODULES, load_modules, reset_modules_state  # noqa: PLC0415
+        from odoo.modules.module import Manifest  # noqa: PLC0415
 
         t0 = time.time()
         registry: Registry = object.__new__(cls)
@@ -192,11 +193,18 @@ class Registry(Mapping[str, type["BaseModel"]]):
                         # lock and try to acquire the exclusive lock
                         cr.commit()  # commit after acquiring the lock to re-start the transaction
                         cr.execute("""
-                            SELECT FROM ir_module_module
+                            SELECT name, state
+                            FROM ir_module_module
                             WHERE state IN ('to upgrade', 'to install', 'to remove')
-                            LIMIT 1
+                            ORDER BY state = 'to remove' DESC
                         """)
-                        if cr.rowcount:
+                        # modules that cannot be loaded (missing or not installable) stay
+                        # in their transient state, an update would not change anything
+                        if any(
+                            state == 'to remove'
+                            or (Manifest.for_addon(name, display_warning=False) or {}).get('installable')
+                            for name, state in cr.fetchall()
+                        ):
                             _logger.info("Force module updates, some modules must be installed/uninstalled/upgraded")
                             update_module = True
                 if update_module:
@@ -208,13 +216,22 @@ class Registry(Mapping[str, type["BaseModel"]]):
                         # multiple workers were loading the database and try to upgrade it, only one will succeed
                         raise ConcurrencyError("Deadlock when waiting for lock to update the registry") from None
                     cr.commit()  # commit after acquiring the lock to re-start the transaction
+                    retries = 5
+                    if db.is_initialized(cr):
+                        cr.execute("""
+                            SELECT COUNT(*)
+                            FROM ir_module_module
+                            WHERE state = 'to remove'
+                        """)
+                        retries += cr.fetchone()[0] // MAX_REMOVED_MODULES
+                else:
+                    retries = 1
 
                 # now load modules
                 if new_db_demo is None:
                     new_db_demo = config['with_demo']
                 if first_registry and not update_module:
                     exit_stack.enter_context(gc.disabling_gc())
-                retries = 5 if update_module else 1
                 for _ in range(retries):
                     # load_modules multiple times in case there are modules to be uninstalled
                     # the load happens in a new context to be independent from things such as requests
@@ -240,6 +257,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
                     models_to_check = registry._models_to_check
                     registry = object.__new__(cls)
                     registry.init(db_name, models_to_check=models_to_check)
+                    registry.setup_signaling()
                     cls.registries[db_name] = registry  # pylint: disable=unsupported-assignment-operation
                     cr.transaction.reset()  # rebind the transaction to the new registry
                     upgrade_modules = install_modules = reinit_modules = ()
@@ -334,6 +352,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
         with closing(self.cursor()) as cr:
             self.has_unaccent = db.has_unaccent(cr)
             self.has_trigram = db.has_trigram(cr)
+            self.has_bytewise_collation = db.has_bytewise_collation(cr)
 
         self.unaccent = _unaccent if self.has_unaccent else lambda x: x  # type: ignore
         self.unaccent_python = remove_accents if self.has_unaccent else lambda x: x

@@ -457,7 +457,7 @@
                             <label for="date_deadline"/>
                             <div id="date_deadline_and_recurring_task" class="d-inline-flex w-100">
                                 <field name="date_deadline" nolabel="1" decoration-danger="date_deadline and date_deadline &lt; current_date and state not in ['1_done', '1_canceled']"/>
-                                <field name="recurring_task" nolabel="1" class="w-auto w-lg-100"
+                                <field name="recurring_task" nolabel="1" class="w-auto ms-2"
                                        widget="boolean_icon" options="{'icon': 'redo'}"
                                        invisible="not active or parent_id or not allow_recurring_tasks"
                                        groups="project.group_project_recurring_tasks"/>
@@ -759,6 +759,7 @@
                                     <field name="priority" widget="priority"/>
                                     <field name="is_rotting" invisible="1"/>
                                     <field name="rotting_days" invisible="not rotting_days" widget="rotting_days" class="d-inline-block"/>
+                                    <field name="project_sharing_portal_user_ids" invisible="1"/>
                                     <field name="user_ids" widget="many2many_avatar_user" class="ms-auto"/>
                                     <field name="state" widget="project_task_state_selection" options="{'is_toggle_mode': false}"/>
                                 </footer>
@@ -910,6 +911,7 @@
                     <field name="project_id" widget="project" invisible="context.get('default_project_id', False)"/>
                     <field name="display_in_project" invisible="1"/>
                     <field name="subtask_count" invisible="1"/>
+                    <field name="project_sharing_portal_user_ids" invisible="1"/> <!-- Required by the user_ids domain -->
                     <field name="milestone_id" invisible="not allow_milestones or not milestone_id"/>
                     <field name="company_id" invisible="1"/>
                     <field name="user_ids" widget="many2many_avatar_user" invisible="not user_ids"/>
@@ -950,6 +952,7 @@
                     <field name="user_ids"/>
                     <field name="project_id"/>
                     <field name="company_id" invisible="1"/>
+                    <field name="project_sharing_portal_user_ids" invisible="1"/> <!-- Required by the user_ids domain -->
                     <templates>
                         <div t-name="activity-box" class="justify-content-between gap-2">
                             <div class="flex-shrink-1">

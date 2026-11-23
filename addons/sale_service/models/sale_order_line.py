@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import api, fields, models
+from odoo.fields import Domain
 from odoo.tools import format_amount
 
 
@@ -25,8 +26,6 @@ class SaleOrderLine(models.Model):
         if kwargs.get("check_is_expense", True):
             domain.append(('is_expense', '=', False))
         if kwargs.get("check_state", True):
-            # This domain is later used as a key in a dict inside the _get_last_sol_of_customer_domain function. This
-            # means we can not use mutable list and have to use '|' operator instead.
             domain.append(('state', 'in', ['draft', 'sale', 'sent']))
         return domain
 
@@ -81,9 +80,10 @@ class SaleOrderLine(models.Model):
 
     @api.model
     def name_search(self, name='', domain=None, operator='ilike', limit=100):
-        domain = domain or []
+        domain = Domain(domain or [])
         # optimization for a SOL services name_search, to avoid joining on sale_order with too many lines
         if domain and ('is_service', '=', True) in domain and operator in ('like', 'ilike') and limit is not None:
+            domain = Domain('display_name', operator, name) & domain
             sols = self.search_fetch(
                 domain, ['display_name'], limit=limit, order='order_id.id DESC, sequence, id',
             )

@@ -147,8 +147,10 @@ export class Message extends Component {
                     const shadowStyle = document.createElement("style");
                     shadowStyle.textContent = `
                     * {
-                        background-color: transparent !important;
                         color: ${color} !important;
+                    }
+                    *:not(.o-mail-ellipsis) {
+                        background-color: transparent !important;
                     }
                     a, a * {
                         color: ${this.constructor.SHADOW_LINK_COLOR} !important;
@@ -501,7 +503,7 @@ export class Message extends Component {
             // Mobile OS long press is handled with useLongPress()
             return;
         }
-        if (ev.composedPath()[0].closest("a") || !this.props.hasActions || this.isEditing) {
+        if (!this.hasActions || ev.composedPath()[0].closest("a")) {
             return;
         }
         if (!this.rightClickMenu.open(ev)) {
@@ -540,6 +542,9 @@ export class Message extends Component {
 
     /** @param {HTMLElement} bodyEl */
     renderEmbeddedCodeBlocks(bodyEl) {
+        if (this.message.message_type && this.message.message_type.includes("email")) {
+            return [];
+        }
         const { name, Component, getProps } = readonlySyntaxHighlightingEmbedding;
         const selector = `[data-embedded='${name}']`;
         const embeddedElements = [...bodyEl.querySelectorAll(selector)];
@@ -642,6 +647,10 @@ export class Message extends Component {
             !this.message.isSubjectSimilarToThreadName &&
             !this.message.isSubjectDefault
         );
+    }
+
+    get hasActions() {
+        return this.props.hasActions && this.message.hasActions && !this.isEditing;
     }
 }
 

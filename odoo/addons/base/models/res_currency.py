@@ -34,7 +34,7 @@ def _num2words_currency_amount(number, lang, currency_code, subunit, fallback_la
     # (lang, currency) pair: it knows the grammatical gender and plural forms of
     # amounts that a single translated label can't express.
     converter = NUM2WORDS_CONVERTER_CLASSES.get(lang) or NUM2WORDS_CONVERTER_CLASSES.get(lang[:2])
-    forms = converter and converter.CURRENCY_FORMS.get(currency_code)
+    forms = converter and getattr(converter, 'CURRENCY_FORMS', {}).get(currency_code)
     if not forms:
         return _num2words_plain_cardinal(number, lang), fallback_label
     label_forms = forms[1] if subunit else forms[0]
@@ -56,7 +56,10 @@ class ResCurrency(models.CachedModel):
     _order = 'active desc, name'
     # invalidate cache for get_all_currencies
     _cached_data_domain = [('active', '=', True)]
-    _cached_data_fields = ('name', 'symbol', 'position', 'decimal_places', 'active')
+    _cached_data_fields = (
+        'name', 'symbol', 'position', 'decimal_places', 'active', 'rounding', 'full_name',
+        'iso_numeric', 'currency_unit_label', 'currency_subunit_label',
+    )
 
     # Note: 'code' column was removed as of v6.0, the 'name' should now hold the ISO code.
     name = fields.Char(string='Currency', size=3, required=True, help="Currency Code (ISO 4217)")

@@ -1,0 +1,300 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * hr_gamification
+#
+# Translators:
+# Martin Trigaux <mat@odoo.com>, 2017
+# Bone NI <bounkirdni@gmail.com>, 2026.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 10.saas~18\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-08-28 17:42+0000\n"
+"PO-Revision-Date: 2026-10-27 00:33+0000\n"
+"Last-Translator: Bone NI <bounkirdni@gmail.com>\n"
+"Language-Team: Lao <https://translate.odoo.com/projects/odoo-20/"
+"hr_gamification/lo/>\n"
+"Language: lo\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 2026.8.1\n"
+
+#. module: hr_gamification
+#: model_terms:ir.actions.act_window,help:hr_gamification.goals_menu_groupby_action2
+msgid ""
+"A goal is defined by a user and a goal type.\n"
+"                    Goals can be created automatically by using challenges."
+msgstr ""
+"ເປົ້າໝາຍແມ່ນຖືກກຳນົດໂດຍຜູ້ໃຊ້ ແລະ ປະເພດເປົ້າໝາຍ.\n"
+"                    ເປົ້າໝາຍສາມາດສ້າງຂຶ້ນແບບອັດຕະໂນມັດໄດ້ໂດຍການນຳໃຊ້ສິ່ງທ້າທາຍ."
+
+#. module: hr_gamification
+#: model:ir.model.fields,help:hr_gamification.field_hr_employee__badge_ids
+msgid ""
+"All employee badges, linked to the employee either directly or through the "
+"user"
+msgstr "ຫຼຽນກາພະນັກງານທັງໝົດ, ເຊື່ອມໂຍງກັບພະນັກງານໂດຍກົງ ຫຼື ຜ່ານບັນຊີຜູ້ໃຊ້"
+
+#. module: hr_gamification
+#: model_terms:ir.ui.view,arch_db:hr_gamification.view_current_badge_form
+msgid "Are you sure you want to delete this granted badge?"
+msgstr "ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການລຶບຫຼຽນກາທີ່ມອບໃຫ້ນີ້?"
+
+#. module: hr_gamification
+#: model_terms:ir.actions.act_window,help:hr_gamification.challenge_list_action2
+msgid ""
+"Assign a list of goals to chosen users to evaluate them.\n"
+"                    The challenge can use a period (weekly, monthly...) for "
+"automatic creation of goals.\n"
+"                    The goals are created for the specified users or member "
+"of the group."
+msgstr ""
+"ມອບໝາຍລາຍການເປົ້າໝາຍໃຫ້ຜູ້ໃຊ້ທີ່ເລືອກໄວ້ເພື່ອປະເມີນພວກເຂົາ.\n"
+"                    ສິ່ງທ້າທາຍສາມາດກຳນົດຮອບວຽນເວລາ (ລາຍອາທິດ, ລາຍເດືອນ...) ເພື່ອສ້າງເປົ້"
+"າໝາຍແບບອັດຕະໂນມັດ.\n"
+"                    ເປົ້າໝາຍຈະຖືກສ້າງຂຶ້ນສຳລັບຜູ້ໃຊ້ທີ່ລະບຸ ຫຼື ສະມາຊິກຂອງກຸ່ມ."
+
+#. module: hr_gamification
+#: model:ir.model.fields,field_description:hr_gamification.field_hr_employee_public__badge_ids
+msgid "Badge"
+msgstr "ຫຼຽນກາ"
+
+#. module: hr_gamification
+#: model_terms:ir.ui.view,arch_db:hr_gamification.view_current_badge_form
+msgid "Badge Name"
+msgstr "ຊື່ຫຼຽນກາ"
+
+#. module: hr_gamification
+#: model:ir.model.fields,field_description:hr_gamification.field_res_users__badge_ids
+#: model:ir.ui.menu,name:hr_gamification.gamification_badge_menu_hr
+#: model_terms:ir.ui.view,arch_db:hr_gamification.hr_employee_public_view_form
+#: model_terms:ir.ui.view,arch_db:hr_gamification.hr_hr_employee_view_form
+msgid "Badges"
+msgstr "ຫຼຽນກາ"
+
+#. module: hr_gamification
+#: model:ir.model.fields,help:hr_gamification.field_hr_employee__direct_badge_ids
+msgid "Badges directly linked to the employee"
+msgstr "ຫຼຽນກາທີ່ເຊື່ອມໂຍງໂດຍກົງກັບພະນັກງານ"
+
+#. module: hr_gamification
+#: model:ir.actions.act_window,name:hr_gamification.challenge_list_action2
+#: model:ir.ui.menu,name:hr_gamification.gamification_challenge_menu_hr
+#: model:ir.ui.menu,name:hr_gamification.menu_hr_gamification
+msgid "Challenges"
+msgstr "ສິ່ງທ້າທາຍ"
+
+#. module: hr_gamification
+#: model_terms:ir.actions.act_window,help:hr_gamification.challenge_list_action2
+msgid "Create a new challenge"
+msgstr "ສ້າງສິ່ງທ້າທາຍໃໝ່"
+
+#. module: hr_gamification
+#: model_terms:ir.actions.act_window,help:hr_gamification.goals_menu_groupby_action2
+msgid "Create a new goal"
+msgstr "ສ້າງເປົ້າໝາຍໃໝ່"
+
+#. module: hr_gamification
+#: model_terms:ir.ui.view,arch_db:hr_gamification.view_current_badge_form
+msgid "Delete"
+msgstr "ລຶບ"
+
+#. module: hr_gamification
+#: model_terms:ir.ui.view,arch_db:hr_gamification.view_badge_wizard_reward
+#: model_terms:ir.ui.view,arch_db:hr_gamification.view_current_badge_form
+msgid "Describe what they did and why it matters (will be public)"
+msgstr "ອະທິບາຍສິ່ງທີ່ພວກເຂົາໄດ້ເຮັດ ແລະ ເຫດຜົນທີ່ສຳຄັນ (ຈະສະແດງເປັນສາທາລະນະ)"
+
+#. module: hr_gamification
+#: model_terms:ir.ui.view,arch_db:hr_gamification.view_current_badge_form
+msgid "Description"
+msgstr "ຄຳອະທິບາຍ"
+
+#. module: hr_gamification
+#: model:ir.model.fields,field_description:hr_gamification.field_hr_employee__direct_badge_ids
+msgid "Direct Badge"
+msgstr "ຫຼຽນກາໂດຍກົງ"
+
+#. module: hr_gamification
+#: model:ir.model.fields,field_description:hr_gamification.field_gamification_badge__display_name
+#: model:ir.model.fields,field_description:hr_gamification.field_gamification_badge_user__display_name
+#: model:ir.model.fields,field_description:hr_gamification.field_gamification_badge_user_wizard__display_name
+#: model:ir.model.fields,field_description:hr_gamification.field_hr_employee__display_name
+#: model:ir.model.fields,field_description:hr_gamification.field_hr_employee_public__display_name
+#: model:ir.model.fields,field_description:hr_gamification.field_res_users__display_name
+msgid "Display Name"
+msgstr "ຊື່ສະແດງ"
+
+#. module: hr_gamification
+#: model:ir.model,name:hr_gamification.model_hr_employee
+#: model:ir.model.fields,field_description:hr_gamification.field_gamification_badge_user__employee_id
+#: model:ir.model.fields,field_description:hr_gamification.field_gamification_badge_user_wizard__employee_id
+msgid "Employee"
+msgstr "ພະນັກງານ"
+
+#. module: hr_gamification
+#: model:ir.model.fields,field_description:hr_gamification.field_hr_employee__badge_ids
+msgid "Employee Badges"
+msgstr "ຫຼຽນກາພະນັກງານ"
+
+#. module: hr_gamification
+#: model:ir.model.fields,field_description:hr_gamification.field_hr_employee__goal_ids
+msgid "Employee HR Goals"
+msgstr "ເປົ້າໝາຍບຸກຄະລາກອນຂອງພະນັກງານ"
+
+#. module: hr_gamification
+#: model:ir.model,name:hr_gamification.model_gamification_badge
+msgid "Gamification Badge"
+msgstr "ຫຼຽນກາເກມມິຟິເຄຊັນ"
+
+#. module: hr_gamification
+#: model:ir.model,name:hr_gamification.model_gamification_badge_user
+msgid "Gamification User Badge"
+msgstr "ຫຼຽນກາຜູ້ໃຊ້ເກມມິຟິເຄຊັນ"
+
+#. module: hr_gamification
+#: model:ir.model,name:hr_gamification.model_gamification_badge_user_wizard
+msgid "Gamification User Badge Wizard"
+msgstr "ຕົວຊ່ວຍສ້າງຫຼຽນກາຜູ້ໃຊ້ເກມມິຟິເຄຊັນ"
+
+#. module: hr_gamification
+#: model:ir.model.fields,field_description:hr_gamification.field_res_users__goal_ids
+msgid "Goal"
+msgstr "ເປົ້າໝາຍ"
+
+#. module: hr_gamification
+#: model:ir.actions.act_window,name:hr_gamification.goals_menu_groupby_action2
+#: model:ir.ui.menu,name:hr_gamification.gamification_goal_menu_hr
+msgid "Goals History"
+msgstr "ປະຫວັດເປົ້າໝາຍ"
+
+#. module: hr_gamification
+#: model_terms:ir.ui.view,arch_db:hr_gamification.hr_employee_public_view_form
+#: model_terms:ir.ui.view,arch_db:hr_gamification.hr_hr_employee_view_form
+msgid "Grant a Badge"
+msgstr "ມອບຫຼຽນກາ"
+
+#. module: hr_gamification
+#: model:ir.actions.act_window,name:hr_gamification.action_reward_wizard
+#: model_terms:ir.ui.view,arch_db:hr_gamification.view_badge_wizard_reward
+msgid "Grant a badge"
+msgstr "ມອບຫຼຽນກາ"
+
+#. module: hr_gamification
+#: model_terms:ir.ui.view,arch_db:hr_gamification.hr_badge_form_view
+msgid "Granted"
+msgstr "ມອບແລ້ວ"
+
+#. module: hr_gamification
+#: model:ir.model.fields,field_description:hr_gamification.field_gamification_badge__granted_employees_count
+msgid "Granted Employees Count"
+msgstr "ຈຳນວນພະນັກງານທີ່ໄດ້ຮັບມອບ"
+
+#. module: hr_gamification
+#: model_terms:ir.ui.view,arch_db:hr_gamification.view_current_badge_form
+msgid "Granted by"
+msgstr "ມອບໂດຍ"
+
+#. module: hr_gamification
+#: model:ir.module.module,shortdesc:base.module_hr_gamification
+msgid "HR Gamification"
+msgstr "ເກມມິຟິເຄຊັນດ້ານບຸກຄະລາກອນ"
+
+#. module: hr_gamification
+#: model:ir.model.fields,field_description:hr_gamification.field_hr_employee__has_badges
+#: model:ir.model.fields,field_description:hr_gamification.field_hr_employee_public__has_badges
+msgid "Has Badges"
+msgstr "ມີຫຼຽນກາ"
+
+#. module: hr_gamification
+#: model:ir.model.fields,field_description:hr_gamification.field_gamification_badge_user__has_edit_delete_access
+msgid "Has Edit Delete Access"
+msgstr "ມີສິດແກ້ໄຂ ແລະ ລຶບ"
+
+#. module: hr_gamification
+#: model:ir.model.fields,field_description:hr_gamification.field_gamification_badge__id
+#: model:ir.model.fields,field_description:hr_gamification.field_gamification_badge_user__id
+#: model:ir.model.fields,field_description:hr_gamification.field_gamification_badge_user_wizard__id
+#: model:ir.model.fields,field_description:hr_gamification.field_hr_employee__id
+#: model:ir.model.fields,field_description:hr_gamification.field_hr_employee_public__id
+#: model:ir.model.fields,field_description:hr_gamification.field_res_users__id
+msgid "ID"
+msgstr "ລະຫັດ"
+
+#. module: hr_gamification
+#: model_terms:ir.ui.view,arch_db:hr_gamification.hr_employee_public_view_form
+#: model_terms:ir.ui.view,arch_db:hr_gamification.hr_hr_employee_view_form
+msgid "No Badges granted."
+msgstr "ບໍ່ມີຫຼຽນກາທີ່ຖືກມອບ."
+
+#. module: hr_gamification
+#: model:ir.model,name:hr_gamification.model_hr_employee_public
+msgid "Public Employee"
+msgstr "ພະນັກງານທົ່ວໄປ"
+
+#. module: hr_gamification
+#. odoo-python
+#: code:addons/hr_gamification/models/gamification.py:0
+msgid "Received Badge"
+msgstr "ຫຼຽນກາທີ່ໄດ້ຮັບ"
+
+#. module: hr_gamification
+#: model_terms:ir.ui.view,arch_db:hr_gamification.view_badge_wizard_reward
+msgid "Reward Employee with"
+msgstr "ມອບລາງວັນໃຫ້ພະນັກງານດ້ວຍ"
+
+#. module: hr_gamification
+#: model_terms:ir.ui.view,arch_db:hr_gamification.view_current_badge_form
+msgid "Save"
+msgstr "ບັນທຶກ"
+
+#. module: hr_gamification
+#. odoo-python
+#: code:addons/hr_gamification/models/gamification.py:0
+msgid "The selected employee does not correspond to the selected user."
+msgstr "ພະນັກງານທີ່ເລືອກບໍ່ກົງກັບຜູ້ໃຊ້ທີ່ເລືອກໄວ້."
+
+#. module: hr_gamification
+#: model:ir.module.module,description:base.module_hr_gamification
+msgid ""
+"Use the HR resources for the gamification process.\n"
+"\n"
+"The HR officer can now manage challenges and badges.\n"
+"This allow the user to send badges to employees instead of simple users.\n"
+"Badge received are displayed on the user profile.\n"
+msgstr ""
+"ນຳໃຊ້ຊັບພະຍາກອນບຸກຄະລາກອນເຂົ້າໃນຂະບວນການເກມມິຟິເຄຊັນ.\n"
+"\n"
+"ເຈົ້າໜ້າທີ່ບຸກຄະລາກອນສາມາດຈັດການສິ່ງທ້າທາຍ ແລະ ຫຼຽນກາໄດ້ແລ້ວ.\n"
+"ສິ່ງນີ້ຊ່ວຍໃຫ້ຜູ້ໃຊ້ສາມາດສົ່ງຫຼຽນກາໄປຍັງພະນັກງານແທນທີ່ຈະເປັນພຽງຜູ້ໃຊ້ທົ່ວໄປ.\n"
+"ຫຼຽນກາທີ່ໄດ້ຮັບຈະຖືກສະແດງຢູ່ໃນໂປຣໄຟລ໌ຂອງຜູ້ໃຊ້.\n"
+
+#. module: hr_gamification
+#: model:ir.model,name:hr_gamification.model_res_users
+#: model:ir.model.fields,field_description:hr_gamification.field_gamification_badge_user_wizard__user_id
+msgid "User"
+msgstr "ຜູ້ໃຊ້"
+
+#. module: hr_gamification
+#. odoo-python
+#: code:addons/hr_gamification/models/gamification.py:0
+msgid "View Your Badge"
+msgstr "ເບິ່ງຫຼຽນກາຂອງທ່ານ"
+
+#. module: hr_gamification
+#: model_terms:ir.ui.view,arch_db:hr_gamification.view_badge_wizard_reward
+msgid "What are you thankful for?"
+msgstr "ທ່ານຢາກສະແດງຄວາມຂອບໃຈຕໍ່ສິ່ງໃດ?"
+
+#. module: hr_gamification
+#. odoo-python
+#: code:addons/hr_gamification/wizard/gamification_badge_user_wizard.py:0
+msgid "You can not send a badge to yourself."
+msgstr "ທ່ານບໍ່ສາມາດສົ່ງຫຼຽນກາໃຫ້ຕົນເອງໄດ້."
+
+#. module: hr_gamification
+#: model_terms:ir.ui.view,arch_db:hr_gamification.view_current_badge_form
+msgid "on"
+msgstr "ເມື່ອ"

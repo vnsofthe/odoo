@@ -309,6 +309,15 @@ test("should remove font tag if font-color and background-color both are removed
     });
 });
 
+test("should preserve color tag when removing font color if it has other styles", async () => {
+    await testEditor({
+        contentBefore:
+            '<p><span style="font-size: 36px; color: rgb(255, 0, 0);">[abcabc]</span></p>',
+        stepFunction: setColor("", "color"),
+        contentAfter: '<p><span style="font-size: 36px;">[abcabc]</span></p>',
+    });
+});
+
 test("should apply a color to a slice of text containing a span", async () => {
     await testEditor({
         contentBefore: '<p>a[b<span class="a">c</span>d]e</p>',
@@ -614,6 +623,254 @@ test("should keep font element on top of underline/strike (2)", async () => {
         ),
         contentAfter:
             '<p><font class="text-gradient" style="background-image: linear-gradient(135deg, rgb(255, 174, 127) 0%, rgb(109, 204, 0) 100%);"><u><s>[abc]</s></u></font></p>',
+    });
+});
+
+test("should keep font element on top of underline/strike (3)", async () => {
+    await testEditor({
+        contentBefore: "<p><u><s>[a]bc</s></u></p>",
+        stepFunction: setColor("red", "color"),
+        contentAfter: '<p><font style="color: red;"><u><s>[a]</s></u></font><u><s>bc</s></u></p>',
+    });
+});
+
+test("should keep font element on top of underline/strike (4)", async () => {
+    await testEditor({
+        contentBefore: "<p><u><s><a>[a]</a>bc</s></u></p>",
+        stepFunction: setColor("red", "color"),
+        contentAfter:
+            '<p><font style="color: red;"><u><s><a>[a]</a></s></u></font><u><s>bc</s></u></p>',
+    });
+});
+
+test("should keep font element on top of underline/strike (5)", async () => {
+    await testEditor({
+        contentBefore: "<p><u><a><s>[a]bc</s></a></u></p>",
+        stepFunction: setColor("red", "color"),
+        contentAfter:
+            '<p><a><font style="color: red;"><u><s>[a]</s></u></font><u><s>bc</s></u></a></p>',
+    });
+});
+
+test("should keep font element on top of underline/strike (6)", async () => {
+    await testEditor({
+        contentBefore: "<p><s><u><a>a[b</a></u></s>c]</p>",
+        stepFunction: setColor("red", "color"),
+        contentAfter:
+            '<p><a><s><u>a</u></s><font style="color: red;"><s><u>[b</u></s></font></a><font style="color: red;">c]</font></p>',
+    });
+});
+
+test("should keep font element on top of underline/strike (7)", async () => {
+    await testEditor({
+        contentBefore: "<p><s><u><a>[ab</a></u>c]d</s></p>",
+        stepFunction: setColor("red", "color"),
+        contentAfter:
+            '<p><a><font style="color: red;"><s><u>[ab</u></s></font></a><font style="color: red;"><s>c]</s></font><s>d</s></p>',
+    });
+});
+
+test("should keep font element on top of underline/strike (8)", async () => {
+    await testEditor({
+        contentBefore: unformat(`
+                <p>
+                    <s>a
+                        <span class="oe_unbreakable">b
+                            <u>c
+                                <span class="oe_unbreakable">[d]</span>
+                            </u>e
+                        </span>
+                    </s>
+                </p>
+        `),
+        stepFunction: setColor("red", "color"),
+        contentAfter: unformat(`
+            <p>
+                <s>a</s>
+                <span class="oe_unbreakable">
+                    <s>b<u>c</u></s>
+                    <font style="color: red;"><s><u><span class="oe_unbreakable">[d]</span></u></s></font>
+                    <s>e</s>
+                </span>
+            </p>
+        `),
+    });
+});
+
+test("should keep font element on top of underline/strike (9)", async () => {
+    await testEditor({
+        contentBefore: unformat(`
+                <p>
+                    <s>a
+                        <span class="oe_unbreakable">b
+                            <u>[c]
+                                <span class="oe_unbreakable">d</span>
+                            </u>e
+                        </span>
+                    </s>
+                </p>
+        `),
+        stepFunction: setColor("red", "color"),
+        contentAfter: unformat(`
+            <p>
+                <s>a</s>
+                <span class="oe_unbreakable">
+                    <s>b</s>
+                    <font style="color: red;"><s><u>[c]</u></s></font>
+                    <s>
+                        <u>
+                            <span class="oe_unbreakable">d</span>
+                        </u>
+                    e</s>
+                </span>
+            </p>
+        `),
+    });
+});
+
+test("should keep font element on top of underline/strike (10)", async () => {
+    await testEditor({
+        contentBefore: unformat(`
+                <p>
+                    <s>a
+                        <span class="oe_unbreakable">b
+                            <u>[c
+                                <span class="oe_unbreakable">d</span>
+                            </u>e]
+                        </span>
+                    </s>
+                </p>
+        `),
+        stepFunction: setColor("red", "color"),
+        contentAfter: unformat(`
+            <p>
+                <s>a</s>
+                <span class="oe_unbreakable">
+                    <s>b</s>
+                    <font style="color: red;">
+                        <s>
+                            <u>[c
+                                <span class="oe_unbreakable">d</span>
+                            </u>e]
+                        </s>
+                    </font>
+                </span>
+            </p>
+        `),
+    });
+});
+
+test("should keep font element on top of underline/strike (11)", async () => {
+    await testEditor({
+        contentBefore: unformat(`
+                <p>
+                    <u>a
+                        <span class="oe_unbreakable">[b]</span>
+                    c</u>
+                </p>
+        `),
+        stepFunction: setColor("red", "color"),
+        contentAfter: unformat(`
+            <p>
+                <u>a</u>
+                <font style="color: red;">
+                    <u>
+                        <span class="oe_unbreakable">[b]</span>
+                    </u>
+                </font>
+                <u>c</u>
+            </p>
+        `),
+    });
+});
+
+test("should keep font element on top of underline/strike (12)", async () => {
+    await testEditor({
+        contentBefore: unformat(`
+                <p>
+                    <s>
+                        <span class="oe_unbreakable">a</span>
+                        [b]
+                    </s>
+                </p>
+        `),
+        stepFunction: setColor("red", "color"),
+        contentAfter: unformat(`
+            <p>
+                <s><span class="oe_unbreakable">a</span></s>
+                <font style="color: red;"><s>[b]</s></font>
+            </p>
+        `),
+    });
+});
+
+test("should keep font element on top of underline/strike (13)", async () => {
+    await testEditor({
+        contentBefore: unformat(`
+                <p>
+                    <s>a
+                        <span>
+                            <span class="oe_unbreakable">[b]</span>
+                        </span>
+                    c</s>
+                </p>
+        `),
+        stepFunction: setColor("red", "color"),
+        contentAfter: unformat(`
+            <p>
+                <s>a</s>
+                <font style="color: red;">
+                    <s>
+                        <span>
+                            <span class="oe_unbreakable">[b]</span>
+                        </span>
+                    </s>
+                </font>
+                <s>c</s>
+            </p>
+        `),
+    });
+});
+
+test("should keep font element on top of underline/strike (14)", async () => {
+    await testEditor({
+        contentBefore: unformat(`
+                <p>
+                    <s>[a
+                        <span class="oe_unbreakable">b</span>
+                    c]</s>
+                </p>
+        `),
+        stepFunction: setColor("red", "color"),
+        contentAfter: unformat(`
+            <p>
+                <font style="color: red;">
+                    <s>[a
+                        <span class="oe_unbreakable">b</span>
+                    c]</s>
+                </font>
+            </p>
+        `),
+    });
+});
+
+test("should keep font element on top of underline/strike (15)", async () => {
+    await testEditor({
+        contentBefore: unformat(`
+                <p>
+                    <s>a
+                        <span class="oe_unbreakable">[b]</span>
+                    c</s>
+                </p>
+        `),
+        stepFunction: setColor("red", "backgroundColor"),
+        contentAfter: unformat(`
+            <p>
+                <s>a</s>
+                <font style="background-color: red;"><s><span class="oe_unbreakable">[b]</span></s></font>
+                <s>c</s>
+            </p>
+        `),
     });
 });
 
@@ -1100,28 +1357,28 @@ test("should not apply color to selection placeholder nodes", async () => {
     expect(getContent(el)).toBe(
         unformat(`
             <p data-selection-placeholder="">[<br></p>
-            <table class="o_selected_table">
+            <div class="o_table_wrapper"><table class="o_selected_table">
                 <tbody>
                     <tr>
                         <td class="o_selected_td">1</td>
                     </tr>
                 </tbody>
-            </table>
-            <p data-selection-placeholder="">]<br></p>
+            </table></div>
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;">]<br></p>
         `)
     );
     setColor("#FF0000", "color")(editor);
     expect(getContent(el)).toBe(
         unformat(`
             <p data-selection-placeholder="">[<br></p>
-            <table class="o_selected_table">
+            <div class="o_table_wrapper"><table class="o_selected_table">
                 <tbody>
                     <tr>
                         <td class="o_selected_td"><font style="color: rgb(255, 0, 0);">1</font></td>
                     </tr>
                 </tbody>
-            </table>
-            <p data-selection-placeholder="">]<br></p>
+            </table></div>
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;">]<br></p>
         `)
     );
 });

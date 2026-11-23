@@ -14,12 +14,18 @@ if TYPE_CHECKING:
     from odoo.tools.float_utils import RoundingMethod
 
 
-class UomUom(models.Model):
+class UomUom(models.CachedModel):
     _name = 'uom.uom'
     _description = 'Product Unit of Measure'
     _parent_name = 'relative_uom_id'
     _parent_store = True
     _order = 'sequence, relative_uom_id, id'
+
+    # master data: a handful of records, read on every price computation, and
+    # almost never written
+    @property
+    def _cached_data_fields(self):
+        return ('name', 'active', 'relative_uom_id', 'relative_factor', 'factor', 'related_uom_ids')
 
     def _unprotected_uom_xml_ids(self):
         """ Return a list of UoM XML IDs that are not protected by default.
@@ -107,7 +113,6 @@ class UomUom(models.Model):
 
     def round(self, value: float, rounding_method: RoundingMethod = 'HALF-UP') -> float:
         """Round the value using the 'Product Unit' precision"""
-        self.ensure_one()
         digits = self.env['decimal.precision'].precision_get('Product Unit')
         return tools.float_round(value, precision_digits=digits, rounding_method=rounding_method)
 
@@ -118,13 +123,11 @@ class UomUom(models.Model):
         :param value2: value to compare to
         :return: -1, 0 or 1, if ``value1`` is lower than, equal to, or greater than ``value2``.
         """
-        self.ensure_one()
         digits = self.env['decimal.precision'].precision_get('Product Unit')
         return tools.float_compare(value1, value2, precision_digits=digits)
 
     def is_zero(self, value: float) -> bool:
         """Check if the value is zero after rounding with the 'Product Unit' precision"""
-        self.ensure_one()
         digits = self.env['decimal.precision'].precision_get('Product Unit')
         return tools.float_is_zero(value, precision_digits=digits)
 

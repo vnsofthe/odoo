@@ -1,0 +1,254 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * spreadsheet_dashboard_account
+#
+# Bone NI <bounkirdni@gmail.com>, 2026.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.4a1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-08-28 17:43+0000\n"
+"PO-Revision-Date: 2026-11-08 11:33+0000\n"
+"Last-Translator: Bone NI <bounkirdni@gmail.com>\n"
+"Language-Team: Lao <https://translate.odoo.com/projects/odoo-20/"
+"spreadsheet_dashboard_account/lo/>\n"
+"Language: lo\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 2026.8.1\n"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid " days"
+msgstr " ມື້"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "# days"
+msgstr "# ມື້"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "Amount"
+msgstr "ຈຳນວນເງິນ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_sample_dashboard.json:0
+msgid "Average Invoice"
+msgstr "ໃບເກັບເງິນສະເລ່ຍ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "COGS"
+msgstr "ຕົ້ນທຶນຂາຍ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "Country"
+msgstr "ປະເທດ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "Current year"
+msgstr "ປີປະຈຸບັນ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "Customer"
+msgstr "ລູກຄ້າ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_sample_dashboard.json:0
+msgid "DSO"
+msgstr "DSO"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "Date"
+msgstr "ວັນທີ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "Income"
+msgstr "ລາຍຮັບ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_sample_dashboard.json:0
+msgid "Invoiced"
+msgstr "ອອກໃບເກັບເງິນແລ້ວ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "Invoiced by Month"
+msgstr "ອອກໃບເກັບເງິນຕາມເດືອນ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_sample_dashboard.json:0
+msgid "Invoices"
+msgstr "ໃບເກັບເງິນ"
+
+#. module: spreadsheet_dashboard_account
+#: model:spreadsheet.dashboard,name:spreadsheet_dashboard_account.dashboard_invoicing
+msgid "Invoicing"
+msgstr "ການອອກໃບເກັບເງິນ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "KPI - Average Invoice"
+msgstr "KPI - ໃບເກັບເງິນສະເລ່ຍ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "KPI - DSO"
+msgstr "KPI - DSO"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "KPI - Income"
+msgstr "KPI - ລາຍຮັບ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "KPI - Invoice Count"
+msgstr "KPI - ຈຳນວນໃບເກັບເງິນ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "KPI - Unpaid Invoices"
+msgstr "KPI - ໃບເກັບເງິນທີ່ຍັງບໍ່ທັນຊຳລະ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "Map"
+msgstr "ແຜນທີ່"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "Period"
+msgstr "ໄລຍະເວລາ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "Product"
+msgstr "ສິນຄ້າ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "Product Category"
+msgstr "ໝວດໝູ່ສິນຄ້າ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "Receivable"
+msgstr "ໜີ້ຕ້ອງຮັບ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "Reference"
+msgstr "ເອກະສານອ້າງອີງ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "Revenue"
+msgstr "ລາຍໄດ້"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "Salesperson"
+msgstr "ພະນັກງານຂາຍ"
+
+#. module: spreadsheet_dashboard_account
+#: model:ir.module.module,description:base.module_spreadsheet_dashboard_account
+#: model:ir.module.module,summary:base.module_spreadsheet_dashboard_account
+msgid "Spreadsheet"
+msgstr "ຕາຕະລາງຄຳນວນ"
+
+#. module: spreadsheet_dashboard_account
+#: model:ir.module.module,shortdesc:base.module_spreadsheet_dashboard_account
+msgid "Spreadsheet dashboard for accounting"
+msgstr "ກະດານຂໍ້ມູນຕາຕະລາງຄຳນວນສຳລັບວຽກງານບັນຊີ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "Status"
+msgstr "ສະຖານະ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "Top 50"
+msgstr "50 ອັນດັບຕົ້ນ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "Top Categories"
+msgstr "ໝວດໝູ່ອັນດັບຕົ້ນ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+msgid "Top Countries"
+msgstr "ປະເທດອັນດັບຕົ້ນ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_sample_dashboard.json:0
+msgid "Top Invoices"
+msgstr "ໃບເກັບເງິນສູງສຸດ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_sample_dashboard.json:0
+msgid "Top Products"
+msgstr "ສິນຄ້າອັນດັບຕົ້ນ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_sample_dashboard.json:0
+msgid "in current year"
+msgstr "ໃນປີປະຈຸບັນ"
+
+#. module: spreadsheet_dashboard_account
+#. odoo-javascript
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_dashboard.json:0
+#: code:addons/spreadsheet_dashboard_account/data/files/invoicing_sample_dashboard.json:0
+msgid "unpaid"
+msgstr "ຍັງບໍ່ທັນຊຳລະ"

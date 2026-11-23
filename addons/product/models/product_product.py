@@ -26,6 +26,16 @@ class ProductProduct(models.Model):
     }
     _check_company_domain = models.check_company_domain_parent_of
 
+    @api.model
+    def default_get(self, fields):
+        res = super().default_get(fields)
+        if 'uom_id' in fields and not res.get('uom_id'):
+            # Since uom is required, always fallback on a default (if any) even when the context
+            # gives an empty default value. Delegating to the product template default_get override
+            # as it already handles erroneous `{'default_uom_id': False}` context value.
+            res['uom_id'] = self.env['product.template'].default_get(['uom_id']).get('uom_id', False)
+        return res
+
     # price_extra: catalog extra value only, sum of variant extra attributes
     price_extra = fields.Float(
         'Variant Price Extra', compute='_compute_product_price_extra',
@@ -206,14 +216,16 @@ class ProductProduct(models.Model):
             record.can_image_variant_1024_be_zoomed = record.image_variant_1920 and is_image_size_above(record.image_variant_1920, record.image_variant_1024)
 
     def _set_template_field(self, template_field, variant_field):
-        for record in self:
+        # read all values first: writing on a template invalidates the variants' cache
+        values = [(record, record[template_field]) for record in self]
+        for record, value in values:
             if (
                 # We are trying to remove a field from the variant even though it is already
                 # not set on the variant, remove it from the template instead.
-                (not record[template_field] and not record[variant_field])
+                (not value and not record[variant_field])
                 # We are trying to add a field to the variant, but the template field is
                 # not set, write on the template instead.
-                or (record[template_field] and not record.product_tmpl_id[template_field])
+                or (value and not record.product_tmpl_id[template_field])
                 # There is only one variant, always write on the template.
                 or self.search_count([
                     ('product_tmpl_id', '=', record.product_tmpl_id.id),
@@ -221,9 +233,9 @@ class ProductProduct(models.Model):
                 ]) <= 1
             ):
                 record[variant_field] = False
-                record.product_tmpl_id[template_field] = record[template_field]
+                record.product_tmpl_id[template_field] = value
             else:
-                record[variant_field] = record[template_field]
+                record[variant_field] = value
 
     @api.depends('product_tmpl_id.pricelist_rule_ids')
     def _compute_pricelist_rule_ids(self):
@@ -461,6 +473,7 @@ class ProductProduct(models.Model):
             template = product.product_tmpl_id
             if len(template.with_context(active_test=False).product_variant_ids) == 1 and not template.has_configurable_attributes:
                 template.list_price = product.lst_price
+                product.invalidate_recordset(['list_price'])
 
     @api.depends_context('partner_id')
     def _compute_product_code(self):
@@ -1019,7 +1032,7 @@ class ProductProduct(models.Model):
             domain = Domain(domain) & Domain('categ_id', 'child_of', self.env.context['search_default_categ_id'])
         return super()._search(domain, *args, **kwargs)
 
-    @api.depends('name', 'default_code', 'product_tmpl_id')
+    @api.depends('name', 'default_code', 'product_tmpl_id', 'purchase_ok')
     @api.depends_context('display_default_code', 'seller_id', 'company_id', 'partner_id', 'formatted_display_name', 'lang')
     def _compute_display_name(self):
 
@@ -1046,7 +1059,8 @@ class ProductProduct(models.Model):
         if partner_ids:
             # prefetch the fields used by the `display_name`
             supplier_info = self.env['product.supplierinfo'].sudo().search_fetch(
-                [('product_tmpl_id', 'in', product_template_ids), ('partner_id', 'in', partner_ids)],
+                [('product_tmpl_id', 'in', product_template_ids), ('partner_id', 'in', partner_ids),
+                 ('product_tmpl_id.purchase_ok', '=', True)],
                 ['product_tmpl_id', 'product_id', 'company_id', 'product_name', 'product_code'],
             )
             supplier_info_by_template = {}
@@ -1144,14 +1158,27 @@ class ProductProduct(models.Model):
     @api.model
     def name_search(self, name='', domain=None, operator='ilike', limit=100):
         if not name:
-            return super().name_search(name, domain, operator, limit)
+            domain = Domain(domain or Domain.TRUE)
+            favorite_products = self.search_fetch(
+                domain & Domain("is_favorite", "=", True), ["display_name"], limit=limit
+            )
+            limit_products = limit and limit - len(favorite_products)
+            products = favorite_products
+            if limit_products is None or limit_products > 0:
+                products |= self.search_fetch(
+                    domain & Domain("is_favorite", "=", False),
+                    ["display_name"],
+                    limit=limit_products,
+                )
+            return [(product.id, product.display_name) for product in products.sudo()]
         # search progressively by the most specific attributes
         positive_operators = ['=', 'ilike', '=ilike', 'like', '=like']
         is_positive = not operator in Domain.NEGATIVE_OPERATORS
         products = self.browse()
         domain = Domain(domain or Domain.TRUE)
         if operator in positive_operators:
-            products = self.search_fetch(domain & Domain('default_code', operator, name), ['display_name'], limit=limit) \
+            code_operator = '=ilike' if operator == 'ilike' else '='
+            products = self.search_fetch(domain & Domain('default_code', code_operator, name), ['display_name'], limit=limit) \
                 or self.search_fetch(domain & Domain('barcode', '=', name), ['display_name'], limit=limit)
         if not products:
             if is_positive:
@@ -1291,7 +1318,11 @@ class ProductProduct(models.Model):
             }
             return [vals.get(key, record[key]) for key in sort_key]
         sellers = self._get_filtered_sellers(partner_id=partner_id, quantity=quantity, date=date, uom_id=uom_id, params=params)
-        return sellers.sorted(sort_function)[:1]._get_seller_info()
+        res = self.env['product.supplierinfo']
+        for seller in sellers:
+            if not res or res.partner_id == seller.partner_id:
+                res |= seller
+        return res.sorted(sort_function)[:1]._get_seller_info()
 
     def _get_product_price_context(self, combination):
         self.ensure_one()

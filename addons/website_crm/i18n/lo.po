@@ -1,0 +1,211 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * website_crm
+#
+# Bone NI <bounkirdni@gmail.com>, 2026.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server saas~18.2\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-08-28 17:41+0000\n"
+"PO-Revision-Date: 2026-10-30 09:33+0000\n"
+"Last-Translator: Bone NI <bounkirdni@gmail.com>\n"
+"Language-Team: Lao <https://translate.odoo.com/projects/odoo-20/website_crm/"
+"lo/>\n"
+"Language: lo\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 2026.8.1\n"
+
+#. module: website_crm
+#: model:ir.module.module,description:base.module_website_crm
+msgid ""
+"\n"
+"Add capability to your website forms to generate leads or opportunities in "
+"the CRM app.\n"
+"Forms has to be customized inside the *Website Builder* in order to generate "
+"leads.\n"
+"\n"
+"This module includes contact phone and mobile numbers validation."
+msgstr ""
+"\n"
+"ເພີ່ມຄວາມສາມາດໃຫ້ກັບແບບຟອມເວັບໄຊທ໌ຂອງທ່ານ ເພື່ອສ້າງລູກຄ້າເປົ້າໝາຍ ຫຼື ໂອກາດໃນ ແອັບ CRM.\n"
+"ແບບຟອມຕ້ອງໄດ້ຮັບການປັບແຕ່ງຢູ່ພາຍໃນ *ຕົວສ້າງເວັບໄຊທ໌* ເພື່ອສ້າງ ລູກຄ້າເປົ້າໝາຍ.\n"
+"\n"
+"ໂມດູນນີ້ລວມມີການກວດສອບຄວາມຖືກຕ້ອງຂອງເບີໂທລະສັບຕິດຕໍ່ ແລະ ເບີມືຖື."
+
+#. module: website_crm
+#: model:ir.model.fields,field_description:website_crm.field_website_visitor__lead_count
+msgid "# Leads"
+msgstr "# ລູກຄ້າເປົ້າໝາຍ"
+
+#. module: website_crm
+#: model:ir.model.fields,field_description:website_crm.field_crm_lead__visitor_page_count
+msgid "# Page Views"
+msgstr "# ຈຳນວນການເບິ່ງໜ້າ"
+
+#. module: website_crm
+#. odoo-javascript
+#: code:addons/website_crm/static/src/js/website_crm_editor.js:0
+msgid "Assign leads/opportunities to a sales team."
+msgstr "ມອບໝາຍລູກຄ້າເປົ້າໝາຍ/ໂອກາດ ໃຫ້ກັບທີມຂາຍ."
+
+#. module: website_crm
+#. odoo-javascript
+#: code:addons/website_crm/static/src/js/website_crm_editor.js:0
+msgid "Assign leads/opportunities to a salesperson."
+msgstr "ມອບໝາຍລູກຄ້າເປົ້າໝາຍ/ໂອກາດ ໃຫ້ກັບພະນັກງານຂາຍ."
+
+#. module: website_crm
+#: model:ir.module.module,shortdesc:base.module_website_crm
+msgid "Contact Form"
+msgstr "ແບບຟອມຕິດຕໍ່"
+
+#. module: website_crm
+#: model:ir.model,website_form_label:website_crm.model_crm_lead
+msgid "Create an Opportunity"
+msgstr "ສ້າງໂອກາດ"
+
+#. module: website_crm
+#: model:ir.model.fields,help:website_crm.field_website__crm_default_team_id
+msgid "Default Sales Team for new leads created through the Contact Us form."
+msgstr ""
+"ທີມຂາຍເລີ່ມຕົ້ນສຳລັບລູກຄ້າເປົ້າໝາຍໃໝ່ ທີ່ສ້າງຂຶ້ນຜ່ານແບບຟອມຕິດຕໍ່ພວກເຮົາ."
+
+#. module: website_crm
+#: model:ir.model.fields,field_description:website_crm.field_website__crm_default_team_id
+msgid "Default Sales Teams"
+msgstr "ທີມຂາຍເລີ່ມຕົ້ນ"
+
+#. module: website_crm
+#: model:ir.model.fields,field_description:website_crm.field_website__crm_default_user_id
+msgid "Default Salesperson"
+msgstr "ພະນັກງານຂາຍເລີ່ມຕົ້ນ"
+
+#. module: website_crm
+#: model:ir.model.fields,help:website_crm.field_website__crm_default_user_id
+msgid "Default salesperson for new leads created through the Contact Us form."
+msgstr ""
+"ພະນັກງານຂາຍເລີ່ມຕົ້ນສຳລັບລູກຄ້າເປົ້າໝາຍໃໝ່ ທີ່ສ້າງຂຶ້ນຜ່ານແບບຟອມຕິດຕໍ່ພວກເຮົາ."
+
+#. module: website_crm
+#: model:ir.model.fields,field_description:website_crm.field_crm_lead__display_name
+#: model:ir.model.fields,field_description:website_crm.field_website__display_name
+#: model:ir.model.fields,field_description:website_crm.field_website_visitor__display_name
+msgid "Display Name"
+msgstr "ຊື່ສະແດງ"
+
+#. module: website_crm
+#: model:ir.module.module,summary:base.module_website_crm
+msgid "Generate leads from a contact form"
+msgstr "ສ້າງລູກຄ້າເປົ້າໝາຍຈາກແບບຟອມຕິດຕໍ່"
+
+#. module: website_crm
+#: model:ir.model.fields,field_description:website_crm.field_crm_lead__id
+#: model:ir.model.fields,field_description:website_crm.field_website__id
+#: model:ir.model.fields,field_description:website_crm.field_website_visitor__id
+msgid "ID"
+msgstr "ລະຫັດ"
+
+#. module: website_crm
+#: model:ir.model,name:website_crm.model_crm_lead
+msgid "Lead"
+msgstr "ລູກຄ້າເປົ້າໝາຍ"
+
+#. module: website_crm
+#: model:ir.actions.act_window,name:website_crm.crm_lead_action_from_visitor
+#: model:ir.model.fields,field_description:website_crm.field_website_visitor__lead_ids
+#: model_terms:ir.ui.view,arch_db:website_crm.website_visitor_view_form
+#: model_terms:ir.ui.view,arch_db:website_crm.website_visitor_view_search
+msgid "Leads"
+msgstr "ລູກຄ້າເປົ້າໝາຍ"
+
+#. module: website_crm
+#: model_terms:ir.ui.view,arch_db:website_crm.website_visitor_view_kanban
+msgid "Leads / Opportunities"
+msgstr "ລູກຄ້າເປົ້າໝາຍ / ໂອກາດ"
+
+#. module: website_crm
+#: model_terms:ir.actions.act_window,help:website_crm.crm_lead_action_from_visitor
+msgid "No lead linked for this visitor"
+msgstr "ບໍ່ມີລູກຄ້າເປົ້າໝາຍທີ່ເຊື່ອມໂຍງກັບຜູ້ເຂົ້າຊົມນີ້"
+
+#. module: website_crm
+#: model_terms:ir.ui.view,arch_db:website_crm.crm_lead_view_form
+msgid "Page views"
+msgstr "ການເບິ່ງໜ້າ"
+
+#. module: website_crm
+#. odoo-javascript
+#: code:addons/website_crm/static/src/js/website_crm_editor.edit.js:0
+msgid "Phone Number"
+msgstr "ເບີໂທລະສັບ"
+
+#. module: website_crm
+#. odoo-javascript
+#: code:addons/website_crm/static/src/js/website_crm_editor.js:0
+msgid "Sales Team"
+msgstr "ທີມຂາຍ"
+
+#. module: website_crm
+#. odoo-javascript
+#: code:addons/website_crm/static/src/js/website_crm_editor.js:0
+msgid "Salesperson"
+msgstr "ພະນັກງານຂາຍ"
+
+#. module: website_crm
+#. odoo-javascript
+#: code:addons/website_crm/static/src/js/website_crm_editor.edit.js:0
+msgid "Subject"
+msgstr "ຫົວຂໍ້"
+
+#. module: website_crm
+#: model:ir.model.fields,field_description:website_crm.field_crm_lead__visitor_ids
+msgid "Web Visitors"
+msgstr "ຜູ້ເຂົ້າຊົມເວັບ"
+
+#. module: website_crm
+#: model_terms:ir.ui.view,arch_db:website_crm.crm_lead_merge_summary_inherit_website
+msgid "Web Visitors:"
+msgstr "ຜູ້ເຂົ້າຊົມເວັບ:"
+
+#. module: website_crm
+#: model:ir.model,name:website_crm.model_website
+msgid "Website"
+msgstr "ເວັບໄຊທ໌"
+
+#. module: website_crm
+#: model:ir.actions.act_url,name:website_crm.action_open_website
+msgid "Website Contact Form"
+msgstr "ແບບຟອມຕິດຕໍ່ທາງເວັບໄຊທ໌"
+
+#. module: website_crm
+#: model:ir.model,name:website_crm.model_website_visitor
+msgid "Website Visitor"
+msgstr "ຜູ້ເຂົ້າຊົມເວັບໄຊທ໌"
+
+#. module: website_crm
+#. odoo-javascript
+#: code:addons/website_crm/static/src/js/website_crm_editor.edit.js:0
+msgid "Your Company"
+msgstr "ບໍລິສັດຂອງທ່ານ"
+
+#. module: website_crm
+#. odoo-javascript
+#: code:addons/website_crm/static/src/js/website_crm_editor.edit.js:0
+msgid "Your Email"
+msgstr "ອີເມວຂອງທ່ານ"
+
+#. module: website_crm
+#. odoo-javascript
+#: code:addons/website_crm/static/src/js/website_crm_editor.edit.js:0
+msgid "Your Name"
+msgstr "ຊື່ຂອງທ່ານ"
+
+#. module: website_crm
+#. odoo-javascript
+#: code:addons/website_crm/static/src/js/website_crm_editor.edit.js:0
+msgid "Your Question"
+msgstr "ຄຳຖາມຂອງທ່ານ"

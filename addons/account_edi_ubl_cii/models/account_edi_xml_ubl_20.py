@@ -7,14 +7,9 @@ from odoo.addons.account.tools import dict_to_xml
 from odoo.tools.partner_identifiers import get_tin_metadata_of_country
 
 from odoo.addons.account_edi_ubl_cii.models.account_edi_common import FloatFmt
+from odoo.addons.account_edi_ubl_cii.models.account_edi_ubl import UBL_NAMESPACES  # noqa: F401 (other modules still import it from ubl_20)
 from odoo.addons.account_edi_ubl_cii.tools import Invoice, CreditNote, DebitNote
 from odoo.addons.account_edi_ubl_cii.tools.ubl_20_optional_fields import PEPPOL_INVOICE_OPTIONAL_FIELDS, PEPPOL_INVOICE_OPTIONAL_LINE_FIELDS, PEPPOL_CREDIT_NOTE_OPTIONAL_FIELDS, PEPPOL_CREDIT_NOTE_OPTIONAL_LINE_FIELDS
-
-
-UBL_NAMESPACES = {
-    'cbc': "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2",
-    'cac': "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2",
-}
 
 
 class AccountEdiXmlUBL20(models.AbstractModel):
@@ -22,21 +17,12 @@ class AccountEdiXmlUBL20(models.AbstractModel):
     _inherit = 'account.edi.ubl'
     _description = "UBL 2.0"
 
-    def _find_value(self, xpath, tree, nsmap=False):
-        # EXTENDS account.edi.common
-        return super()._find_value(xpath, tree, UBL_NAMESPACES)
-
     # -------------------------------------------------------------------------
     # EXPORT
     # -------------------------------------------------------------------------
 
     def _export_invoice_filename(self, invoice):
         return f"{invoice.name.replace('/', '_')}_ubl_20.xml"
-
-    def _get_document_type_code_node(self, invoice, invoice_data):
-        """Returns the `DocumentTypeCode` node tag"""
-        # To be overriden by custom format if required
-        pass
 
     def _export_invoice(self, invoice):
         """ Generates an UBL 2.0 xml for a given invoice. """
@@ -412,6 +398,7 @@ class AccountEdiXmlUBL20(models.AbstractModel):
         self._add_invoice_line_id_nodes(line_node, vals)
         self._add_invoice_line_note_nodes(line_node, vals)
         self._add_invoice_line_free_of_charge_indicator_nodes(line_node, vals)
+        self._add_invoice_line_period_nodes(line_node, vals)
         self._add_invoice_line_allowance_charge_nodes(line_node, vals)
         self._add_invoice_line_amount_nodes(line_node, vals)
         self._add_invoice_line_tax_total_nodes(line_node, vals)
@@ -454,6 +441,9 @@ class AccountEdiXmlUBL20(models.AbstractModel):
 
     def _add_invoice_line_amount_nodes(self, line_node, vals):
         self._add_document_line_amount_nodes(line_node, vals)
+
+    def _add_invoice_line_period_nodes(self, line_node, vals):
+        pass
 
     def _add_invoice_line_allowance_charge_nodes(self, line_node, vals):
         self._add_document_line_allowance_charge_nodes(line_node, vals)
@@ -1147,21 +1137,35 @@ class AccountEdiXmlUBL20(models.AbstractModel):
             'state_code': self._find_value(f'.//cac:{role}Party//cac:PostalAddress/cbc:CountrySubentityCode', tree),
         }
 
+    def _import_invoice_ubl_cii(self, invoice, file_data, new=False):
+        # EXTENDS account.edi.common
+        res = super()._import_invoice_ubl_cii(invoice, file_data, new=new)
+        # The invoice_origin has been guessed from the line descriptions, flag it to clean it if no PO is matched.
+        file_data['invoice_origin_from_description'] = bool(
+            not res and invoice.invoice_origin and not file_data['xml_tree'].findtext('./{*}OrderReference/{*}ID'),
+        )
+        return res
+
     def _import_fill_invoice(self, invoice, tree, qty_factor):
         logs = []
         invoice_values = {}
         if qty_factor == -1:
             logs.append(_("The invoice has been converted into a credit note and the quantities have been reverted."))
         role = "AccountingCustomer" if invoice.journal_id.type == 'sale' else "AccountingSupplier"
-        partner, partner_logs = self._import_partner(invoice.company_id, **self._import_retrieve_partner_vals(tree, role))
+        # ==== partner_bank_id ====
+        bank_detail_nodes = tree.findall('.//{*}PaymentMeans/{*}PayeeFinancialAccount/{*}ID')
+        bank_details = [bank_detail_node.text for bank_detail_node in bank_detail_nodes if bank_detail_node.text]
+
+        partner_vals = self._import_retrieve_partner_vals(tree, role)
+        if bank_details:
+            partner_vals['bank_details'] = bank_details
+        partner, partner_logs = self._import_partner(invoice.company_id, **partner_vals)
         # Need to set partner before to compute bank and lines properly
         invoice.partner_id = partner.id
         invoice_values['currency_id'], currency_logs = self._import_currency(tree, './/{*}DocumentCurrencyCode')
         invoice_values['invoice_date'] = tree.findtext('./{*}IssueDate')
         invoice_values['invoice_date_due'] = self._find_value(('./cbc:DueDate', './/cbc:PaymentDueDate'), tree)
-        # ==== partner_bank_id ====
-        bank_detail_nodes = tree.findall('.//{*}PaymentMeans')
-        bank_details = [bank_detail_node.findtext('{*}PayeeFinancialAccount/{*}ID') for bank_detail_node in bank_detail_nodes if bank_detail_node.findtext('{*}PayeeFinancialAccount/{*}ID')]
+
         if bank_details:
             self._import_partner_bank(invoice, bank_details)
 
@@ -1306,21 +1310,3 @@ class AccountEdiXmlUBL20(models.AbstractModel):
                         difference = currency.round(tax_total - tax_lines_total)
                         if not currency.is_zero(difference):
                             tax_lines[0].amount_currency += sign * difference
-    # -------------------------------------------------------------------------
-    # IMPORT : helpers
-    # -------------------------------------------------------------------------
-
-    def _get_import_document_amount_sign(self, tree):
-        """
-        In UBL, an invoice has tag 'Invoice' and a credit note has tag 'CreditNote'. However, a credit note can be
-        expressed as an invoice with negative amounts. For this case, we need a factor to take the opposite
-        of each quantity in the invoice.
-        """
-        if tree.tag == '{urn:oasis:names:specification:ubl:schema:xsd:Invoice-2}Invoice':
-            amount_node = tree.find('.//{*}LegalMonetaryTotal/{*}TaxInclusiveAmount')
-            if amount_node is not None and float(amount_node.text) < 0:
-                return 'refund', -1
-            return 'invoice', 1
-        if tree.tag == '{urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2}CreditNote':
-            return 'refund', 1
-        return None, None

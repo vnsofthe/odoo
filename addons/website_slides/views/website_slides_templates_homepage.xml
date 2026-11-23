@@ -92,8 +92,8 @@
                             <div class="o_wprofile_email_validation_container">
                                 <t t-call="website_profile.email_validation_banner"
                                     redirect_url.f="/slides"
-                                    send_alert_classes.f="alert alert-danger alert-dismissable mt-4 mb-0"
-                                    done_alert_classes.f="alert alert-success alert-dismissable mt-4 mb-0"
+                                    send_alert_classes.f="alert alert-danger alert-dismissible mt-4 mb-0"
+                                    done_alert_classes.f="alert alert-success alert-dismissible mt-4 mb-0"
                                     additional_validation_email_message.translate="and join this Community"
                                     additional_validated_email_message.translate="You may now participate in our eLearning."/>
                             </div>
@@ -344,11 +344,15 @@
                     </div>
                     <small><t t-out="channel.completion"/>%</small>
                 </div>
-                <button class="btn btn-sm btn-primary">Continue</button>
+                <a t-attf-href="/slides/#{slug(channel)}">
+                    <button class="btn btn-sm btn-primary">Continue</button>
+                </a>
             </t>
             <t t-elif="channel.is_member and not channel.completion">
                 <small t-if="channel.total_time" t-out="channel.total_time" t-options="{'widget': 'duration', 'unit': 'hour', 'round': 'minute', 'format': 'narrow'}"/>
-                <button class="btn btn-sm btn-primary">Start now</button>
+                <a t-attf-href="/slides/#{slug(channel)}">
+                    <button class="btn btn-sm btn-primary">Start now</button>
+                </a>
             </t>
             <span t-elif="channel.is_member and channel.completed" class="badge text-bg-success"><i class="oi" data-icon="check" aria-hidden="true"/> Completed</span>
             <t t-else="">

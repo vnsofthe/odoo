@@ -7,7 +7,7 @@ import { markup, usePlugin } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { registry } from "@web/core/registry";
 import { cookie } from "@web/core/browser/cookie";
-import { formatDateTime, serializeDateTime } from "@web/core/l10n/dates";
+import { serializeDateTime } from "@web/core/l10n/dates";
 import { TimeoutPopup } from "@pos_self_order/app/components/timeout_popup/timeout_popup";
 import { NetworkConnectionLostPopup } from "@pos_self_order/app/components/network_connectionLost_popup/network_connectionLost_popup";
 import { UnavailableProductsDialog } from "@pos_self_order/app/components/unavailable_product_dialog/unavailable_product_dialog";
@@ -19,9 +19,8 @@ import {
     orderUsageUTCtoLocalUtil,
     getTimeUtil,
 } from "@point_of_sale/utils";
-import { getOrderLineValues } from "./card_utils";
+import { getOrderLineValues, getBestMatchingVariant } from "./card_utils";
 import { initLNA } from "@point_of_sale/app/utils/init_lna";
-import { GeneratePrinterData } from "@point_of_sale/app/utils/printer/generate_printer_data";
 import { SnoozeTracker } from "@point_of_sale/app/models/utils/snooze_tracker";
 import { InfoPopup } from "@pos_self_order/app/components/info_popup/info_popup";
 import { ComboSuggestion } from "@point_of_sale/app/models/utils/combo_suggestion";
@@ -90,11 +89,7 @@ export class SelfOrder extends Reactive {
             await this.initMobileData();
         }
 
-        this.data.connectWebSocket("SESSION_STATE_CHANGED", () => {
-            if (!session.test_mode) {
-                window.location.reload();
-            }
-        });
+        this.data.connectWebSocket("SESSION_STATE_CHANGED", () => this.onSessionStateChanged());
         this.data.connectWebSocket("ORDER_STATE_CHANGED", () => this.getUserDataFromServer());
         this.data.connectWebSocket("SNOOZE_CHANGED", async (payload) => {
             const { deleted_ids, records } = payload;
@@ -119,19 +114,25 @@ export class SelfOrder extends Reactive {
             if (hasNewProducts) {
                 this.initProducts();
             }
+            this.availableCategories = this.getAvailableCategories();
         });
         if (this.config.self_ordering_mode === "kiosk") {
-            this.data.connectWebSocket("STATUS", ({ status }) => {
-                if (status === "closed") {
-                    this.ordering = false;
-                } else {
-                    // reload to get potential new settings
-                    // more easier than RPC for now
-                    window.location.reload();
+            this.data.connectWebSocket("STATUS", async ({ status }) => {
+                await this.handleKioskSessionStatusChange(status);
+            });
+            this.data.connectWebSocket("CONFIG_UPDATED", ({ write_date }) => {
+                if (write_date > this.config.raw.write_date) {
+                    this.onSessionStateChanged();
                 }
             });
             this.data.connectWebSocket("PAYMENT_STATUS", ({ payment_result, data }) => {
                 if (payment_result === "Success") {
+                    const [orderData] = data["pos.order"];
+                    const localOrder = this.models["pos.order"].get(orderData.id);
+                    if (!localOrder) {
+                        return;
+                    }
+                    orderData.partner_id = localOrder?.raw.partner_id || false;
                     this.models.connectNewData(data);
                     const order = this.models["pos.order"].find(
                         (o) => o.access_token === data["pos.order"][0].access_token
@@ -186,6 +187,22 @@ export class SelfOrder extends Reactive {
         });
     }
 
+    async onSessionStateChanged() {
+        if (!session.test_mode) {
+            window.location.reload();
+        }
+    }
+    async handleKioskSessionStatusChange(status) {
+        if (status === "closed") {
+            this.pos_session = [];
+            this.ordering = false;
+        } else {
+            // reload to get potential new settings
+            // more easier than RPC for now
+            window.location.reload();
+        }
+    }
+
     /**
      * Return the current table based on the URL identifier
      * This is the only way to be sure of the table the user is using
@@ -229,8 +246,10 @@ export class SelfOrder extends Reactive {
         let now = luxon.DateTime.now();
         now = now.hour + now.minute / 60;
         const availableCategories = this.productCategories
-            .filter(
-                (c) => this.productByCategIds[c.id]?.length > 0 || c.associatedProducts?.length > 0
+            .filter((c) =>
+                (c.associatedProducts || this.productByCategIds[c.id] || []).some(
+                    (p) => p.self_order_available
+                )
             )
             .sort((a, b) => a.sequence - b.sequence);
         return availableCategories.filter((c) => {
@@ -250,7 +269,9 @@ export class SelfOrder extends Reactive {
     }
     computeAvailableCategories() {
         this.availableCategories = this.getAvailableCategories();
-        this.currentCategory = this.availableCategories[0];
+        if (!this.isCategoryAvailable(this.currentCategory?.id)) {
+            this.currentCategory = this.availableCategories[0];
+        }
     }
 
     isCategoryAvailable(categId) {
@@ -339,6 +360,7 @@ export class SelfOrder extends Reactive {
                 options.categories[date].subCategories[slot.periode].options.push({
                     id: slot.datetime.toFormat("yyyy-MM-dd HH:mm:ss"),
                     name: this.getTime(slot.datetime),
+                    disabled: slot.isFull,
                 });
             }
         }
@@ -359,7 +381,7 @@ export class SelfOrder extends Reactive {
         try {
             const presetAvailabilities = await rpc(`/pos-self-order/get-slots`, {
                 access_token: this.access_token,
-                preset_id: this.currentOrder?.preset_id?.id,
+                preset_id: preset.id,
             });
             const localUsage = orderUsageUTCtoLocalUtil(presetAvailabilities.usage_utc);
             preset.computeAvailabilities(localUsage);
@@ -435,11 +457,13 @@ export class SelfOrder extends Reactive {
         this.currentCategory = this.availableCategories[0];
     }
 
-    hasPaymentMethod() {
-        return (
-            this.config.self_ordering_mode === "kiosk" &&
-            this.models["pos.payment.method"].filter((pm) => pm.type !== "cash").length > 0
+    get paymentMethods() {
+        return this.models["pos.payment.method"].filter(
+            (pm) => pm.type !== "cash" || pm.payment_provider
         );
+    }
+    hasPaymentMethod() {
+        return this.config.self_ordering_mode === "kiosk" && this.paymentMethods.length > 0;
     }
 
     async confirmOrder() {
@@ -826,27 +850,24 @@ export class SelfOrder extends Reactive {
         }
 
         try {
-            this.currentOrder.setOrderPrices();
+            order.setOrderPrices();
             const tableIdentifier = this.currentTableIdentifier;
-            let uuid = this.selectedOrderUuid;
             if (this.shouldUpdateLastOrderChange()) {
-                this.currentOrder.updateLastOrderChange();
+                order.updateLastOrderChange();
             }
             const data = await rpc(
                 `/pos-self-order/process-order/${this.config.self_ordering_mode}`,
                 {
-                    order: this.currentOrder.serializeForORM(),
+                    order: order.serializeForORM(),
                     access_token: this.access_token,
                     table_identifier: tableIdentifier, // Always trust URL one, is the one user scanned
                 }
             );
-            const result = this.models.connectNewData(data);
-            if (result["pos.order"][0].uuid !== this.selectedOrderUuid) {
-                this.orderTakeAwayState[result["pos.order"][0].uuid] =
-                    this.orderTakeAwayState[this.selectedOrderUuid];
-                delete this.orderTakeAwayState[this.selectedOrderUuid];
-                this.currentOrder.delete();
-                uuid = result["pos.order"][0].uuid;
+            const syncedOrder = this.models.connectNewData(data)["pos.order"][0];
+            if (syncedOrder.uuid !== order.uuid) {
+                this.orderTakeAwayState[syncedOrder.uuid] = this.orderTakeAwayState[order.uuid];
+                delete this.orderTakeAwayState[order.uuid];
+                order.delete();
             }
             this.data.debouncedSynchronizeLocalDataInIndexedDB();
 
@@ -855,9 +876,8 @@ export class SelfOrder extends Reactive {
             }
 
             this.currentOrder.recomputeChanges();
-            return this.models["pos.order"].getBy("uuid", uuid);
+            return syncedOrder;
         } catch (error) {
-            const order = this.models["pos.order"].getBy("uuid", this.selectedOrderUuid);
             this.handleErrorNotification(error, [order.access_token]);
             return false;
         }
@@ -1078,6 +1098,7 @@ export class SelfOrder extends Reactive {
     verifyCart() {
         let result = true;
         const unavailableProducts = new Set();
+        this.computeAvailableCategories();
 
         const deliveryProductId = this.currentOrder.preset_id?.delivery_product_id?.id;
         for (const line of this.currentOrder.unsentLines) {
@@ -1094,13 +1115,16 @@ export class SelfOrder extends Reactive {
                 : false;
 
             const wrongChild = line.combo_line_ids.find((l) => !l.product_id.self_order_available);
-            if (wrongChild || !line.product_id?.self_order_available) {
+            const lineAvailable =
+                line.product_id?.self_order_available &&
+                this.isProductAvailable(line.product_id.product_tmpl_id);
+            if (wrongChild || !lineAvailable) {
                 if (alreadySent) {
                     line.qty = alreadySent.qty;
                     line.customer_note = alreadySent.customer_note;
                     line.selected_attributes = alreadySent.selected_attributes;
                 } else {
-                    const productName = !line.product_id?.self_order_available
+                    const productName = !lineAvailable
                         ? line.product_id?.name
                         : wrongChild?.product_id?.name;
 
@@ -1135,7 +1159,7 @@ export class SelfOrder extends Reactive {
     getProductPriceInfo(productTemplate, product) {
         const order = this.currentOrder;
         const pricelist = order.preset_id?.pricelist_id || this.config.pricelist_id;
-        const productVariant = product || productTemplate.product_variant_ids[0];
+        const productVariant = product || getBestMatchingVariant(this.models, productTemplate, []);
         const price = productTemplate.getPrice(pricelist, 1, 0, false, productVariant);
         const taxesData = (productVariant || productTemplate).getTaxDetails({
             overridedValues: {
@@ -1186,20 +1210,13 @@ export class SelfOrder extends Reactive {
         return this.config.self_ordering_mode === "mobile" && order.state === "paid";
     }
     async downloadReceipt(order) {
+        if (!order.id || typeof order.id !== "number") {
+            return;
+        }
+
+        const safeToken = encodeURIComponent(order.access_token);
         const link = document.createElement("a");
-        const currentDate = formatDateTime(luxon.DateTime.now(), {
-            format: "MM_dd_yyyy-HH_mm_ss",
-        });
-        const companyName = this.company.name.replaceAll(" ", "_");
-        link.download = `${companyName}-${currentDate}.png`;
-
-        const template = "point_of_sale.pos_order_receipt";
-        const generator = new GeneratePrinterData({ models: this.data.models, order });
-        const data = generator.generateReceiptData();
-        const iframe = await this.ticketPrinter.generateIframe(template, data);
-        const image = await this.ticketPrinter.generateImage(iframe);
-
-        link.href = image.toDataURL().replace("data:image/jpeg;base64,", "");
+        link.href = `/pos-self-order/receipt/${order.id}?access_token=${safeToken}`;
         link.click();
     }
 

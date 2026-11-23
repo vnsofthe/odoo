@@ -11,8 +11,8 @@ from PIL import Image
 from odoo import Command, fields, models
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.fields import Domain
-from odoo.tests import TransactionCase, tagged, users
-from odoo.tools import BinaryBytes, float_repr, mute_logger
+from odoo.tests import TransactionCase, new_test_user, tagged, users
+from odoo.tools import BinaryBytes, SQL, float_repr, mute_logger
 from odoo.tools.image import binary_to_image, image_data_uri
 
 from .test_domain_expression import TransactionExpressionCase
@@ -2092,6 +2092,56 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         # this one must trigger a MissingError
         with self.assertRaises(MissingError):
             deleted.categories
+
+    @mute_logger('odoo.addons.base.models.ir_rule')
+    def test_33_prefetch_access_error_compute(self):
+        """ Test that a non-stored computed field is computed in batch on the
+        records of a one2many, even if the prefetch set of the one2many also
+        contains records that the user cannot read.
+        """
+        discussion = self.env['test_orm.discussion'].create({
+            'name': 'Discussion',
+            'participants': [Command.link(self.env.user.id)],
+        })
+        self.env['test_orm.message'].create([
+            {'discussion': discussion.id, 'body': f"Message {i}", 'important': i % 3 == 0}
+            for i in range(100)
+        ])
+        self.env['ir.access'].create({
+            'name': 'test_orm.message restriction',
+            'model_id': self.env['ir.model']._get('test_orm.message').id,
+            'operation': 'crud',
+            'domain': "[('important', '=', False)]",
+        })
+        self.env.invalidate_all()
+
+        messages = discussion.with_user(self.user_demo).messages
+        self.assertEqual(len(messages), 66)
+
+        # the computation of author_message_count below doesn't raise
+        # AccessError if message.author isn't already in cache
+        # (Explanation: The prefetching of all messages fails because some of
+        # them are not accessible. The prefetching is then retried on the first
+        # message, and as this one is already in cache, the ORM only checks
+        # access rights. The latter fills the access rights cache for all
+        # messages, which prefetches fields in sudo() to evaluate the domain.
+        # Once done, the cache of inaccessible records is polluted with the
+        # prefetched fields.)
+        messages.fetch()
+
+        with self.assertQueryCount(18):
+            messages.mapped('author_message_count')
+
+        # however, if the error is not due to the record and the prefetch is
+        # filled, the field should still be computed properly
+        def sometimes_count(self):
+            if messages[3] in self:
+                raise AccessError('ok')
+            self.author_message_count = 1
+        messages.invalidate_model(['author_message_count'])
+        with patch.object(self.registry['test_orm.message'], '_compute_author_message_count', sometimes_count):
+            message = messages[2].with_prefetch(messages._ids)
+            message.mapped('author_message_count')
 
     def test_40_real_vs_new(self):
         """ test field access on new records vs real records. """
@@ -4214,6 +4264,38 @@ class TestParentStore(TransactionCaseWithUserDemo):
         self.assertParentOf(self.cats(5), self.cats(0, 5))
         self.assertParentOf(self.cats(9), self.cats(0, 6, 9))
 
+    def test_move_collation(self):
+        """ Move a subtree when parent_path does not sort in the "C" collation. """
+        # find a collation sorting '12/14/' after '120', like glibc's en_US.UTF-8
+        self.env.cr.execute(SQL("""
+            SELECT collname FROM pg_collation
+            WHERE collprovider = 'c' AND collname NOT IN ('C', 'POSIX', 'ucs_basic')
+            AND collencoding IN (-1, pg_char_to_encoding(getdatabaseencoding()))
+            ORDER BY collname ILIKE %s DESC, collname
+        """, 'en_US%'))
+        for [collation] in self.env.cr.fetchall():
+            self.env.cr.execute(SQL(
+                "SELECT %s::varchar > %s::varchar COLLATE %s", '12/14/', '120',
+                SQL.identifier(collation),
+            ))
+            if self.env.cr.fetchone()[0]:
+                break
+        else:
+            self.skipTest("no collation sorting '12/14/' after '120'")
+        # make parent_path sort like a database whose default is that collation
+        self.env.flush_all()
+        self.env.cr.execute(SQL(
+            "ALTER TABLE test_orm_category ALTER COLUMN parent_path TYPE varchar COLLATE %s",
+            SQL.identifier(collation),
+        ))
+        self.patch(self.registry, 'has_bytewise_collation', False)
+
+        self.cats(6).write({'parent': self.cats(1).id})
+        self.assertChildOf(self.cats(1), self.cats(1, 6, 7, 8, 9))
+        self.assertChildOf(self.cats(3), self.cats(3, 4, 5))
+        self.assertChildOf(self.cats(6), self.cats(6, 7, 8, 9))
+        self.assertParentOf(self.cats(9), self.cats(0, 1, 6, 9))
+
     def test_move_1_cycle(self):
         """ Move a node to create a cycle. """
         with self.assertRaises(UserError):
@@ -4328,6 +4410,41 @@ class TestRequiredMany2oneTransient(TransactionCase):
 
         with self.assertRaises(ValueError):
             field.setup_nonrelated(Model)
+
+
+@tagged('post_install', '-at_install')
+class TestOne2manyInvalidInverse(TransactionCase):
+
+    @mute_logger("odoo.fields")
+    def test_field_inverses_invalid_inverse_name(self):
+        """Building field_inverses must not crash on a wrong custom One2many inverse."""
+        # post_install: before the registry is loaded, custom one2many fields
+        # with a missing inverse are simply not added to the model
+        field = self.env['ir.model.fields'].create({
+            'name': 'x_messages',
+            'model_id': self.env.ref('test_base.model_test_orm_message').id,
+            'field_description': 'Messages',
+            'ttype': 'one2many',
+            'relation': 'test_orm.message',
+            'relation_field': 'discussion',
+            'related': 'discussion.messages',
+            'store': False,
+        })
+        with self.assertRaises(ValidationError):
+            field.relation_field = 'invalid key example'
+
+        # invalid inverse already stored in database
+        self.env.cr.execute(
+            "UPDATE ir_model_fields SET relation_field = 'invalid key example' WHERE id = %s",
+            [field.id],
+        )
+        self.env.transaction.will_change_registry()
+        self.registry._setup_models__(self.env.cr, ['test_orm.message'])
+        o2m = self.env['test_orm.message']._fields['x_messages']
+        self.assertEqual(o2m.inverse_name, 'invalid key example')
+
+        self.registry.__dict__.pop('field_inverses', None)
+        self.assertFalse(self.registry.field_inverses[o2m])
 
 
 @tagged('m2oref')
@@ -5348,6 +5465,17 @@ class TestPrecompute(TransactionCase):
         # check the number of queries: 1 SELECT + 1 INSERT
         with self.assertQueryCount(2):
             model.create([{'partner_id': pid} for pid in partners.ids])
+
+    def test_precompute_new_inaccessible_relational_value(self):
+        """ Precomputing fields builds a new record from the create values,
+        including the magic fields, so new() must not check the access to
+        relational values the user cannot read. """
+        user = new_test_user(self.env, login='precompute_user', groups='base.group_user')
+        partner = self.env['res.partner'].create({'name': 'Foo'})
+        model = self.env['test_orm.precompute'].with_user(user)
+        with patch.object(model._fields['partner_id'], 'groups', 'base.group_system'):
+            record = model.new({'name': 'Foo', 'partner_id': partner.id})
+            self.assertEqual(record.sudo().partner_id, partner)
 
     def test_precompute_monetary(self):
         """Make sure the rounding of monetaries correctly prefetches currency fields"""

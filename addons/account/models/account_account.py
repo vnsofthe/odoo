@@ -26,7 +26,7 @@ class AccountAccount(models.Model):
     _name = 'account.account'
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = "Account"
-    _order = "code_path, account_type, name_path"
+    _order = "code_path, account_type, name_path, id"
     _parent_store = True
     _check_company_auto = True
     _check_company_domain = models.check_companies_domain_parent_of
@@ -77,6 +77,7 @@ class AccountAccount(models.Model):
             ("liability_non_current", "Non-current Liabilities"),
             ("equity", "Equity"),
             ("equity_unaffected", "Current Year Earnings"),
+            ("equity_retained", "Retained Earnings"),
             ("income", "Income"),
             ("income_other", "Other Income"),
             ("expense", "Expenses"),
@@ -144,8 +145,8 @@ class AccountAccount(models.Model):
     opening_credit = fields.Monetary(string="Opening Credit", compute='_compute_opening_debit_credit', inverse='_set_opening_credit', currency_field='company_currency_id')
     opening_balance = fields.Monetary(string="Opening Balance", compute='_compute_opening_debit_credit', inverse='_set_opening_balance', currency_field='company_currency_id')
 
-    current_balance = fields.Float(compute='_compute_current_balance')
-    related_taxes_amount = fields.Integer(compute='_compute_related_taxes_amount')
+    current_balance = fields.Monetary(compute='_compute_current_balance', currency_field='company_currency_id')
+    related_taxes_amount = fields.Integer(compute='_compute_related_taxes_amount', compute_sql='_compute_sql_related_taxes_amount', compute_sudo=True)
 
     non_trade = fields.Boolean(default=False,
                                help="If set, this account will belong to Non Trade Receivable/Payable in reports and filters.\n"
@@ -584,13 +585,18 @@ class AccountAccount(models.Model):
 
         raise UserError(_('Cannot generate an unused account code.'))
 
-    @api.depends_context('company')
+    @api.depends_context('allowed_company_ids')
     def _compute_current_balance(self):
+        # Balance across all the selected companies, converted into the main company's currency
         balances = {
             account.id: balance
-            for account, balance in self.env['account.move.line']._read_group(
-                domain=[('account_id', 'in', self.ids), ('parent_state', '=', 'posted'), ('company_id', 'child_of', self.env.company.id)], groupby=['account_id'],
-                aggregates=['balance:sum'],
+            for account, balance in self.env['account.move.line'].with_context(
+                currency_translation='cta',
+                date_to=fields.Date.context_today(self),
+            )._read_group(
+                domain=[('account_id', 'in', self.ids), ('parent_state', '=', 'posted'), ('company_id', 'in', self.env.companies.ids)],
+                groupby=['account_id'],
+                aggregates=['consolidation_balance:sum'],
             )
         }
         for record in self:
@@ -603,6 +609,28 @@ class AccountAccount(models.Model):
                 *self.env['account.tax']._check_company_domain(self.env.company),
                 ('repartition_line_ids.account_id', 'in', record.ids),
             ])
+
+    def _compute_sql_related_taxes_amount(self, table):
+        query = table._query
+        count_tax_alias = query.make_alias(table._alias, 'count')
+
+        query.add_join(
+            'LEFT JOIN LATERAL',
+            count_tax_alias,
+            SQL(
+                """(
+                    SELECT COUNT(DISTINCT tax.id) AS tax_count
+                      FROM account_tax_repartition_line repartition_line
+                      JOIN account_tax tax
+                        ON tax.id = repartition_line.tax_id
+                     WHERE repartition_line.account_id = %s
+                       AND tax.active
+                )""",
+                SQL.identifier(table._alias, 'id'),
+            ),
+            SQL("TRUE"),
+        )
+        return SQL.identifier(count_tax_alias, 'tax_count')
 
     @api.depends_context('company')
     def _compute_company_currency_id(self):
@@ -784,10 +812,8 @@ class AccountAccount(models.Model):
         :returns: List of account ids, ordered by frequency (from most to least frequent)
         """
         account_domain = Domain('active', '=', True)
-        if move_type in self.env['account.move'].get_inbound_types(include_receipts=True):
-            account_domain &= Domain('internal_group', '=', 'income')
-        elif move_type in self.env['account.move'].get_outbound_types(include_receipts=True):
-            account_domain &= Domain('internal_group', '=', 'expense')
+        if allowed_account_types := self._get_name_search_account_types(move_type):
+            account_domain &= Domain('account_type', 'in', allowed_account_types)
 
         query = self.env['account.move.line'].with_company(company_id)._search([
             *self.env['account.move.line']._check_company_domain(company_id),
@@ -906,7 +932,9 @@ class AccountAccount(models.Model):
 
     @api.onchange('code')
     def _onchange_code(self):
-        self.env.add_to_compute(self._fields['account_type'], self)
+        to_update = self.filtered(lambda a: not a.id or not a.account_type)
+        self.env.add_to_compute(self._fields['account_type'], to_update)
+        to_update.modified(['account_type'])
 
     @api.depends_context('company', 'formatted_display_name', 'from_bill')
     @api.depends('code')

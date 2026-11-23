@@ -892,6 +892,21 @@ class IrModelFields(models.Model):
             if rec.relation_table:
                 models.check_pg_name(rec.relation_table)
 
+    @api.constrains('relation', 'relation_field')
+    def _check_relation_field(self):
+        if any(
+            (rec := record).state == 'manual'
+            and rec.ttype == 'one2many'
+            and rec.relation_field
+            and not self._get(rec.relation, rec.relation_field)
+            for record in self
+        ):
+            raise ValidationError(_(
+                "Unknown field “%(field)s” on model “%(model)s” in Relation Field",
+                field=rec.relation_field,
+                model=rec.relation,
+            ))
+
     @api.constrains('currency_field')
     def _check_currency_field(self):
         for rec in self:
@@ -1395,22 +1410,30 @@ class IrModelFields(models.Model):
 
         data_list = []
         for (field_model, field_name), field_id in field_ids.items():
-            model = self.env[field_model]
-            field = model._fields.get(field_name)
-            if field and (
-                module == model._original_module
-                or module in field._modules
-                or any(
-                    # module introduced field on model by inheritance
-                    field_name in self.env[parent]._fields
-                    for parent, parent_module in model._inherit_module.items()
-                    if module == parent_module
-                )
-            ):
+            if self._is_field_defined_by_module(field_model, field_name, module):
                 xml_id = field_xmlid(module, field_model, field_name)
                 record = self.browse(field_id)
                 data_list.append({'xml_id': xml_id, 'record': record})
         self.env['ir.model.data']._update_xmlids(data_list)
+
+    @api.model
+    def _is_field_defined_by_module(self, model_name, field_name, module):
+        """ Return whether ``module`` defines the field ``field_name`` of the
+        model ``model_name`` in the registry, i.e. whether reflecting the field
+        for ``module`` gives it an XML id.
+        """
+        model = self.env.get(model_name)
+        field = model._fields.get(field_name) if model is not None else None
+        return bool(field) and (
+            module == model._original_module
+            or module in field._modules
+            or any(
+                # module introduced field on model by inheritance
+                field_name in self.env[parent]._fields
+                for parent, parent_module in model._inherit_module.items()
+                if module == parent_module
+            )
+        )
 
     def _reflect_field_groups(self, model_names):
         """ Synchronize the groups field based on the 'groups' attribute declared
@@ -2714,11 +2737,16 @@ class IrModelData(models.Model):
         self = self.with_context(force_delete=True)  # noqa: PLW0642
         loaded_xmlids = self.pool.loaded_xmlids
 
-        query = """ SELECT id, module || '.' || name, model, res_id FROM ir_model_data
-                    WHERE module IN %s AND res_id IS NOT NULL AND COALESCE(noupdate, false) != %s ORDER BY id DESC
+        query = """ SELECT id, module || '.' || name AS xmlid, model, res_id,
+                           (SELECT COUNT(*) - 1 FROM ir_model_data AS other
+                            WHERE other.model = imd.model AND other.res_id = imd.res_id) AS other_count
+                    FROM ir_model_data AS imd
+                    WHERE module IN %s AND res_id IS NOT NULL AND noupdate IS NOT TRUE
+                    ORDER BY id DESC
                 """
-        self.env.cr.execute(query, (tuple(modules), True))
-        for (id, xmlid, model, res_id) in self.env.cr.fetchall():
+        self.env.cr.execute(query, (tuple(modules),))
+        other_imd_count = {}
+        for (id, xmlid, model, res_id, other_count) in self.env.cr.fetchall():
             if xmlid in loaded_xmlids:
                 continue
 
@@ -2752,13 +2780,22 @@ class IrModelData(models.Model):
             if keep:
                 continue
 
-            # if the record has other associated xids, only remove the xid
-            if self.search_count([
-                ("model", "=", model),
-                ("res_id", "=", res_id),
-                ("id", "!=", id),
-                ("id", "not in", bad_imd_ids),
-            ]):
+            # A field is reflected for a module only on the models that are in
+            # the registry when that module is loaded. A field the module adds
+            # through an inherited parent (e.g. a stored field on 'base') also
+            # exists on models of modules loaded after it, which a partial
+            # update does not reflect again for that module. Never drop a field
+            # that the module still defines: it would drop its column and data.
+            if model == 'ir.model.fields':
+                field = Model.browse(res_id)
+                module = xmlid.split('.', 1)[0]
+                if field.exists() and Model._is_field_defined_by_module(field.model, field.name, module):
+                    continue
+
+            # if the record has other associated xids, only remove the xid;
+            # the xids already queued for removal no longer count
+            if other_imd_count.setdefault((model, res_id), other_count) > 0:
+                other_imd_count[model, res_id] -= 1
                 bad_imd_ids.append(id)
                 continue
 

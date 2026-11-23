@@ -28,11 +28,11 @@
                     <div class="w-100 mb-3" name="prices" t-if="not conditions['basic_receipt']">
                         <table class="w-100 text-large">
                             <tbody>
-                                <tr>
+                                <tr name="subtotal">
                                     <td class="text-start w-70" name="subtotal">Subtotal:</td>
                                     <td class="text-end w-30"><t t-out="extra_data['prices']['subtotal_amount']" /></td>
                                 </tr>
-                                <t t-foreach="extra_data['prices']['taxes']" t-as="tax">
+                                <t t-foreach="extra_data['prices']['taxes']" t-as="tax" name="taxes_foreach">
                                     <tr name="taxes_line">
                                         <td class="text-start w-70">
                                             <span>
@@ -76,9 +76,10 @@
                                         <td class="text-end w-30 font-monospace" t-out="payment['amount']" />
                                     </tr>
                                 </t>
-                                <tr class="text-bold" t-if="order.get('amount_return') != 0">
+                                <tr class="text-bold" t-if="order.get('amount_return') != 0 or order.get('amount_return_currency') != 0">
                                     <td class="text-start w-70" name="change">Change:</td>
-                                    <td class="text-end w-30 change-amount font-monospace" t-out="order['amount_return']" />
+                                    <td t-if="order.get('amount_return_currency')" class="text-end w-30 change-amount font-monospace" t-out="order['amount_return_currency']" />
+                                    <td t-else="" class="text-end w-30 change-amount font-monospace" t-out="order['amount_return']" />
                                 </tr>
                             </tbody>
                         </table>
@@ -191,7 +192,7 @@
                 <span class="text-insane" t-out="order['tracking_number']" />
             </div>
             <div name="header" />
-            <div t-if="order['state'] == 'draft'" class="text-center fs-2 mb-1">Pro forma receipt</div>
+            <div name="pro_forma_receipt" t-if="order['state'] == 'draft'" class="text-center fs-2 mb-1">Pro forma receipt</div>
             <div t-if="config['receipt_header']" class="text-center mb-1" style="white-space:pre-line" t-out="config['receipt_header']" />
         </template>
 
@@ -203,7 +204,9 @@
                 <td class="text-start w-60 top">
                     <t t-call="point_of_sale.pos_orderline_receipt_information" />
                 </td>
-                <td t-if="not conditions['basic_receipt']" class="text-end w-30 text-large top price-incl font-monospace" t-out="line['price_subtotal_incl']" />
+                <td name="price_subtotal_incl" t-if="not conditions['basic_receipt']" class="text-end w-30 text-large top price-incl font-monospace">
+                    <t t-out="line['price_subtotal_incl']" />
+                </td>
             </tr>
             <tr t-else="" name="combo-child-line" class="lines">
                 <td class="text-start w-5 top"/>
@@ -239,7 +242,7 @@
                 <div class="w-100 mt-2" name="footer" />
                 <t t-call="point_of_sale.company_info_receipt" />
                 <div t-if="config['receipt_footer']" class="w-100 text-center mt-2 mb-2" style="white-space:pre-line" t-out="config['receipt_footer']" />
-                <div class="w-100 text-center mt-3">
+                <div name="footer_powered_by" class="w-100 text-center mt-3">
                     Powered by <strong>Odoo</strong>
                 </div>
             </div>

@@ -1,4 +1,3 @@
-import { defineMailModels } from '@mail/../tests/mail_test_helpers';
 import { expect, test } from '@odoo/hoot';
 import { queryAllTexts } from '@odoo/hoot-dom';
 import {
@@ -6,9 +5,11 @@ import {
     contains,
     defineModels,
     fields,
+    models,
     mountView,
+    onRpc,
 } from '@web/../tests/web_test_helpers';
-import { defineComboModels } from '@product/../tests/product_combo_test_helpers';
+import { comboModels } from '@product/../tests/product_combo_test_helpers';
 import { saleModels } from './sale_test_helpers';
 
 class SaleOrderLine extends saleModels.SaleOrderLine {
@@ -35,9 +36,17 @@ class SaleOrder extends saleModels.SaleOrder {
     ]
 }
 
-defineComboModels();
-defineModels({ SaleOrderLine, SaleOrder });
-defineMailModels();
+class ProductTemplateAttributeValue extends models.ServerModel {
+    _name = "product.template.attribute.value";
+}
+
+defineModels({
+    ...saleModels,
+    ...comboModels,
+    SaleOrderLine,
+    SaleOrder,
+    ProductTemplateAttributeValue,
+});
 
 test("test combo move up/down", async () => {
     await mountView({
@@ -255,3 +264,146 @@ test("Test combo columns", async () => {
         message: 'Non-combo line should have all columns'
     });
 })
+
+test("combo line hides fields of column groups outside combo columns", async () => {
+    SaleOrderLine._fields.price_unit = fields.Float({ default: 3.00 });
+    SaleOrderLine._fields.price_total = fields.Float({ default: 3.00 });
+    SaleOrderLine._fields.product_uom_qty = fields.Float({ default: 3.00 });
+    await mountView({
+        type: 'form',
+        resModel: 'sale.order',
+        resId: 1,
+        arch: `
+            <form>
+                <field
+                    name="order_line"
+                    widget="sol_o2m"
+                    options="{'subsections': True}"
+                    aggregated_fields="price_total"
+                >
+                    <list editable="bottom">
+                        <field name="sequence" widget="handle" invisible="combo_item_id"/>
+                        <column name="product_and_description">
+                            <field name="name"/>
+                            <field name="label"/>
+                        </column>
+                        <column name="sol_qty">
+                            <field name="product_uom_qty"/>
+                        </column>
+                        <column name="price_unit">
+                            <field name="price_unit"/>
+                        </column>
+                        <column>
+                            <field name="price_total"/>
+                        </column>
+                        <field name="display_type" column_invisible="1"/>
+                        <field name="linked_line_id" column_invisible="1"/>
+                        <field name="product_type" column_invisible="1"/>
+                        <field name="combo_item_id" column_invisible="1"/>
+                    </list>
+                </field>
+            </form>
+        `,
+    });
+
+    expect('.o_data_row:contains(Test Combo1) td[name=price_unit] .o_column_group_field').toHaveCount(0, {
+        message: 'combo line should not display its unit price',
+    });
+    expect(queryAllTexts('.o_data_row:contains(Test Combo1) > td').filter(Boolean)).toEqual([
+        "Test Combo1", // name
+        "3.00", // product_uom_qty
+        "9.00", // price_total
+    ]);
+    expect(queryAllTexts('.o_data_row:contains(Non Combo Line1) > td').filter(Boolean)).toEqual([
+        "Non Combo Line1", // name
+        "3.00", // product_uom_qty
+        "3.00", // price_unit
+        "3.00", // price_total
+    ]);
+})
+
+test.tags("desktop");
+test("Editing a section's quantity doesn't apply the ratio to combo items", async () => {
+    SaleOrderLine._records.unshift({
+        id: 10,
+        name: "Section",
+        sequence: 0,
+        display_type: "line_section",
+    });
+
+    onRpc("batch_onchange_sol", ({ args }) => {
+        expect.step("batch_onchange_sol");
+        expect(Object.keys(args[0])).toEqual(["1", "2", "3", "6", "9"], {
+            message: "Combo items should follow their combo line, not the section's quantity",
+        });
+        return {};
+    });
+
+    await mountView({
+        type: "form",
+        resModel: "sale.order",
+        resId: 1,
+        arch: `
+            <form js_class="sale_order_form">
+                <field name="order_line" widget="sol_o2m" options="{'subsections': True}">
+                    <list editable="bottom">
+                        <field name="sequence" widget="handle" invisible="combo_item_id"/>
+                        <column name="product_and_description">
+                            <field name="name" invisible="not display_type"/>
+                            <field name="label" invisible="display_type"/>
+                        </column>
+                        <column name="sol_qty">
+                            <field name="product_uom_qty" invisible="display_type"/>
+                            <field
+                                name="section_qty"
+                                invisible="display_type not in ('line_section', 'line_subsection')"
+                            />
+                        </column>
+                        <field name="display_type" column_invisible="1"/>
+                        <field name="linked_line_id" column_invisible="1"/>
+                        <field name="product_type" column_invisible="1"/>
+                        <field name="combo_item_id" column_invisible="1"/>
+                    </list>
+                </field>
+            </form>
+        `,
+    });
+
+    await contains(".o_data_row:contains(Section):first [name=product_and_description]").click();
+    await contains(".o_selected_row [name=section_qty] input", { visible: false }).edit("2", {
+        confirm: "blur",
+    });
+
+    expect.verifySteps(["batch_onchange_sol"]);
+});
+
+test("configuration button is hidden on combo item lines", async () => {
+    SaleOrderLine._fields.is_configurable_product = fields.Boolean({ default: true });
+    await mountView({
+        type: "form",
+        resModel: "sale.order",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="order_line" widget="sol_o2m">
+                    <list editable="bottom">
+                        <column name="product_and_description">
+                            <field name="label" widget="sol_label_text"/>
+                        </column>
+                        <field name="product_id" column_invisible="1"/>
+                        <field name="combo_item_id" column_invisible="1"/>
+                    </list>
+                </field>
+            </form>
+        `,
+    });
+
+    // Combo item lines are configured through their combo line.
+    expect(queryAllTexts(".o_data_row:has(.o_configuration_button)")).toEqual([
+        "Non Combo Line1",
+        "Non Combo Line2",
+        "Test Combo1",
+        "Test Combo2",
+        "Non Combo Line3",
+    ]);
+});

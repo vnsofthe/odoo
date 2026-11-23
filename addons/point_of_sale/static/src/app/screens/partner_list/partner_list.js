@@ -3,6 +3,7 @@ import { Input } from "@point_of_sale/app/components/inputs/input/input";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { ResPartner } from "@point_of_sale/app/models/res_partner";
 import { PartnerLine } from "@point_of_sale/app/screens/partner_list/partner_line/partner_line";
+import { PosOrder } from "@point_of_sale/app/models/pos_order";
 import { Dialog } from "@web/core/dialog/dialog";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { _t } from "@web/core/l10n/translation";
@@ -17,6 +18,7 @@ export class PartnerList extends Component {
         partner: t.or([t.instanceOf(ResPartner), t.literal(null)]).optional(),
         getPayload: t.function(),
         close: t.function(),
+        order: t.instanceOf(PosOrder).optional(),
     });
 
     setup() {
@@ -156,16 +158,7 @@ export class PartnerList extends Component {
         if (/^\d+$/.test(stripped) && stripped.length >= 3) {
             return ["phone_mobile_search", "barcode", "vat", "zip"];
         }
-        return [
-            "complete_name",
-            "ref",
-            "vat",
-            "street",
-            "zip",
-            "email",
-            "phone_mobile_search",
-            "barcode",
-        ];
+        return ["complete_name", "ref", "vat", "street", "zip", "email", "barcode"];
     }
     get isBalanceDisplayed() {
         return false;
@@ -181,16 +174,14 @@ export class PartnerList extends Component {
         return partner;
     }
     async getNewPartners() {
+        const query = this.state.query;
         let domain = [];
-        const offset = this.globalState.offsetBySearch[this.state.query] || 0;
-        if (offset > this.loadedPartnerIds.size) {
-            return [];
-        }
-        if (this.state.query) {
-            const search_fields = this._getSearchFields(this.state.query);
+        const offset = this.globalState.offsetBySearch[query] || 0;
+        if (query) {
+            const search_fields = this._getSearchFields(query);
             domain = [
                 ...Array(search_fields.length - 1).fill("|"),
-                ...search_fields.map((field) => [field, "ilike", this.state.query]),
+                ...search_fields.map((field) => [field, "ilike", query]),
             ];
         }
 
@@ -215,8 +206,8 @@ export class PartnerList extends Component {
                 false
             );
 
-            this.globalState.offsetBySearch[this.state.query] =
-                offset + (modelLimit["res.partner"] || 0);
+            this.globalState.offsetBySearch[query] =
+                offset + (modelLimit["res.partner"] || this.pos.config._limited_partner_count);
 
             for (const partner of result["res.partner"]) {
                 if (!this.loadedPartnerIds.has(partner.id)) {

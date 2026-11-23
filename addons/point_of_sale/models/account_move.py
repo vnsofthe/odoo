@@ -74,7 +74,9 @@ class AccountMove(models.Model):
     def _compute_amount(self):
         super()._compute_amount()
         for move in self:
-            if move.move_type == 'entry' and move.reversed_pos_order_id:
+            # Orders are moved to their invoice once invoiced after closing,
+            # rely on the session link which stays on the closing entry.
+            if move.move_type == 'entry' and move.reversed_entry_id.pos_session_ids:
                 move.amount_total_signed = move.amount_total_signed * -1
 
     def _compute_tax_totals(self):
@@ -85,8 +87,14 @@ class AccountMove(models.Model):
         super()._compute_is_storno()
         for move in self:
             move.is_storno = move.is_storno or (
-                move.company_id.account_storno and move.reversed_pos_order_id
+                move.company_id.account_storno and len(move.reversed_entry_id.pos_order_ids)
             )
+
+    def _update_qty_available(self, reverse=False):
+        # Prevent a second decrease when the closing entry is by product: its orders already updated the quantity
+        if self.env.context.get('pos_closing_entry'):
+            return
+        return super(AccountMove, self.filtered(lambda move: not move.pos_session_ids))._update_qty_available(reverse=reverse)
 
     def action_view_source_pos_orders(self):
         self.ensure_one()

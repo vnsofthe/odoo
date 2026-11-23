@@ -2,6 +2,7 @@ import { _t } from "@web/core/l10n/translation";
 import { LoginScreen } from "@point_of_sale/app/screens/login_screen/login_screen";
 import { patch } from "@web/core/utils/patch";
 import { useAutofocus } from "@web/core/utils/hooks";
+import { useBarcodeReader } from "@point_of_sale/app/hooks/barcode_reader_hook";
 import { onWillUnmount, proxy, signal, useListener } from "@odoo/owl";
 
 patch(LoginScreen.prototype, {
@@ -21,7 +22,7 @@ patch(LoginScreen.prototype, {
                 }
             });
 
-            this.pos.barcodeReader?.register(
+            useBarcodeReader(
                 {
                     cashier: this.barcodeCashierAction.bind(this),
                 },
@@ -35,17 +36,15 @@ patch(LoginScreen.prototype, {
             this.pos.login = false;
         });
     },
-    async barcodeCashierAction(code) {
+    barcodeCashierAction(code) {
+        return this.loginWithBadge(code.code);
+    },
+    async loginWithBadge(badge, needsPin = () => true) {
         if (!this.pos.config.module_pos_hr) {
             return;
         }
-        const employee = this.pos.accessRight.getEmployeeByBarcode(code.code);
-        if (
-            employee &&
-            employee !== this.loggedCashier &&
-            (!employee._pin || (await this.pos.accessRight.checkPin(employee)))
-        ) {
-            this.pos.setCashier(employee);
+        const employee = this.pos.accessRight.getEmployeeByBarcode(badge);
+        if (await this.pos.setCashierFromBadge(employee, { needsPin, allowSameCashier: true })) {
             this.cashierLogIn();
         }
         return employee;

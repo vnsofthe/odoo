@@ -108,9 +108,12 @@ class ThreadController(StoreController):
 
     @mail_route("/mail/partner/from_email", methods=["POST"], type="jsonrpc", auth="user")
     def mail_thread_partner_from_email(self, thread_model, thread_id, emails):
+        thread = self._get_thread_with_access(thread_model, thread_id)
+        if not thread:
+            raise NotFound()
         partners = [
             {"id": partner.id, "name": partner.name, "email": partner.email}
-            for partner in request.env[thread_model].browse(thread_id)._partner_find_from_emails_single(
+            for partner in thread._partner_find_from_emails_single(
                 emails, no_create=not request.env.user.has_group("base.group_partner_manager")
             )
         ]
@@ -249,6 +252,9 @@ class ThreadController(StoreController):
             })
         thread = self._get_thread_with_access_for_post(thread_model, thread_id, **kwargs)
         if not thread:
+            raise NotFound()
+        user, guest = request.env["res.users"]._get_current_persona()
+        if thread_model == "discuss.channel" and not user and not guest:
             raise NotFound()
         if not self._get_thread_with_access(thread_model, thread_id, mode="write"):
             thread = thread.with_context(mail_post_autofollow_author_skip=True, mail_post_autofollow=False)

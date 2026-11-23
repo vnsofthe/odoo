@@ -1,25 +1,19 @@
 import { DiscussSearch } from "@mail/core/public_web/discuss_search";
+import { IsolatedDropdown } from "@mail/core/public_web/messaging_menu/isolated_dropdown";
 import { MessageInDialog } from "@mail/core/public_web/messaging_menu/message_in_dialog";
 import { MessagingMenuEmpty } from "@mail/core/public_web/messaging_menu/messaging_menu_empty";
 import { MessagingMenuItem } from "@mail/core/public_web/messaging_menu/messaging_menu_item";
 import { NotificationItem } from "@mail/core/public_web/notification_item";
+import { htmlToTextContentInline } from "@mail/utils/common/format";
 import { useOnBottomScrolled, useSearch } from "@mail/utils/common/hooks";
 import { incrementFn } from "@mail/utils/common/signal";
 
 import { Component, computed, signal, types, useEffect, useProps } from "@odoo/owl";
 
 import { hasTouch, isDisplayStandalone, isIOS } from "@web/core/browser/feature_detection";
-import { Dropdown } from "@web/core/dropdown/dropdown";
 import { _t } from "@web/core/l10n/translation";
 import { normalize } from "@web/core/l10n/utils";
 import { useService } from "@web/core/utils/hooks";
-
-/** Never a submenu of an ancestor Dropdown it's embedded in, even visually/positionally. */
-class IsolatedDropdown extends Dropdown {
-    get hasParent() {
-        return false;
-    }
-}
 
 export class MessagingMenu extends Component {
     static components = {
@@ -67,7 +61,10 @@ export class MessagingMenu extends Component {
                     return (
                         normalize(m.thread?.displayName).includes(normalizedTerms) ||
                         normalize(m.authorName).includes(normalizedTerms) ||
-                        normalize(m.inlineBody).includes(normalizedTerms)
+                        normalize(htmlToTextContentInline(m.bodyPreview || "")).includes(
+                            normalizedTerms
+                        ) ||
+                        normalize(htmlToTextContentInline(m.body || "")).includes(normalizedTerms)
                     );
                 }),
             deps: () => [this.filteredMessages()],

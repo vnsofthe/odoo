@@ -389,9 +389,9 @@ class SaleOrder(models.Model):
             "tax": self.amount_tax,
         }
 
-        delivery_line = self.order_line.filtered("is_delivery")
-        if delivery_line:
-            tracking_dict["shipping"] = delivery_line.price_subtotal
+        delivery_lines = self.order_line.filtered("is_delivery")
+        if delivery_lines:
+            tracking_dict["shipping"] = sum(delivery_lines.mapped("price_subtotal"))
 
         has_previous = bool(
             self
@@ -723,10 +723,8 @@ class SaleOrder(models.Model):
             available_qty = float_round(available_qty, precision_digits=0, rounding_method="DOWN")
 
             if product.minimum_quantity:
-                min_qty = float_round(
-                    product_uom._compute_quantity(product.minimum_quantity, uom, round=False),
-                    precision_digits=0,
-                    rounding_method="UP",
+                min_qty = self._get_remaining_minimum_qty(
+                    product, exclude_line=self._get_common_product_lines(product.id), uom=uom
                 )
                 if available_qty < min_qty:
                     if order_line:
@@ -1132,6 +1130,14 @@ class SaleOrder(models.Model):
         """
         return bool(self.order_line.product_id) and not self.only_services
 
+    def _get_checkout_delivery_address(self):
+        """Return the address to select in the delivery address list of the checkout.
+
+        :return: The delivery address to select.
+        :rtype: res.partner
+        """
+        return self.partner_shipping_id
+
     def _get_preferred_delivery_method(self, available_delivery_methods):
         """Get the preferred delivery method based on available delivery methods for the order.
 
@@ -1174,9 +1180,9 @@ class SaleOrder(models.Model):
         if rate.get("success"):
             self.set_delivery_line(delivery_method, rate["price"])
 
-            if delivery_method.enable_delivery_estimate and (
-                estimated_delivery_days := delivery_method._get_estimate_delivery_days()
-            ):
+            if not delivery_method.enable_delivery_estimate:
+                return
+            if estimated_delivery_days := delivery_method._get_estimate_delivery_days():
                 if (
                     not self.commitment_date
                     or self.commitment_date.date().isoformat() not in estimated_delivery_days
@@ -1377,7 +1383,7 @@ class SaleOrder(models.Model):
         """Whether the commitment date is still up to date with the carrier constraints."""
         self.ensure_one()
         allowed_commitment_dates = (
-            self.commitment_date and self.carrier_id._get_estimate_delivery_days()
+            self.commitment_date and self.carrier_id and self.carrier_id._get_estimate_delivery_days()
         ) or []
         if (
             not allowed_commitment_dates  # No allowed date means any date is acceptable.

@@ -255,6 +255,29 @@ class DiscussChannelMember(models.Model):
         'A channel member must be a partner or a guest.',
     )
 
+    @api.model
+    def _load_records_create(self, vals_list):
+        # A data member loses its xmlid when its partner leaves the channel: reuse the member
+        # created by joining again (module data only, imports must still report duplicates).
+        if not self.env.context.get("install_mode"):
+            return super()._load_records_create(vals_list)
+        existing = {}
+        for index, vals in enumerate(vals_list):
+            if vals.get("channel_id") and vals.get("partner_id"):
+                member = self.search([
+                    ("channel_id", "=", vals["channel_id"]),
+                    ("partner_id", "=", vals["partner_id"]),
+                ], limit=1)
+                if member:
+                    existing[index] = member
+        new_members = iter(super()._load_records_create(
+            [vals for index, vals in enumerate(vals_list) if index not in existing]
+        ))
+        return self.browse([
+            existing[index].id if index in existing else next(new_members).id
+            for index in range(len(vals_list))
+        ])
+
     @api.model_create_multi
     def create(self, vals_list):
         if self.env.context.get("mail_create_bypass_create_check") is self._bypass_create_check:
@@ -340,7 +363,8 @@ class DiscussChannelMember(models.Model):
         post_leave_message = self.env.context.get("post_leave_message") is POST_LEAVE_MESSAGE
         for member in self:
             channel = member.channel_id
-            channel.message_unsubscribe(member.partner_id.ids)
+            # sudo: discuss.channel - removing followers of a member that was allowed to be removed
+            channel.sudo().message_unsubscribe(member.partner_id.ids)
             if close_chat_window:
                 for bus_channel in member._bus_channels():
                     custom_store = Store(bus_channel=bus_channel)
@@ -601,10 +625,12 @@ class DiscussChannelMember(models.Model):
 
     def _get_recording_permissions(self, user, sfu_url=True):
         can_record = bool(user and user._is_internal() and sfu_url)
+        channel = self.channel_id
+        can_record_media = can_record and channel._has_recording_feature()
         return {
-            "audioRecording": can_record,
-            "transcription": False,
-            "videoRecording": can_record,
+            "audioRecording": can_record_media,
+            "transcription": can_record and channel._has_transcription_feature(),
+            "videoRecording": can_record_media,
         }
 
     def _get_rtc_server_info(self, rtc_session, ice_servers=None, key=None):

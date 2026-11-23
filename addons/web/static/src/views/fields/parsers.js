@@ -23,6 +23,18 @@ const DECIMAL_SEPARATORS = ".,٫";
 const DECIMAL_SEPARATOR_REGEX = new RegExp(`.*([${DECIMAL_SEPARATORS}])[^${DECIMAL_SEPARATORS}]*`);
 const SINGLE_NUMBER_REGEX = new RegExp(`^[\\d${DECIMAL_SEPARATORS}'-]+$`);
 
+/**
+ * Returns true if the value contains at least two different decimal separators
+ * (e.g. "1.234,56" contains both "." and ",").
+ *
+ * @param {string} value
+ * @returns {boolean}
+ */
+function hasMixedDecimalSeparators(value) {
+    const separators = new Set([...value].filter((char) => DECIMAL_SEPARATORS.includes(char)));
+    return separators.size >= 2;
+}
+
 function evaluateMathematicalExpression(expr, context = {}, parseTokenFn = parseFloat) {
     let safeEvalString = "";
     for (let v of expr.replace(/\s+/g, "").split(/([-+*/()^])/)) {
@@ -109,14 +121,23 @@ export class DurationParseError extends Error {}
  * Try to extract a float from a string.
  *
  * @param {string} value
+ * @param {Object} [options]
+ * @param {number[]} [options.digits] precision of the value: when it has no decimals
+ *   (e.g. an amount in JPY), "." and "," are grouping noise as for integers
  * @returns {number} a float
  */
-export function parseFloat(value, { allowOperation = false } = {}) {
-    const operation = allowOperation ? ArithmeticOperation.parse(value, parseFloat) : null;
+export function parseFloat(value, { allowOperation = false, digits } = {}) {
+    const operation = allowOperation
+        ? ArithmeticOperation.parse(value, (expr) =>
+              evaluateMathematicalExpression(expr, {}, (v) => parseFloat(v, { digits }))
+          )
+        : null;
     if (operation) {
         return operation;
     }
-    const parsed = parseNumber(value);
+    const parsed = parseNumber(value, {
+        integer: digits?.[1] === 0 && !hasMixedDecimalSeparators(value),
+    });
     if (isNaN(parsed) || !isFinite(parsed)) {
         throw new InvalidNumberError(`"${value}" is not a correct number`);
     }
@@ -138,10 +159,8 @@ export function parseFloat(value, { allowOperation = false } = {}) {
 export function parseFloatTime(value, unit = "hours") {
     // Tolerate a trailing operator (e.g. "1h+"): the user is still typing.
     const evaluateDurationFormula = (expr) => {
-        const result = evaluateMathematicalExpression(
-            expr.replace(/[-+*/]\s*$/, ""),
-            {},
-            (v) => parseFloatTime(v, unit)
+        const result = evaluateMathematicalExpression(expr.replace(/[-+*/]\s*$/, ""), {}, (v) =>
+            parseFloatTime(v, unit)
         );
         if (!Number.isFinite(result)) {
             throw new InvalidNumberError(`"${value}" is not a correct duration`);
@@ -267,7 +286,11 @@ function parseDuration(value, unit = "hours") {
  * @returns {number} an integer
  */
 export function parseInteger(value, { allowOperation = false } = {}) {
-    const operation = allowOperation ? ArithmeticOperation.parse(value, parseInteger) : null;
+    const operation = allowOperation
+        ? ArithmeticOperation.parse(value, (expr) =>
+              evaluateMathematicalExpression(expr, {}, parseInteger)
+          )
+        : null;
     if (operation) {
         return operation;
     }

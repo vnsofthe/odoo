@@ -140,6 +140,8 @@ class ControlCommand(IntEnum):
 DATA_OP = {Opcode.TEXT, Opcode.BINARY}
 CTRL_OP = {Opcode.CLOSE, Opcode.PING, Opcode.PONG}
 HEARTBEAT_OP = {Opcode.PING, Opcode.PONG}
+# Application-level ping/pong payload (browsers don't expose websocket ping/pong).
+PING_PONG_MESSAGE = b'\x00'
 
 VALID_CLOSE_CODES = {
     code for code in CloseCode if code is not CloseCode.ABNORMAL_CLOSURE
@@ -180,6 +182,11 @@ class CloseFrame(Frame):
 
 
 _websocket_instances = WeakSet()
+
+
+# Bound websocket termination to prevent thundering herd on mass disconnect.
+_maxconn = (config["db_maxconn_gevent"] if odoo.evented else 0) or config["db_maxconn"]
+_close_semaphore = threading.BoundedSemaphore(max(_maxconn // 8, 1))
 
 
 class Websocket:
@@ -449,7 +456,7 @@ class Websocket:
             frame.payload = frame.payload.encode('utf-8')
         elif frame.opcode is Opcode.TEXT and not isinstance(frame.payload, Buffer):
             # Only encode what's not been encoded by the caller already, this way, the
-            # dispatcher can encode the payload once, to avoid repeating the work accross
+            # dispatcher can encode the payload once, to avoid repeating the work across
             # all subscribed websockets.
             frame.payload = orjson.dumps(frame.payload)
         else:
@@ -533,7 +540,7 @@ class Websocket:
         self.__cmd_queue.close()
         dispatch.unsubscribe(self)
         self._trigger_lifecycle_event(LifecycleEvent.CLOSE)
-        with acquire_cursor(self._db) as cr:
+        with _close_semaphore, acquire_cursor(self._db) as cr:
             env = new_env(cr, self._session)
             env["ir.websocket"]._on_websocket_closed(self._cookies)
 
@@ -594,7 +601,7 @@ class Websocket:
         This method is a simple rate limiter designed not to allow
         more than one request by `RL_DELAY` seconds. `RL_BURST` specify
         how many requests can be made in excess of the given rate at the
-        begining. When requests are received too fast, raises the
+        beginning. When requests are received too fast, raises the
         `RateLimitExceededException`.
         """
         now = time.time()
@@ -825,7 +832,7 @@ class WebsocketConnectionHandler:
     @classmethod
     def open_connection(cls, request, version):
         """
-        Open a websocket connection if the handshake is successfull.
+        Open a websocket connection if the handshake is successful.
         :return: Response indicating the server performed a connection
         upgrade.
         :raise: UpgradeRequired if there is no intersection between the
@@ -961,8 +968,8 @@ class WebsocketConnectionHandler:
             # worker version.
             websocket.close(CloseCode.CLEAN, "OUTDATED_VERSION")
         for message in websocket.get_messages():
-            if message == b'\x00':
-                # Ignore internal sentinel message used to detect dead/idle connections.
+            if message == PING_PONG_MESSAGE:
+                websocket.send(PING_PONG_MESSAGE)
                 continue
             req = WebsocketRequest(db, httprequest, websocket)
             req_reset = wsrequest_var.set(req)
@@ -986,16 +993,9 @@ def _kick_all(code=CloseCode.GOING_AWAY):
     _stopping.set()  # refuse new connections
     try:
         _logger.info("Disconnecting %s websockets", len(_websocket_instances))
-        count = 0
-        wait_threshold = max(odoo.sql_db._Pool._maxconn // 8, 8) if odoo.sql_db._Pool else 32
         for websocket in _websocket_instances:
             if websocket.state is ConnectionState.OPEN:
                 websocket.close(code)
-                count += 1
-                if count % wait_threshold == 0:
-                    time.sleep(0.5)
-                    _logger.debug("signaling websockets to shutdown %s/%s ...", count, len(_websocket_instances))
-        _logger.debug("signaling websockets to shutdown %s/%s done", count, len(_websocket_instances))
 
         # Every websocket has been signaled to shut down, but the
         # closing handshake might not be complete yet, wait up to

@@ -39,7 +39,12 @@ export class FontFamilyPlugin extends Plugin {
         format_specs: [
             {
                 id: "fontFamily",
-                isFormatted: (node) => !!closestElement(node, (el) => el.style["font-family"]),
+                isFormatted: (node, props) => {
+                    const fontFamily = closestElement(node, (el) => el.style["font-family"])?.style[
+                        "font-family"
+                    ];
+                    return props?.fontFamily ? fontFamily === props.fontFamily : !!fontFamily;
+                },
                 hasStyle: (node) => node.style && node.style["font-family"],
                 getFormatProps: (node) => {
                     if (node.style?.["font-family"]) {
@@ -70,7 +75,7 @@ export class FontFamilyPlugin extends Plugin {
                             applyStyle: item.fontFamily !== false,
                             formatProps: item,
                         });
-                        this.fontFamily.displayName = item.nameShort;
+                        this.updateCurrentFontFamily();
                     },
                 },
                 isDisabled: (sel, nodes) => nodes.some((node) => !isStylable(node)),
@@ -82,18 +87,24 @@ export class FontFamilyPlugin extends Plugin {
         on_selectionchange_handlers: withSequence(READ, this.updateCurrentFontFamily.bind(this)),
         on_history_commit_undone_handlers: this.updateCurrentFontFamily.bind(this),
         on_history_commit_redone_handlers: this.updateCurrentFontFamily.bind(this),
+        on_collapsed_formats_removed_handlers: this.updateCurrentFontFamily.bind(this),
     };
 
     updateCurrentFontFamily(ev) {
-        const selelectionData = this.dependencies.selection.getSelectionData();
-        if (!selelectionData.documentSelectionIsInEditable) {
-            return;
+        const pendingIntent = this.dependencies.format.getPendingIntents()["fontFamily"];
+        let currentFontFamily = pendingIntent?.applyStyle && pendingIntent.formatProps?.fontFamily;
+        if (!currentFontFamily) {
+            const selectionData = this.dependencies.selection.getSelectionData();
+            if (!selectionData.documentSelectionIsInEditable) {
+                return;
+            }
+
+            const anchorElement = closestElement(selectionData.editableSelection.anchorNode);
+            currentFontFamily = getComputedStyle(anchorElement).fontFamily;
         }
-        const anchorElement = closestElement(selelectionData.editableSelection.anchorNode);
-        const anchorElementFontFamily = getComputedStyle(anchorElement).fontFamily;
         const currentFontItem =
-            anchorElementFontFamily &&
-            fontFamilyItems.find((item) => item.fontFamily === anchorElementFontFamily);
+            currentFontFamily &&
+            fontFamilyItems.find((item) => item.fontFamily === currentFontFamily);
 
         this.fontFamily.displayName = (currentFontItem || defaultFontFamily).nameShort;
     }

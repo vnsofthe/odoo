@@ -1,0 +1,388 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * base_import_module
+#
+# Translators:
+# Martin Trigaux <mat@odoo.com>, 2017
+# Weblate <noreply-mt-weblate@weblate.org>, 2026.
+# Bone NI <bounkirdni@gmail.com>, 2026.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 11.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-11 17:42+0000\n"
+"PO-Revision-Date: 2026-10-30 03:33+0000\n"
+"Last-Translator: Bone NI <bounkirdni@gmail.com>\n"
+"Language-Team: Lao <https://translate.odoo.com/projects/odoo-20/"
+"base_import_module/lo/>\n"
+"Language: lo\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 2026.8.1\n"
+
+#. module: base_import_module
+#: model:ir.module.module,description:base.module_base_import_module
+msgid ""
+"\n"
+"Import a custom data module\n"
+"===========================\n"
+"\n"
+"This module allows authorized users to import a custom data module (.xml "
+"files and static assests)\n"
+"for customization purpose.\n"
+msgstr ""
+"\n"
+"ນຳເຂົ້າໂມດູນຂໍ້ມູນແບບກຳນົດເອງ\n"
+"===========================\n"
+"\n"
+"ໂມດູນນີ້ອະນຸຍາດໃຫ້ຜູ້ໃຊ້ທີ່ໄດ້ຮັບອະນຸຍາດ ສາມາດນຳເຂົ້າໂມດູນຂໍ້ມູນແບບກຳນົດເອງ (ໄຟລ໌ .xml ແລະ static "
+"assets)\n"
+"ເພື່ອຈຸດປະສົງໃນການປັບແຕ່ງ.\n"
+
+#. module: base_import_module
+#. odoo-python
+#: code:addons/base_import_module/models/ir_module.py:0
+msgid ""
+"\n"
+"You may need the Enterprise version to install the data module. Please visit "
+"https://www.odoo.com/pricing-plan for more information.\n"
+"If you need Website themes, it can be downloaded from https://github.com/"
+"odoo/design-themes.\n"
+msgstr ""
+"\n"
+"ທ່ານອາດຈະຕ້ອງໃຊ້ເວີຊັນ Enterprise ເພື່ອຕິດຕັ້ງໂມດູນຂໍ້ມູນ. ກະລຸນາເຂົ້າໄປທີ່ https://"
+"www.odoo.com/pricing-plan ສຳລັບຂໍ້ມູນເພີ່ມເຕີມ.\n"
+"ຖ້າຫາກທ່ານຕ້ອງການທີມເວັບໄຊທ໌ (Website themes), ສາມາດດາວໂຫຼດໄດ້ຈາກ https://github.com/"
+"odoo/design-themes.\n"
+
+#. module: base_import_module
+#: model_terms:ir.ui.view,arch_db:base_import_module.module_form_apps_inherit
+#: model_terms:ir.ui.view,arch_db:base_import_module.module_view_kanban_apps_inherit
+msgid "Activate"
+msgstr "ເປີດໃຊ້ງານ"
+
+#. module: base_import_module
+#. odoo-python
+#: code:addons/base_import_module/models/ir_module.py:0
+#: model_terms:ir.ui.view,arch_db:base_import_module.view_module_filter_apps_inherit
+msgid "Apps"
+msgstr "ແອັບ"
+
+#. module: base_import_module
+#: model:ir.module.module,shortdesc:base.module_base_import_module
+msgid "Base import module"
+msgstr "ໂມດູນພື້ນຖານການນຳເຂົ້າ"
+
+#. module: base_import_module
+#: model_terms:ir.ui.view,arch_db:base_import_module.view_base_module_import
+msgid "Close"
+msgstr "ປິດ"
+
+#. module: base_import_module
+#. odoo-python
+#: code:addons/base_import_module/models/ir_module.py:0
+msgid ""
+"Connection to %(url)s failed, the module %(module)s cannot be downloaded."
+msgstr "ການເຊື່ອມຕໍ່ຫາ %(url)s ຫຼົ້ມເຫຼວ, ບໍ່ສາມາດດາວໂຫຼດໂມດູນ %(module)s ໄດ້."
+
+#. module: base_import_module
+#. odoo-python
+#: code:addons/base_import_module/models/ir_module.py:0
+msgid "Connection to %s failed The list of industry modules cannot be fetched"
+msgstr "ການເຊື່ອມຕໍ່ຫາ %s ຫຼົ້ມເຫຼວ ບໍ່ສາມາດດຶງລາຍການໂມດູນອຸດສາຫະກຳໄດ້"
+
+#. module: base_import_module
+#. odoo-python
+#: code:addons/base_import_module/controllers/main.py:0
+msgid "Could not select database '%s'"
+msgstr "ບໍ່ສາມາດເລືອກຖານຂໍ້ມູນ '%s' ໄດ້"
+
+#. module: base_import_module
+#: model:ir.model.fields,field_description:base_import_module.field_base_import_module__create_uid
+msgid "Created by"
+msgstr "ສ້າງໂດຍ"
+
+#. module: base_import_module
+#: model:ir.model.fields,field_description:base_import_module.field_base_import_module__create_date
+msgid "Created on"
+msgstr "ສ້າງເມື່ອ"
+
+#. module: base_import_module
+#: model:ir.model.fields,field_description:base_import_module.field_base_import_module__display_name
+#: model:ir.model.fields,field_description:base_import_module.field_ir_http__display_name
+#: model:ir.model.fields,field_description:base_import_module.field_ir_module_module__display_name
+#: model:ir.model.fields,field_description:base_import_module.field_ir_ui_view__display_name
+msgid "Display Name"
+msgstr "ຊື່ທີ່ສະແດງ"
+
+#. module: base_import_module
+#. odoo-python
+#: code:addons/base_import_module/models/ir_module.py:0
+msgid ""
+"Error while importing module '%(module)s'.\n"
+"\n"
+" %(error_message)s \n"
+"\n"
+msgstr ""
+"ເກີດຂໍ້ຜິດພາດໃນຂະນະທີ່ກຳລັງນຳເຂົ້າໂມດູນ '%(module)s'.\n"
+"\n"
+" %(error_message)s \n"
+"\n"
+
+#. module: base_import_module
+#: model:ir.model.fields,field_description:base_import_module.field_ir_module_module__total_lines_of_code
+msgid "Extra lines of Code"
+msgstr "ແຖວໂຄ້ດເພີ່ມເຕີມ"
+
+#. module: base_import_module
+#. odoo-python
+#: code:addons/base_import_module/models/ir_module.py:0
+msgid "File '%s' exceed maximum allowed file size"
+msgstr "ໄຟລ໌ '%s' ມີຂະໜາດເກີນທີ່ກຳນົດໄວ້"
+
+#. module: base_import_module
+#: model:ir.model.fields,field_description:base_import_module.field_base_import_module__force
+msgid "Force init"
+msgstr "ບັງຄັບເລີ່ມຕົ້ນໃໝ່"
+
+#. module: base_import_module
+#: model:ir.model.fields,help:base_import_module.field_base_import_module__force
+msgid "Force init mode even if installed. (will update `noupdate='1'` records)"
+msgstr ""
+"ບັງຄັບໃຊ້ໂໝດເລີ່ມຕົ້ນໃໝ່ເຖິງແມ່ນວ່າຈະຕິດຕັ້ງແລ້ວ (ຈະອັບເດດຂໍ້ມູນທີ່ມີ `noupdate='1'`)"
+
+#. module: base_import_module
+#: model:ir.model,name:base_import_module.model_ir_http
+msgid "HTTP Routing"
+msgstr "ການກຳນົດເສັ້ນທາງ HTTP"
+
+#. module: base_import_module
+#: model:ir.model.fields,field_description:base_import_module.field_base_import_module__id
+#: model:ir.model.fields,field_description:base_import_module.field_ir_http__id
+#: model:ir.model.fields,field_description:base_import_module.field_ir_module_module__id
+#: model:ir.model.fields,field_description:base_import_module.field_ir_ui_view__id
+msgid "ID"
+msgstr "ລະຫັດ"
+
+#. module: base_import_module
+#: model:ir.model.fields,field_description:base_import_module.field_base_import_module__import_message
+msgid "Import Message"
+msgstr "ຂໍ້ຄວາມການນຳເຂົ້າ"
+
+#. module: base_import_module
+#: model:ir.actions.act_window,name:base_import_module.action_view_base_module_import
+#: model:ir.model,name:base_import_module.model_base_import_module
+#: model:ir.ui.menu,name:base_import_module.menu_view_base_module_import
+msgid "Import Module"
+msgstr "ນຳເຂົ້າໂມດູນ"
+
+#. module: base_import_module
+#: model:ir.model.fields,field_description:base_import_module.field_base_import_module__with_demo
+msgid "Import demo data of module"
+msgstr "ນຳເຂົ້າຂໍ້ມູນຕົວຢ່າງຂອງໂມດູນ"
+
+#. module: base_import_module
+#: model:ir.model.fields,field_description:base_import_module.field_ir_module_module__imported
+msgid "Imported Module"
+msgstr "ໂມດູນທີ່ນຳເຂົ້າແລ້ວ"
+
+#. module: base_import_module
+#: model:ir.model.fields.selection,name:base_import_module.selection__ir_module_module__module_type__industries
+msgid "Industries"
+msgstr "ອຸດສາຫະກຳ"
+
+#. module: base_import_module
+#: model_terms:ir.ui.view,arch_db:base_import_module.view_base_module_import
+msgid "Install"
+msgstr "ຕິດຕັ້ງ"
+
+#. module: base_import_module
+#. odoo-python
+#: code:addons/base_import_module/models/ir_module.py:0
+msgid "Install an Industry"
+msgstr "ຕິດຕັ້ງອຸດສາຫະກຳ"
+
+#. module: base_import_module
+#: model_terms:ir.ui.view,arch_db:base_import_module.view_base_module_import
+msgid "Install the application"
+msgstr "ຕິດຕັ້ງແອັບພລິເຄຊັນ"
+
+#. module: base_import_module
+#: model:ir.model.fields,field_description:base_import_module.field_base_import_module__write_uid
+msgid "Last Updated by"
+msgstr "ແກ້ໄຂຫຼ້າສຸດໂດຍ"
+
+#. module: base_import_module
+#: model:ir.model.fields,field_description:base_import_module.field_base_import_module__write_date
+msgid "Last Updated on"
+msgstr "ແກ້ໄຂຫຼ້າສຸດເມື່ອ"
+
+#. module: base_import_module
+#: model_terms:ir.ui.view,arch_db:base_import_module.view_base_module_import
+msgid "Load demo data"
+msgstr "ໂຫລດຂໍ້ມູນຕົວຢ່າງ"
+
+#. module: base_import_module
+#. odoo-python
+#: code:addons/base_import_module/models/ir_module.py:0
+msgid ""
+"Load demo data to test the industry's features with sample records. Do not "
+"load them if this is your production database."
+msgstr ""
+"ໂຫລດຂໍ້ມູນຕົວຢ່າງເພື່ອທົດສອບຄຸນສົມບັດຂອງອຸດສາຫະກຳດ້ວຍຂໍ້ມູນຕົວຢ່າງ. ຫ້າມ ໂຫລດຂໍ້ມູນເຫຼົ່ານີ້ ຖ້ານີ້ແມ່ນຖານຂໍ້ມູ"
+"ນທີ່ໃຊ້ງານຈິງຂອງທ່ານ."
+
+#. module: base_import_module
+#: model:ir.model,name:base_import_module.model_ir_module_module
+msgid "Module"
+msgstr "ໂມດູນ (Module)"
+
+#. module: base_import_module
+#: model:ir.model.fields,field_description:base_import_module.field_base_import_module__module_file
+msgid "Module .ZIP file"
+msgstr "ໄຟລ໌ໂມດູນ .ZIP"
+
+#. module: base_import_module
+#: model:ir.model.fields,field_description:base_import_module.field_ir_module_module__module_type
+msgid "Module Type"
+msgstr "ປະເພດໂມດູນ"
+
+#. module: base_import_module
+#: model_terms:ir.ui.view,arch_db:base_import_module.view_base_module_import
+msgid "Module file (.zip)"
+msgstr "ໄຟລ໌ໂມດູນ (.zip)"
+
+#. module: base_import_module
+#: model:ir.model.fields,field_description:base_import_module.field_base_import_module__modules_dependencies
+msgid "Modules Dependencies"
+msgstr "ໂມດູນທີ່ຕ້ອງໃຊ້ຮ່ວມ (Dependencies)"
+
+#. module: base_import_module
+#. odoo-python
+#: code:addons/base_import_module/models/ir_module.py:0
+msgid "No file sent."
+msgstr "ບໍ່ມີໄຟລ໌ຖືກສົ່ງ."
+
+#. module: base_import_module
+#. odoo-python
+#: code:addons/base_import_module/models/ir_module.py:0
+msgid "No manifest found in '%(modules)s'. Can't import the zip file."
+msgstr "ບໍ່ພົບໄຟລ໌ manifest ໃນ '%(modules)s'. ບໍ່ສາມາດນຳເຂົ້າໄຟລ໌ zip ໄດ້."
+
+#. module: base_import_module
+#: model_terms:ir.ui.view,arch_db:base_import_module.view_base_module_import
+msgid ""
+"Note: you can only import data modules (.xml files, i18n files and static "
+"assets)"
+msgstr ""
+"ໝາຍເຫດ: ທ່ານສາມາດນຳເຂົ້າໄດ້ສະເພາະໂມດູນຂໍ້ມູນ (ໄຟລ໌ .xml, ໄຟລ໌ i18n ແລະ static assets) ເ"
+"ທົ່ານັ້ນ"
+
+#. module: base_import_module
+#: model:ir.model.fields,help:base_import_module.field_ir_module_module__total_lines_of_code
+msgid ""
+"Number of lines of code that may be billed under an Enterprise subscription. "
+"For exact pricing details, please contact your account manager or visit "
+"odoo.com/pricing."
+msgstr ""
+"ຈຳນວນແຖວຂອງໂຄ້ດທີ່ອາດຈະຖືກຄິດໄລ່ເງິນພາຍໃຕ້ແພັກເກດ Enterprise. ສຳລັບລາຍລະອຽດລາຄາທີ່ແນ່ນອນ, "
+"ກະລຸນາຕິດຕໍ່ຜູ້ຈັດການບັນຊີຂອງທ່ານ ຫຼື ເຂົ້າເບິ່ງທີ່ odoo.com/pricing."
+
+#. module: base_import_module
+#: model:ir.model.fields.selection,name:base_import_module.selection__ir_module_module__module_type__official
+msgid "Official Apps"
+msgstr "ແອັບທາງການ"
+
+#. module: base_import_module
+#. odoo-python
+#: code:addons/base_import_module/models/ir_module.py:0
+msgid "Only administrators can install data modules."
+msgstr "ສະເພາະຜູ້ດູແລລະບົບເທົ່ານັ້ນທີ່ສາມາດຕິດຕັ້ງໂມດູນຂໍ້ມູນໄດ້."
+
+#. module: base_import_module
+#. odoo-python
+#: code:addons/base_import_module/controllers/main.py:0
+msgid "Only administrators can upload a module"
+msgstr "ສະເພາະຜູ້ດູແລລະບົບເທົ່ານັ້ນທີ່ສາມາດອັບໂຫຼດໂມດູນໄດ້"
+
+#. module: base_import_module
+#. odoo-python
+#: code:addons/base_import_module/models/ir_module.py:0
+msgid "Only zip files are supported."
+msgstr "ຮອງຮັບສະເພາະໄຟລ໌ zip ເທົ່ານັ້ນ."
+
+#. module: base_import_module
+#: model:ir.model.fields,field_description:base_import_module.field_base_import_module__state
+msgid "Status"
+msgstr "ສະພາບ"
+
+#. module: base_import_module
+#. odoo-python
+#: code:addons/base_import_module/models/ir_module.py:0
+msgid "Studio customizations require the Odoo Studio app."
+msgstr "ການປັບແຕ່ງ Studio ຕ້ອງມີແອັບ Odoo Studio."
+
+#. module: base_import_module
+#. odoo-python
+#: code:addons/base_import_module/models/ir_module.py:0
+msgid ""
+"The assets path in the manifest of imported module '%(module_name)s' cannot "
+"contain glob wildcards (e.g., *, **)."
+msgstr ""
+"ເສັ້ນທາງ assets ໃນ manifest ຂອງໂມດູນທີ່ນຳເຂົ້າ '%(module_name)s' ບໍ່ສາມາດ ມີເຄື່ອງໝາຍ "
+"glob wildcards (ຕົວຢ່າງ: *, **)."
+
+#. module: base_import_module
+#. odoo-python
+#: code:addons/base_import_module/models/ir_module.py:0
+msgid ""
+"The installation of the data module would fail as the following dependencies "
+"can't be found in the addons-path:\n"
+msgstr ""
+"ການຕິດຕັ້ງໂມດູນຂໍ້ມູນຈະຫຼົ້ມເຫຼວ ເນື່ອງຈາກບໍ່ພົບ dependencies ຕໍ່ໄປນີ້ ໃນ addons-path:\n"
+
+#. module: base_import_module
+#. odoo-python
+#: code:addons/base_import_module/models/ir_module.py:0
+msgid ""
+"The list of industry applications cannot be fetched. Please try again later"
+msgstr "ບໍ່ສາມາດດຶງລາຍການແອັບພລິເຄຊັນອຸດສາຫະກຳໄດ້. ກະລຸນາລອງໃໝ່ອີກຄັ້ງພາຍຫຼັງ"
+
+#. module: base_import_module
+#. odoo-python
+#: code:addons/base_import_module/models/ir_module.py:0
+msgid "The module %s cannot be downloaded"
+msgstr "ບໍ່ສາມາດດາວໂຫຼດໂມດູນ %s ໄດ້"
+
+#. module: base_import_module
+#. odoo-python
+#: code:addons/base_import_module/models/ir_module.py:0
+msgid "Unknown module dependencies:"
+msgstr "ບໍ່ຮູ້ຈັກ dependencies ຂອງໂມດູນ:"
+
+#. module: base_import_module
+#: model_terms:ir.ui.view,arch_db:base_import_module.module_form_apps_inherit
+#: model_terms:ir.ui.view,arch_db:base_import_module.module_view_kanban_apps_inherit
+msgid "Upgrade"
+msgstr "ອັບເກຣດ"
+
+#. module: base_import_module
+#: model:ir.model,name:base_import_module.model_ir_ui_view
+msgid "View"
+msgstr "ມຸມມອງ"
+
+#. module: base_import_module
+#: model:ir.model.fields.selection,name:base_import_module.selection__base_import_module__state__done
+msgid "done"
+msgstr "ສຳເລັດ"
+
+#. module: base_import_module
+#: model:ir.model.fields.selection,name:base_import_module.selection__base_import_module__state__init
+msgid "init"
+msgstr "ເລີ່ມຕົ້ນ (init)"
+
+#, fuzzy
+#~ msgid "Module Uninstall"
+#~ msgstr "ຖອນການຕິດຕັ້ງໂມດູນ"

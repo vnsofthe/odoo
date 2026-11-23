@@ -176,7 +176,7 @@ describe("Range collapsed", () => {
                 stepFunction: toggleOrderedList,
                 contentAfterEdit: unformat(`
                     <p data-selection-placeholder=""><br></p>
-                    <table class="table table-bordered o_selected_table">
+                    <div class="o_table_wrapper"><table class="table table-bordered o_selected_table">
                         <tbody>
                             <tr>
                                 <td class="o_selected_td"><ol><li>[<br></li></ol></td>
@@ -189,7 +189,7 @@ describe("Range collapsed", () => {
                                 <td class="o_selected_td"><ol><li>]<br></li></ol></td>
                             </tr>
                         </tbody>
-                    </table>
+                    </table></div>
                     <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>
                 `),
                 contentAfter: unformat(`
@@ -250,7 +250,17 @@ describe("Range collapsed", () => {
                     '<p><span style="font-size: 18px;"><font style="color: rgb(255, 0, 0);">[abc]</font></span></p>',
                 stepFunction: toggleOrderedList,
                 contentAfter:
-                    '<ol><li style="color: rgb(255, 0, 0); font-size: 18px;">[abc]</li></ol>',
+                    '<ol><li style="font-size: 18px; color: rgb(255, 0, 0);">[abc]</li></ol>',
+            });
+        });
+
+        test("should carry color and font size of span in paragraph to list item", async () => {
+            await testEditor({
+                contentBefore:
+                    '<p><span style="color: rgb(255, 0, 0); font-size: 18px;">[]abc</span></p>',
+                stepFunction: toggleOrderedList,
+                contentAfter:
+                    '<ol><li style="color: rgb(255, 0, 0); font-size: 18px;">[]abc</li></ol>',
             });
         });
 
@@ -260,7 +270,7 @@ describe("Range collapsed", () => {
                     '<p><b><i><span style="font-size: 18px;"><font style="color: rgb(255, 0, 0);">[abc]</font></span></i></b></p>',
                 stepFunction: toggleOrderedList,
                 contentAfter:
-                    '<ol><li style="color: rgb(255, 0, 0); font-size: 18px;"><b><i>[abc]</i></b></li></ol>',
+                    '<ol><li style="font-size: 18px; color: rgb(255, 0, 0);"><b><i>[abc]</i></b></li></ol>',
             });
         });
 
@@ -291,6 +301,16 @@ describe("Range collapsed", () => {
                 stepFunction: toggleOrderedList,
                 contentAfter:
                     '<ol><li style="font-size: 18px;"><b><font style="color: rgb(0, 128, 0);">a</font></b><i><font style="color: rgb(0, 128, 0);">a</font></i></li></ol>',
+            });
+        });
+
+        test("should carry font size of span in paragraph to list item while preserving font family", async () => {
+            await testEditor({
+                contentBefore:
+                    '<p><span style="font-size: 18px; font-family: Roboto;">[]abc</span></p>',
+                stepFunction: toggleOrderedList,
+                contentAfter:
+                    '<ol><li style="font-size: 18px;"><span style="font-family: Roboto;">[]abc</span></li></ol>',
             });
         });
     });
@@ -393,7 +413,7 @@ describe("Range collapsed", () => {
                 stepFunction: toggleOrderedList,
                 contentAfterEdit: unformat(`
                     <p data-selection-placeholder=""><br></p>
-                    <table class="table table-bordered o_selected_table">
+                    <div class="o_table_wrapper"><table class="table table-bordered o_selected_table">
                         <tbody>
                             <tr>
                                 <td class="o_selected_td">[<p><br></p></td>
@@ -406,7 +426,7 @@ describe("Range collapsed", () => {
                                 <td class="o_selected_td"><p><br></p>]</td>
                             </tr>
                         </tbody>
-                    </table>
+                    </table></div>
                     <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>
                 `),
                 contentAfter: unformat(`

@@ -208,22 +208,27 @@ class ProductProduct(models.Model):
         # Use sudo to access cross-company taxes.
         price = self._apply_taxes_to_price(product_price, website.currency_id, website=website)
 
-        offer = {"@type": "Offer", "price": price, "priceCurrency": website.currency_id.name}
-        if self.is_product_variant and self.is_storable:
-            offer["availability"] = (
-                "https://schema.org/OutOfStock"
-                if self._is_sold_out()
-                else "https://schema.org/InStock"
-            )
+        is_zero_price = website.currency_id.is_zero(price)
+        hide_price = website._prevent_product_sale(self, is_zero_price) and is_zero_price
+        offer = None
+        if not hide_price:
+            offer = {"@type": "Offer", "price": price, "priceCurrency": website.currency_id.name}
+            if self.is_product_variant and self.is_storable:
+                offer["availability"] = (
+                    "https://schema.org/OutOfStock"
+                    if self._is_sold_out()
+                    else "https://schema.org/InStock"
+                )
 
         vals = {
             "@type": "Product",
             "@id": f"{base_url}{self.website_url}/#product-{self.id}",
             "name": self.with_context(display_default_code=False).display_name,
             "url": f"{base_url}{self.website_url}",
-            "offers": offer,
             "image": f"{base_url}{self._get_image_1920_url()}",
         }
+        if offer:
+            vals["offers"] = offer
         if description := (self.website_meta_description or self.description_sale):
             vals["description"] = description
         if self.default_code:
@@ -262,7 +267,7 @@ class ProductProduct(models.Model):
         return [
             self.env["website"].image_url(extra_image, "image_1920")
             for extra_image in self._get_all_extra_images_to_display()
-            if extra_image.image_128  # only images, no video urls
+            if not extra_image.video_url  # only images, no video urls
         ]
 
     def _get_all_extra_images_to_display(self):
@@ -311,7 +316,11 @@ class ProductProduct(models.Model):
             "image_1920": image,
             "product_tmpl_id": self.product_tmpl_id.id,
             "attribute_value_ids": [Command.set(self.product_template_attribute_value_ids.ids)],
-            "sequence": self.variant_image_ids.sorted("sequence")[:1].sequence - 1,
+            # Insert the new image before the first variant image if it exists, otherwise after the
+            # first template image (to avoid overriding it).
+            "sequence": min(self.variant_image_ids.mapped("sequence")) - 1
+            if self.variant_image_ids
+            else min(self.product_template_image_ids.mapped("sequence"), default=0) + 1,
         })
 
     def _set_main_image_from_extra_images(self):
@@ -511,26 +520,34 @@ class ProductProduct(models.Model):
         grouped_notifications = self.env["product.stock.notification"]._read_group(
             [], groupby=["product_id", "website_id"], aggregates=["id:recordset"]
         )
-        notifications_to_send = [
+        notifications_to_send = self.env["product.stock.notification"].concat([
             notification
             for product, website, notification in grouped_notifications
             if not product
             .with_company(website.company_id)
             .with_context(website_id=website.id)
             ._is_sold_out()
-        ]
+        ])
         self.env["ir.cron"]._commit_progress(remaining=len(notifications_to_send))
         for notification in notifications_to_send:
             website = notification.website_id
             partner = notification.partner_id
             product = notification.product_id
+            product_taxes = product.sudo().taxes_id._filter_taxes_by_company(self.env.company)
+            product_price = product._apply_taxes_to_price(
+                product.list_price,
+                product.currency_id,
+                product_taxes=product_taxes,
+                taxes=product_taxes,
+                website=website,
+            )
             sender_email = (
                 website.company_id.partner_id.email_formatted
                 or website.salesperson_id.email_formatted
                 or website.company_id.email_formatted
             )
             email_template.with_user(website.salesperson_id).sudo().with_context(
-                customer_name=partner.name, lang=partner.lang, website_id=website.id
+                customer_name=partner.name, lang=partner.lang, website_id=website.id, product_price=product_price,
             ).send_mail(
                 product.id,
                 force_send=True,
